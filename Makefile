@@ -1,21 +1,20 @@
-.PHONY: build clean docker-build
+.PHONY: docker-build build clean help
 
 # Default target
-all: build
+.DEFAULT_GOAL := help
 
-# Build using Docker
-docker-build:
+# Build targets
+docker-build: ## Build for R36S using Docker (SDL mode)
 	docker build -t r36s-keyboard-builder .
-	docker create --name temp-container r36s-keyboard-builder
-	docker cp temp-container:/app/r36s-keyboard ./r36s-keyboard
-	docker rm temp-container
+	docker create --name r36s-keyboard-builder r36s-keyboard-builder
+	docker cp r36s-keyboard-builder:/app/r36s-keyboard ./r36s-keyboard
+	docker rm r36s-keyboard-builder
 
-# Build locally (requires cross-compilation tools)
-build:
-	GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc go build -o r36s-keyboard
+build-keyboard: ## Build for local machine with keyboard input
+	go build -tags keyboard -o r36s-keyboard
 
-# Clean build artifacts
-clean:
+build-sdl: ## Build for local machine with SDL input
+	go build -tags sdl -o r36s-keyboard
+
+clean: ## Clean up build artifacts
 	rm -f r36s-keyboard
-	docker rm -f temp-container 2>/dev/null || true
-	docker rmi r36s-keyboard-builder 2>/dev/null || true
