@@ -16,36 +16,14 @@ type joystickMsg struct {
 	event sdl.Event
 }
 
-func initialModel() model {
-	// Initialize SDL
-	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
-		fmt.Printf("Failed to initialize SDL: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Check for joysticks
-	if sdl.NumJoysticks() < 1 {
-		fmt.Println("Warning: No joysticks connected!")
-		os.Exit(1)
-	}
-
-	// Open joystick
-	joystick := sdl.JoystickOpen(0)
-	if joystick == nil {
-		fmt.Printf("Warning: Unable to open game controller! SDL Error: %s\n", sdl.GetError())
-		os.Exit(1)
-	}
-
-	return model{
-		keyStates:   make(map[string]keyState),
-		selectedRow: 0,
-		selectedCol: 0,
-		joystick:    joystick,
-	}
-}
+// Global joystick reference for SDL build
+var globalJoystick *sdl.Joystick
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
@@ -86,13 +64,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Open joystick
-	joystick := sdl.JoystickOpen(0)
-	if joystick == nil {
+	// Open joystick and store in global variable
+	globalJoystick = sdl.JoystickOpen(0)
+	if globalJoystick == nil {
 		fmt.Printf("Warning: Unable to open game controller! SDL Error: %s\n", sdl.GetError())
 		os.Exit(1)
 	}
-	defer joystick.Close()
+	defer globalJoystick.Close()
 
 	p := tea.NewProgram(initialModel())
 
