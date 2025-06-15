@@ -131,7 +131,7 @@ func (m model) View() string {
 
 			// Highlight selected key
 			if i == m.selectedRow && j == m.selectedCol {
-				style = style.BorderStyle(lipgloss.DoubleBorder())
+				style = style.BorderForeground(lipgloss.Color("2")).Foreground(lipgloss.Color("2"))
 			}
 
 			keys = append(keys, style.Render(key))
