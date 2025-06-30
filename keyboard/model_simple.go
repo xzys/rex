@@ -46,9 +46,9 @@ func (m *KeyboardModelSimple) HandleKey(key int) error {
 	return nil
 }
 
-func (m KeyboardModelSimple) RenderKey(i, j int) (string, string) {
+func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, string) {
 	if i == m.selectedRow && j == m.selectedCol {
-		return "2", "2"
+		return "2", "2", key
 	}
-	return "0", "0"
+	return "0", "0", key
 }

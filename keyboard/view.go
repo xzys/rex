@@ -11,10 +11,11 @@ import (
 
 // Common keyboard layout
 var keyboardLayout = [][]string{
-	{"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"},
-	{"A", "S", "D", "F", "G", "H", "J", "K", "L"},
-	{"ENTER", "Z", "X", "C", "V", "B", "N", "M", "DELETE"},
+	{"123", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "BCK"},
+	{"SFT", "A", "S", "D", "F", "G", "H", "J", "K", "L", "SPC"},
+	{"DEL", "Z", "X", "C", "V", "B", "N", "M", "ENT"},
 }
+var keyboardOffsets = []int{0, 2, 7}
 
 const (
 	keyDPadUp = iota
@@ -41,8 +42,11 @@ type KeyboardView struct {
 }
 
 type KeyboardModel interface {
+	// modify internal state based on key
 	HandleKey(key int) error
-	RenderKey(i, j int) (string, string)
+	// takes key and position
+	// returns foreground, background, key (same or override)
+	RenderKey(i, j int, key string) (string, string, string)
 }
 
 func NewKeyboardView(mode string) KeyboardView {
@@ -64,7 +68,7 @@ func (k KeyboardView) View() string {
 	for i, row := range k.keyboard {
 		var keys []string
 		for j, key := range row {
-			fg, bg := k.model.RenderKey(i, j)
+			fg, bg, _ := k.model.RenderKey(i, j, key)
 			style := lipgloss.NewStyle().
 				Padding(0, 1).
 				Border(lipgloss.NormalBorder()).
@@ -74,11 +78,7 @@ func (k KeyboardView) View() string {
 			keys = append(keys, style.Render(key))
 		}
 		rowStr := lipgloss.JoinHorizontal(lipgloss.Bottom, keys...)
-		if i == 0 {
-			rowStr = lipgloss.NewStyle().Padding(0, 2).Render(rowStr)
-		} else if i == 1 {
-			rowStr = lipgloss.NewStyle().Padding(0, 4).Render(rowStr)
-		}
+		rowStr = lipgloss.NewStyle().Padding(0, keyboardOffsets[i]).Render(rowStr)
 		rows = append(rows, rowStr)
 	}
 

@@ -11,7 +11,7 @@ type KeyboardModelChorded struct {
 	modifier       int
 	triggers       []string
 	chordMap       map[string]rune
-	chordActiveMap []map[string]bool
+	chordActiveMap []map[string]string
 }
 
 const (
@@ -26,11 +26,11 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 	modifiers := []string{"", "l1", "r1", "l2", "r2"}
 	triggers := []string{"up", "down", "left", "right", "x", "a", "y", "b"}
 	chordMap := getChordMap()
-	chordActiveMap := make([]map[string]bool, len(modifiers))
+	chordActiveMap := make([]map[string]string, len(modifiers))
 
 	// static which keys are active for each modifier
 	for mi, mod := range modifiers {
-		chordActiveMap[mi] = make(map[string]bool)
+		chordActiveMap[mi] = make(map[string]string)
 		for _, trigger := range triggers {
 			// for each mod/trigger combos, check all keys
 			for i, row := range keyboardLayout {
@@ -42,7 +42,7 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 						chordKey = chordMap[trigger]
 					}
 					if string(chordKey) == strings.ToLower(key) {
-						chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = true
+						chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = trigger
 					}
 				}
 			}
@@ -58,18 +58,18 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 
 func getChordMap() map[string]rune {
 	chordMap := make(map[string]rune)
-	chordMap["up"] = 'a'
-	chordMap["down"] = 's'
-	chordMap["left"] = 'd'
+	chordMap["left"] = 'a'
+	chordMap["up"] = 's'
+	chordMap["down"] = 'd'
 	chordMap["right"] = 'f'
 	chordMap["x"] = 'h'
 	chordMap["a"] = 'j'
 	chordMap["y"] = 'k'
 	chordMap["b"] = 'l'
 
-	chordMap["l1+up"] = 'q'
-	chordMap["l1+down"] = 'w'
-	chordMap["l1+left"] = 'e'
+	chordMap["l1+left"] = 'q'
+	chordMap["l1+up"] = 'w'
+	chordMap["l1+down"] = 'e'
 	chordMap["l1+right"] = 'r'
 	chordMap["l1+x"] = 'u'
 	chordMap["l1+a"] = 'i'
@@ -77,18 +77,18 @@ func getChordMap() map[string]rune {
 	chordMap["l1+b"] = 'p'
 
 	// R1 modifier - next 8 letters
-	chordMap["r1+up"] = 'z'
-	chordMap["r1+down"] = 'x'
-	chordMap["r1+left"] = 'c'
+	chordMap["r1+left"] = 'z'
+	chordMap["r1+up"] = 'x'
+	chordMap["r1+down"] = 'c'
 	chordMap["r1+right"] = 'v'
 	chordMap["r1+x"] = 'g'
 	chordMap["r1+a"] = 'b'
 	chordMap["r1+y"] = 'n'
 	chordMap["r1+b"] = 'm'
 
-	chordMap["l2+up"] = ' '   // shift
-	chordMap["l2+down"] = ' ' // space
-	chordMap["l2+left"] = 't'
+	chordMap["l2+left"] = ' ' // shift
+	chordMap["l2+up"] = ' '   // space
+	chordMap["l2+down"] = 't'
 	chordMap["l2+right"] = 'y'
 	chordMap["l2+x"] = ' ' // delete
 	chordMap["l2+a"] = ' ' // enter
@@ -173,11 +173,27 @@ func (m *KeyboardModelChorded) executeChord(triggerKey int) {
 	}
 }
 
-func (m *KeyboardModelChorded) RenderKey(i, j int) (string, string) {
+func (m *KeyboardModelChorded) RenderKey(i, j int, key string) (string, string, string) {
 	// Check if any modifiers are active
-	if m.chordActiveMap[m.modifier][fmt.Sprintf("%d,%d", i, j)] {
-		return "4", "4"
+	if trigger, exists := m.chordActiveMap[m.modifier][fmt.Sprintf("%d,%d", i, j)]; exists {
+		switch trigger {
+		case "up":
+			return "7", "7", "A"
+		case "down":
+			return "7", "7", "V"
+		case "left":
+			return "7", "7", "<"
+		case "right":
+			return "7", "7", ">"
+		case "x":
+			return "3", "3", "X"
+		case "y":
+			return "2", "2", "Y"
+		case "b":
+			return "1", "1", "B"
+		case "a":
+			return "4", "4", "A"
+		}
 	}
-
-	return "0", "0"
+	return "0", "0", key
 }
