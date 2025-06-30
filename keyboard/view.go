@@ -68,7 +68,7 @@ func (k KeyboardView) View() string {
 	for i, row := range k.keyboard {
 		var keys []string
 		for j, key := range row {
-			fg, bg, _ := k.model.RenderKey(i, j, key)
+			fg, bg, key := k.model.RenderKey(i, j, key)
 			style := lipgloss.NewStyle().
 				Padding(0, 1).
 				Border(lipgloss.NormalBorder()).

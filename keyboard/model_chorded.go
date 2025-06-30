@@ -2,16 +2,16 @@ package keyboard
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
 type KeyboardModelChorded struct {
 	// Current modifier state
 	modifier       int
+	triggers       []string
 	modeShift      bool
 	modeNumbers    bool
-	triggers       []string
+	layoutNumbers  [][]rune
 	chordMap       map[string]rune
 	chordAltMap    map[string]rune
 	chordActiveMap []map[string]string
@@ -31,6 +31,10 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 	chordMap, chordAltMap := getChordMaps()
 	chordActiveMap := make([]map[string]string, len(modifiers))
 
+	layoutNumbers := make([][]rune, len(keyboardLayout))
+	for i, row := range keyboardLayout {
+		layoutNumbers[i] = make([]rune, len(row))
+	}
 	// static which keys are active for each modifier
 	for mi, mod := range modifiers {
 		chordActiveMap[mi] = make(map[string]string)
@@ -38,14 +42,25 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 			// for each mod/trigger combos, check all keys
 			for i, row := range keyboardLayout {
 				for j, key := range row {
-					var chordKey rune
+					// grab mapped key and alr
+					var chordMapKey string
 					if mod != "" {
-						chordKey = chordMap[strings.Join([]string{mod, trigger}, "+")]
+						chordMapKey = strings.Join([]string{mod, trigger}, "+")
 					} else {
-						chordKey = chordMap[trigger]
+						chordMapKey = trigger
 					}
+					chordKey := chordMap[chordMapKey]
+					chordAltKey := chordAltMap[chordMapKey]
+
 					if string(chordKey) == strings.ToLower(key) {
+						// cache location of key in layout
 						chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = trigger
+						// make new layout of number keys
+						layoutNumbers[i][j] = chordAltKey
+					} else {
+						if specialKey, ok := specialKeyMap[key]; ok && chordKey == specialKey {
+							chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = trigger
+						}
 					}
 				}
 			}
@@ -54,10 +69,29 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 
 	return &KeyboardModelChorded{
 		triggers:       triggers,
+		layoutNumbers:  layoutNumbers,
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
 	}
+}
+
+const (
+	specialKeySpace   = ' '
+	specialKeyShift   = 'S'
+	specialKeyDelete  = 'D'
+	specialKeyNumbers = '1'
+	specialKeyClose   = 'X'
+	specialKeyEnter   = 'E'
+)
+
+var specialKeyMap = map[string]rune{
+	"SPC": specialKeySpace,
+	"SFT": specialKeyShift,
+	"DEL": specialKeyDelete,
+	"123": specialKeyNumbers,
+	"BCK": specialKeyClose,
+	"ENT": specialKeyEnter,
 }
 
 func getChordMaps() (map[string]rune, map[string]rune) {
@@ -90,14 +124,14 @@ func getChordMaps() (map[string]rune, map[string]rune) {
 	chordMap["r1+y"] = 'n'
 	chordMap["r1+b"] = 'm'
 
-	chordMap["l2+left"] = ' ' // shift
-	chordMap["l2+up"] = ' '   // space
-	chordMap["l2+down"] = 't'
+	chordMap["l2+left"] = 't'
+	chordMap["l2+up"] = specialKeyShift
+	chordMap["l2+down"] = specialKeySpace
 	chordMap["l2+right"] = 'y'
-	chordMap["l2+x"] = ' ' // delete
-	chordMap["l2+a"] = ' ' // enter
-	chordMap["l2+y"] = ' ' // numbers?
-	chordMap["l2+b"] = ' ' // close
+	chordMap["l2+x"] = specialKeyDelete
+	chordMap["l2+a"] = specialKeyEnter
+	chordMap["l2+y"] = specialKeyNumbers
+	chordMap["l2+b"] = specialKeyClose
 
 	chordAltMap := make(map[string]rune)
 	chordAltMap["left"] = ' '
@@ -147,8 +181,17 @@ func (m *KeyboardModelChorded) getModifierString() string {
 		return "r1"
 	case modifierL2:
 		return "l2"
+	case modifierR2:
+		return "r2"
 	}
 	return ""
+}
+
+func (m *KeyboardModelChorded) resetState() {
+	// Reset modifiers after trigger
+	m.modifier = modifierNone
+	// m.modeShift = false
+	// m.modeNumbers = false
 }
 
 func (m *KeyboardModelChorded) HandleKey(key int) error {
@@ -167,13 +210,12 @@ func (m *KeyboardModelChorded) HandleKey(key int) error {
 			m.modifier = modifierR2
 		}
 		if prevModifier == m.modifier {
-			m.modifier = modifierNone
+			m.resetState()
 		}
 	// Trigger keys - complete the chord
 	case keyDPadUp, keyDPadDown, keyDPadLeft, keyDPadRight, keyA, keyB, keyX, keyY:
 		m.executeChord(key)
-		// Reset modifiers after trigger
-		m.modifier = modifierNone
+		m.resetState()
 	}
 	return nil
 }
@@ -211,12 +253,31 @@ func (m *KeyboardModelChorded) executeChord(triggerKey int) {
 
 	// Execute the chord
 	if char, exists := m.chordMap[chordKey]; exists {
-		log.Println(string(char))
+		switch char {
+		case specialKeySpace:
+			// send space
+		case specialKeyShift:
+			m.modeShift = true
+		case specialKeyDelete:
+			// send delete
+		case specialKeyNumbers:
+			m.modeNumbers = true
+		case specialKeyClose:
+		case specialKeyEnter:
+		default:
+		}
 	}
 }
 
 func (m *KeyboardModelChorded) RenderKey(i, j int, key string) (string, string, string) {
 	// Check if any modifiers are active
+	if len(key) == 1 {
+		if m.modeNumbers {
+			key = string(m.layoutNumbers[i][j])
+		} else if !m.modeShift {
+			key = strings.ToLower(key)
+		}
+	}
 	if trigger, exists := m.chordActiveMap[m.modifier][fmt.Sprintf("%d,%d", i, j)]; exists {
 		switch trigger {
 		case "up":
