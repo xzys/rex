@@ -3,9 +3,35 @@
 
 package keyboard
 
+// Mapping of the R36S controls
+
+// The following table show the mapping of the joystick buttons and axes to the R36S controls:
+// Joy-Button 	Description
+// 0 	B
+// 1 	A
+// 2 	X
+// 3 	Y
+// 4 	L1
+// 5 	R1
+// 6 	L2
+// 7 	R2
+// 8 	D-Up
+// 9 	D-Down
+// 10 	D-Left
+// 11 	D-Right
+// 12 	Select
+// 13 	Start
+// 16 	Fn
+
+// The axes are mapped as follows:
+// Joy-Axis 	Description
+// 0 	Left joystick - Left-Right motion
+// 1 	Left joystick - Up-Down motion
+// 2 	Right joystick - Left-Right motion
+// 3 	Right joystick - Up-Down motion
+
 import (
 	"log"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/veandco/go-sdl2/sdl"
@@ -35,19 +61,17 @@ func (m KeyboardView) Init() tea.Cmd {
 		log.Fatal("Warning: Unable to open game controller! SDL Error: %s\n", sdl.GetError())
 	}
 
-	// Start event polling in a goroutine
-	go func() {
-		for {
-			event := sdl.PollEvent()
-			if event != nil {
-				// Send event to the Bubble Tea program
-				p.Send(joystickMsg{event: event})
-			}
-			time.Sleep(16 * time.Millisecond) // ~60 FPS
-		}
-	}()
+	return pollJoystickEvents()
+}
 
-	return nil
+func pollJoystickEvents() tea.Cmd {
+	return func() tea.Msg {
+		event := sdl.PollEvent()
+		if event != nil {
+			return joystickMsg{event: event}
+		}
+		return nil
+	}
 }
 
 func (m KeyboardView) Cleanup() {
@@ -81,9 +105,24 @@ func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.model.HandleKey(keyDPadRight)
 				case 1: // A button
 					m.model.HandleKey(keyA)
+				case 0: // B button
+					m.model.HandleKey(keyB)
+				case 2: // X button
+					m.model.HandleKey(keyX)
+				case 3: // Y button
+					m.model.HandleKey(keyY)
+				case 4: // L1
+					m.model.HandleKey(keyL1)
+				case 5: // R1
+					m.model.HandleKey(keyR1)
+				case 6: // L2
+					m.model.HandleKey(keyL2)
+				case 7: // R2
+					m.model.HandleKey(keyR2)
 				}
 			}
 		}
+		return m, pollJoystickEvents()
 	}
 	return m, nil
 }

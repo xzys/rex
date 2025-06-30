@@ -31,8 +31,26 @@ func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.model.HandleKey(keyDPadLeft)
 		case tea.KeyRight:
 			m.model.HandleKey(keyDPadRight)
-		case tea.KeyEnter:
-			m.model.HandleKey(keyA)
+		case tea.KeyRunes:
+			switch string(msg.Runes) {
+			case "w":
+				m.model.HandleKey(keyY)
+			case "a":
+				m.model.HandleKey(keyX)
+			case "s":
+				m.model.HandleKey(keyB)
+			case "d":
+				m.model.HandleKey(keyA)
+			// simulate L1/R1/L2/R2
+			case "z":
+				m.model.HandleKey(keyL1)
+			case "x":
+				m.model.HandleKey(keyR1)
+			case "c":
+				m.model.HandleKey(keyL2)
+			case "v":
+				m.model.HandleKey(keyR2)
+			}
 		}
 	}
 	return m, nil

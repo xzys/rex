@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xzys/TR3X/v2/keyboard"
@@ -9,11 +10,14 @@ import (
 
 // Build flags:
 // -tags sdl for SDL joystick support
-// -tags keyboard for keyboard support
-// Default to keyboard if no tags specified
+// otherwise uses keyboard for local keyboard support
 
 func main() {
-	m := keyboard.NewKeyboardView()
+	mode := "simple"
+	if len(os.Args) > 1 {
+		mode = os.Args[1]
+	}
+	m := keyboard.NewKeyboardView(mode)
 	p := tea.NewProgram(m)
 	defer m.Cleanup()
 

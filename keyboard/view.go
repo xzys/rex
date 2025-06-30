@@ -45,11 +45,17 @@ type KeyboardModel interface {
 	RenderKey(i, j int) (string, string)
 }
 
-func NewKeyboardView() KeyboardView {
+func NewKeyboardView(mode string) KeyboardView {
+	var m KeyboardModel
+	if mode == "chord" {
+		m = NewKeyboardModelChorded(keyboardLayout)
+	} else {
+		m = NewKeyboardModelSimple()
+	}
 	return KeyboardView{
 		keyboard: keyboardLayout,
 		width:    0,
-		model:    NewKeyboardModelSimple(),
+		model:    m,
 	}
 }
 
