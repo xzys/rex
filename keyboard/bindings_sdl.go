@@ -1,11 +1,10 @@
 //go:build sdl
 // +build sdl
 
-package main
+package keyboard
 
 import (
-	"fmt"
-	"os"
+	"log"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,7 +18,7 @@ type joystickMsg struct {
 // Global joystick reference for SDL build
 var globalJoystick *sdl.Joystick
 
-func (m KeyboardView) Init() {
+func (m KeyboardView) Init() tea.Cmd {
 	// Initialize SDL
 	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
 		log.Fatal("Failed to initialize SDL: %v\n", err)

@@ -10,7 +10,7 @@ docker-build: ## Build for R36S using Docker (SDL mode)
 	docker cp r36s-keyboard-builder:/app/r36s-keyboard ./r36s-keyboard
 	docker rm r36s-keyboard-builder
 
-build-keyboard: ## Build for local machine with keyboard input
+build-local: ## Build for local machine with keyboard input
 	go build -tags keyboard -o local-keyboard
 
 build-sdl: ## Build for local machine with SDL input

@@ -1,7 +1,7 @@
 //go:build !sdl
 // +build !sdl
 
-package main
+package keyboard
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +9,9 @@ import (
 
 func (k KeyboardView) Init() tea.Cmd {
 	return nil
+}
+
+func (m KeyboardView) Cleanup() {
 }
 
 func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
