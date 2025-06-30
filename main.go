@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -12,45 +12,6 @@ import (
 // -tags keyboard for keyboard support
 // Default to keyboard if no tags specified
 
-const (
-	_colorPrimary   = lipgloss.Color("#d7dadc")
-	_colorSecondary = lipgloss.Color("#626262")
-	_colorYellow    = lipgloss.Color("#b59f3b")
-	_colorGreen     = lipgloss.Color("#538d4e")
-)
-
-type keyState int
-
-const (
-	_keyStateUnselected keyState = iota
-	_keyStateAbsent
-	_keyStatePresent
-	_keyStateCorrect
-)
-
-func (s keyState) color() lipgloss.Color {
-	switch s {
-	case _keyStateUnselected:
-		return _colorPrimary
-	case _keyStateAbsent:
-		return _colorSecondary
-	case _keyStatePresent:
-		return _colorYellow
-	case _keyStateCorrect:
-		return _colorGreen
-	default:
-		return _colorPrimary
-	}
-}
-
-type model struct {
-	keyStates   map[string]keyState
-	selectedRow int
-	selectedCol int
-	keyboard    [][]string
-	width       int
-}
-
 // Common keyboard layout
 var keyboardLayout = [][]string{
 	{"Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"},
@@ -58,81 +19,104 @@ var keyboardLayout = [][]string{
 	{"ENTER", "Z", "X", "C", "V", "B", "N", "M", "DELETE"},
 }
 
-func initialModel() model {
-	return model{
-		keyStates:   make(map[string]keyState),
-		selectedRow: 0,
-		selectedCol: 0,
-		keyboard:    keyboardLayout,
-		width:       0,
-	}
+const (
+	keyDPadUp = iota
+	keyDPadDown
+	keyDPadLeft
+	keyDPadRight
+	keyA
+	keyB
+	keyX
+	keyY
+	keyL1
+	keyR1
+	keyL2
+	keyR2
+	keySelect
+	keyStart
+	keyFn
+)
+
+type KeyboardView struct {
+	keyboard    [][]string
+	width       int
+	model       KeyboardModel
 }
 
-func (m model) Init() tea.Cmd {
-	return nil
+type KeyboardModel interface {
+	HandleKey(key int) error
+	RenderKey(i, j int) (string, string)
 }
 
-// Common function to handle key selection
-func (m *model) handleKeySelection() {
-	key := m.keyboard[m.selectedRow][m.selectedCol]
-	if len(key) == 1 {
-		currentState := m.keyStates[key]
-		m.keyStates[key] = (currentState + 1) % 4
-		fmt.Printf("Selected key: %s, new state: %d\n", key, m.keyStates[key])
-	} else {
-		fmt.Printf("Selected special key: %s\n", key)
-	}
+type KeyboardModelSimple struct {
+	selectedRow int
+	selectedCol int
+	rowWidths   []int
 }
 
-// Common function to handle navigation
-func (m *model) moveSelection(direction string) {
-	switch direction {
-	case "up":
+func (m *KeyboardModelSimple) HandleKey(key int) error {
+	switch key {
+	case keyDPadUp:
 		if m.selectedRow > 0 {
 			m.selectedRow--
-			if m.selectedCol >= len(m.keyboard[m.selectedRow]) {
-				m.selectedCol = len(m.keyboard[m.selectedRow]) - 1
+			if m.selectedCol >= m.rowWidths[m.selectedRow] {
+				m.selectedCol = m.rowWidths[m.selectedRow] - 1
 			}
 		}
-	case "down":
-		if m.selectedRow < len(m.keyboard)-1 {
+	case keyDPadDown:
+		if m.selectedRow < len(m.rowWidths)-1 {
 			m.selectedRow++
-			if m.selectedCol >= len(m.keyboard[m.selectedRow]) {
-				m.selectedCol = len(m.keyboard[m.selectedRow]) - 1
+			if m.selectedCol >= m.rowWidths[m.selectedRow] {
+				m.selectedCol = m.rowWidths[m.selectedRow] - 1
 			}
 		}
-	case "left":
+	case keyDPadLeft:
 		if m.selectedCol > 0 {
 			m.selectedCol--
 		}
-	case "right":
-		if m.selectedCol < len(m.keyboard[m.selectedRow])-1 {
+	case keyDPadRight:
+		if m.selectedCol < m.rowWidths[m.selectedRow]-1 {
 			m.selectedCol++
 		}
 	}
+	return nil
 }
 
-func (m model) View() string {
+func (m KeyboardModelSimple) RenderKey(i, j int) (string, string) {
+	if i == m.selectedRow && j == m.selectedCol {
+		return "2", "2"
+	}
+	return "0", "0"
+}
+
+func initialModel() KeyboardView {
+	rowWidths := make([]int, len(keyboardLayout))
+	for i, row := range keyboardLayout {
+		rowWidths[i] = len(row)
+	}
+	model := KeyboardModelSimple{
+		selectedRow: 0,
+		selectedCol: 0,
+		rowWidths:   rowWidths,
+	}
+	return KeyboardView{
+		keyboard:    keyboardLayout,
+		width:       0,
+		model:       &model,
+	}
+}
+
+func (k KeyboardView) View() string {
 	var rows []string
-	for i, row := range m.keyboard {
+	for i, row := range k.keyboard {
 		var keys []string
 		for j, key := range row {
-			status := _keyStateUnselected
-			if len(key) == 1 {
-				if state, exists := m.keyStates[key]; exists {
-					status = state
-				}
-			}
+			fg, bg := k.model.RenderKey(i, j)
 			style := lipgloss.NewStyle().
 				Padding(0, 1).
 				Border(lipgloss.NormalBorder()).
-				BorderForeground(status.color()).
-				Foreground(status.color())
-
-			// Highlight selected key
-			if i == m.selectedRow && j == m.selectedCol {
-				style = style.BorderForeground(lipgloss.Color("2")).Foreground(lipgloss.Color("2"))
-			}
+				BorderForeground(lipgloss.Color(fg)).
+				Foreground(lipgloss.Color(bg))
 
 			keys = append(keys, style.Render(key))
 		}
@@ -147,11 +131,19 @@ func (m model) View() string {
 
 	keys := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return lipgloss.NewStyle().
-		Width(m.width).
+		Width(k.width).
 		Align(lipgloss.Center).
 		Render(
 			lipgloss.NewStyle().
 				Padding(0, 1).
 				Render(keys),
 		)
+}
+
+
+func main() {
+	p := tea.NewProgram(initialModel())
+	if _, err := p.Run(); err != nil {
+		log.Fatal("Error: %v", err)
+	}
 }

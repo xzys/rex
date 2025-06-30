@@ -4,13 +4,14 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (k KeyboardView) Init() tea.Cmd {
+	return nil
+}
+
+func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -20,24 +21,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyUp:
-			m.moveSelection("up")
+			m.model.HandleKey(keyDPadUp)
 		case tea.KeyDown:
-			m.moveSelection("down")
+			m.model.HandleKey(keyDPadDown)
 		case tea.KeyLeft:
-			m.moveSelection("left")
+			m.model.HandleKey(keyDPadLeft)
 		case tea.KeyRight:
-			m.moveSelection("right")
+			m.model.HandleKey(keyDPadRight)
 		case tea.KeyEnter:
-			m.handleKeySelection()
+			m.model.HandleKey(keyA)
 		}
 	}
 	return m, nil
-}
-
-func main() {
-	p := tea.NewProgram(initialModel())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error: %v", err)
-		os.Exit(1)
-	}
 }

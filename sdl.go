@@ -19,7 +19,46 @@ type joystickMsg struct {
 // Global joystick reference for SDL build
 var globalJoystick *sdl.Joystick
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m KeyboardView) Init() {
+	// Initialize SDL
+	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
+		log.Fatal("Failed to initialize SDL: %v\n", err)
+	}
+
+	// Check for joysticks
+	if sdl.NumJoysticks() < 1 {
+		log.Fatal("Warning: No joysticks connected!")
+	}
+
+	// Open joystick and store in global variable
+	globalJoystick = sdl.JoystickOpen(0)
+	if globalJoystick == nil {
+		log.Fatal("Warning: Unable to open game controller! SDL Error: %s\n", sdl.GetError())
+	}
+
+	// Start event polling in a goroutine
+	go func() {
+		for {
+			event := sdl.PollEvent()
+			if event != nil {
+				// Send event to the Bubble Tea program
+				p.Send(joystickMsg{event: event})
+			}
+			time.Sleep(16 * time.Millisecond) // ~60 FPS
+		}
+	}()
+
+	return nil
+}
+
+func (m KeyboardView) Cleanup() {
+	sdl.Quit()
+	if globalJoystick != nil {
+		globalJoystick.Close()
+	}
+}
+
+func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -34,60 +73,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if e.Type == sdl.JOYBUTTONDOWN {
 				switch e.Button {
 				case 8: // D-Up
-					m.moveSelection("up")
+					m.model.HandleKey(keyDPadUp)
 				case 9: // D-Down
-					m.moveSelection("down")
+					m.model.HandleKey(keyDPadDown)
 				case 10: // D-Left
-					m.moveSelection("left")
+					m.model.HandleKey(keyDPadLeft)
 				case 11: // D-Right
-					m.moveSelection("right")
+					m.model.HandleKey(keyDPadRight)
 				case 1: // A button
-					m.handleKeySelection()
+					m.model.HandleKey(keyA)
 				}
 			}
 		}
 	}
 	return m, nil
-}
-
-func main() {
-	// Initialize SDL
-	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
-		fmt.Printf("Failed to initialize SDL: %v\n", err)
-		os.Exit(1)
-	}
-	defer sdl.Quit()
-
-	// Check for joysticks
-	if sdl.NumJoysticks() < 1 {
-		fmt.Println("Warning: No joysticks connected!")
-		os.Exit(1)
-	}
-
-	// Open joystick and store in global variable
-	globalJoystick = sdl.JoystickOpen(0)
-	if globalJoystick == nil {
-		fmt.Printf("Warning: Unable to open game controller! SDL Error: %s\n", sdl.GetError())
-		os.Exit(1)
-	}
-	defer globalJoystick.Close()
-
-	p := tea.NewProgram(initialModel())
-
-	// Start event polling in a goroutine
-	go func() {
-		for {
-			event := sdl.PollEvent()
-			if event != nil {
-				// Send event to the Bubble Tea program
-				p.Send(joystickMsg{event: event})
-			}
-			time.Sleep(16 * time.Millisecond) // ~60 FPS
-		}
-	}()
-
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error: %v", err)
-		os.Exit(1)
-	}
 }
