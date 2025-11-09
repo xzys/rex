@@ -52,3 +52,7 @@ func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, st
 	}
 	return "0", "0", key
 }
+
+func (m *KeyboardModelSimple) Cleanup() {
+	// No cleanup needed for simple model
+}

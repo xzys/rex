@@ -47,6 +47,8 @@ type KeyboardModel interface {
 	// takes key and position
 	// returns foreground, background, key (same or override)
 	RenderKey(i, j int, key string) (string, string, string)
+	// cleanup resources
+	Cleanup()
 }
 
 func NewKeyboardView(mode string) KeyboardView {

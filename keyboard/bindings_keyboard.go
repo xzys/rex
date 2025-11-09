@@ -14,6 +14,9 @@ func (k KeyboardView) Init() tea.Cmd {
 }
 
 func (m KeyboardView) Cleanup() {
+	if m.model != nil {
+		m.model.Cleanup()
+	}
 }
 
 func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

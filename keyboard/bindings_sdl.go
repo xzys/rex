@@ -75,6 +75,9 @@ func pollJoystickEvents() tea.Cmd {
 }
 
 func (m KeyboardView) Cleanup() {
+	if m.model != nil {
+		m.model.Cleanup()
+	}
 	sdl.Quit()
 	if globalJoystick != nil {
 		globalJoystick.Close()

@@ -16,6 +16,7 @@ type KeyboardModelChorded struct {
 	chordMap       map[int]rune
 	chordAltMap    map[int]rune
 	chordActiveMap []map[string]string
+	client         *Client
 }
 
 const (
@@ -69,12 +70,19 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 		}
 	}
 
+	client, err := NewClient()
+	if err != nil {
+		slog.Error("failed to create client", "err", err)
+		// Continue without client - will fail gracefully on executeChord
+	}
+
 	return &KeyboardModelChorded{
 		triggers:       triggerNames,
 		layoutNumbers:  layoutNumbers,
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
+		client:         client,
 	}
 }
 
@@ -213,30 +221,29 @@ func (m *KeyboardModelChorded) HandleKey(key int) error {
 }
 
 func (m *KeyboardModelChorded) executeChord(triggerKey int) {
-	// Encode the chord key using current modifier and trigger key
-	chordKey := encodeChord(m.modifier, triggerKey)
+	if m.client == nil {
+		slog.Error("client not available")
+		return
+	}
 
-	// Execute the chord
+	// Send chord execution request to server
+	if err := m.client.ExecuteChord(m.modifier, triggerKey); err != nil {
+		slog.Error("failed to execute chord", "err", err)
+		return
+	}
+
+	// Check if this chord changes state (shift or numbers mode)
+	chordKey := encodeChord(m.modifier, triggerKey)
 	if char, exists := m.chordMap[chordKey]; exists {
-		switch char {
-		case specialKeyShift:
-			m.modeShift = !m.modeShift
-			slog.Info("switching mode shift", "shift", m.modeShift)
-		case specialKeyNumbers:
-			m.modeNumbers = !m.modeNumbers
-			slog.Info("switching mode numbers", "numbers", m.modeNumbers)
-		case specialKeyClose:
-			slog.Info("sending close")
-		case specialKeyEnter:
-			slog.Info("sending enter")
-		case specialKeyDelete:
-			// send delete
-			slog.Info("sending delete")
-		case specialKeySpace:
-			// send space
-			slog.Info("sending space")
-		default:
-			slog.Info("sending key", "key", char)
+		if char == specialKeyShift || char == specialKeyNumbers {
+			// Sync state from server
+			modeShift, modeNumbers, err := m.client.GetState()
+			if err != nil {
+				slog.Error("failed to get state", "err", err)
+				return
+			}
+			m.modeShift = modeShift
+			m.modeNumbers = modeNumbers
 		}
 	}
 }
@@ -271,4 +278,10 @@ func (m *KeyboardModelChorded) RenderKey(i, j int, key string) (string, string, 
 		}
 	}
 	return "0", "0", key
+}
+
+func (m *KeyboardModelChorded) Cleanup() {
+	if m.client != nil {
+		m.client.Close()
+	}
 }
