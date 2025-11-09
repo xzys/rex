@@ -13,8 +13,8 @@ type KeyboardModelChorded struct {
 	modeShift      bool
 	modeNumbers    bool
 	layoutNumbers  [][]rune
-	chordMap       map[string]rune
-	chordAltMap    map[string]rune
+	chordMap       map[int]rune
+	chordAltMap    map[int]rune
 	chordActiveMap []map[string]string
 }
 
@@ -26,9 +26,15 @@ const (
 	modifierR2
 )
 
+// encodeChord encodes modifier (lower 4 bits) and trigger (upper 4 bits) into a single int
+func encodeChord(modifier, trigger int) int {
+	return modifier | (trigger << 4)
+}
+
 func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
-	modifiers := []string{"", "l1", "r1", "l2", "r2"}
-	triggers := []string{"up", "down", "left", "right", "x", "a", "y", "b"}
+	modifiers := []int{modifierNone, modifierL1, modifierR1, modifierL2, modifierR2}
+	triggers := []int{keyDPadUp, keyDPadDown, keyDPadLeft, keyDPadRight, keyX, keyA, keyY, keyB}
+	triggerNames := []string{"up", "down", "left", "right", "x", "a", "y", "b"}
 	chordMap, chordAltMap := getChordMaps()
 	chordActiveMap := make([]map[string]string, len(modifiers))
 
@@ -39,28 +45,23 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 	// static which keys are active for each modifier
 	for mi, mod := range modifiers {
 		chordActiveMap[mi] = make(map[string]string)
-		for _, trigger := range triggers {
+		for ti, trigger := range triggers {
 			// for each mod/trigger combos, check all keys
 			for i, row := range keyboardLayout {
 				for j, key := range row {
-					// grab mapped key and alr
-					var chordMapKey string
-					if mod != "" {
-						chordMapKey = strings.Join([]string{mod, trigger}, "+")
-					} else {
-						chordMapKey = trigger
-					}
+					// encode the chord key
+					chordMapKey := encodeChord(mod, trigger)
 					chordKey := chordMap[chordMapKey]
 					chordAltKey := chordAltMap[chordMapKey]
 
 					if string(chordKey) == strings.ToLower(key) {
 						// cache location of key in layout
-						chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = trigger
+						chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = triggerNames[ti]
 						// make new layout of number keys
 						layoutNumbers[i][j] = chordAltKey
 					} else {
 						if specialKey, ok := specialKeyMap[key]; ok && chordKey == specialKey {
-							chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = trigger
+							chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = triggerNames[ti]
 						}
 					}
 				}
@@ -69,7 +70,7 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 	}
 
 	return &KeyboardModelChorded{
-		triggers:       triggers,
+		triggers:       triggerNames,
 		layoutNumbers:  layoutNumbers,
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
@@ -95,97 +96,89 @@ var specialKeyMap = map[string]rune{
 	"ENT": specialKeyEnter,
 }
 
-func getChordMaps() (map[string]rune, map[string]rune) {
-	chordMap := make(map[string]rune)
-	chordMap["left"] = 'a'
-	chordMap["up"] = 's'
-	chordMap["down"] = 'd'
-	chordMap["right"] = 'f'
-	chordMap["x"] = 'h'
-	chordMap["a"] = 'j'
-	chordMap["y"] = 'k'
-	chordMap["b"] = 'l'
+func getChordMaps() (map[int]rune, map[int]rune) {
+	chordMap := make(map[int]rune)
+	// Base triggers (no modifier)
+	chordMap[encodeChord(modifierNone, keyDPadLeft)] = 'a'
+	chordMap[encodeChord(modifierNone, keyDPadUp)] = 's'
+	chordMap[encodeChord(modifierNone, keyDPadDown)] = 'd'
+	chordMap[encodeChord(modifierNone, keyDPadRight)] = 'f'
+	chordMap[encodeChord(modifierNone, keyX)] = 'h'
+	chordMap[encodeChord(modifierNone, keyA)] = 'j'
+	chordMap[encodeChord(modifierNone, keyY)] = 'k'
+	chordMap[encodeChord(modifierNone, keyB)] = 'l'
 
-	chordMap["l1+left"] = 'q'
-	chordMap["l1+up"] = 'w'
-	chordMap["l1+down"] = 'e'
-	chordMap["l1+right"] = 'r'
-	chordMap["l1+x"] = 'u'
-	chordMap["l1+a"] = 'i'
-	chordMap["l1+y"] = 'o'
-	chordMap["l1+b"] = 'p'
+	// L1 modifier
+	chordMap[encodeChord(modifierL1, keyDPadLeft)] = 'q'
+	chordMap[encodeChord(modifierL1, keyDPadUp)] = 'w'
+	chordMap[encodeChord(modifierL1, keyDPadDown)] = 'e'
+	chordMap[encodeChord(modifierL1, keyDPadRight)] = 'r'
+	chordMap[encodeChord(modifierL1, keyX)] = 'u'
+	chordMap[encodeChord(modifierL1, keyA)] = 'i'
+	chordMap[encodeChord(modifierL1, keyY)] = 'o'
+	chordMap[encodeChord(modifierL1, keyB)] = 'p'
 
-	// R1 modifier - next 8 letters
-	chordMap["r1+left"] = 'z'
-	chordMap["r1+up"] = 'x'
-	chordMap["r1+down"] = 'c'
-	chordMap["r1+right"] = 'v'
-	chordMap["r1+x"] = 'g'
-	chordMap["r1+a"] = 'b'
-	chordMap["r1+y"] = 'n'
-	chordMap["r1+b"] = 'm'
+	// R1 modifier
+	chordMap[encodeChord(modifierR1, keyDPadLeft)] = 'z'
+	chordMap[encodeChord(modifierR1, keyDPadUp)] = 'x'
+	chordMap[encodeChord(modifierR1, keyDPadDown)] = 'c'
+	chordMap[encodeChord(modifierR1, keyDPadRight)] = 'v'
+	chordMap[encodeChord(modifierR1, keyX)] = 'g'
+	chordMap[encodeChord(modifierR1, keyA)] = 'b'
+	chordMap[encodeChord(modifierR1, keyY)] = 'n'
+	chordMap[encodeChord(modifierR1, keyB)] = 'm'
 
-	chordMap["l2+left"] = 't'
-	chordMap["l2+up"] = specialKeyShift
-	chordMap["l2+down"] = specialKeySpace
-	chordMap["l2+right"] = 'y'
-	chordMap["l2+x"] = specialKeyDelete
-	chordMap["l2+a"] = specialKeyEnter
-	chordMap["l2+y"] = specialKeyNumbers
-	chordMap["l2+b"] = specialKeyClose
+	// L2 modifier
+	chordMap[encodeChord(modifierL2, keyDPadLeft)] = specialKeyShift
+	chordMap[encodeChord(modifierL2, keyDPadUp)] = 't'
+	chordMap[encodeChord(modifierL2, keyDPadDown)] = 'y'
+	chordMap[encodeChord(modifierL2, keyDPadRight)] = specialKeySpace
+	chordMap[encodeChord(modifierL2, keyX)] = specialKeyDelete
+	chordMap[encodeChord(modifierL2, keyA)] = specialKeyEnter
+	chordMap[encodeChord(modifierL2, keyY)] = specialKeyNumbers
+	chordMap[encodeChord(modifierL2, keyB)] = specialKeyClose
 
-	chordAltMap := make(map[string]rune)
-	chordAltMap["left"] = '1'
-	chordAltMap["up"] = '2'
-	chordAltMap["down"] = '3'
-	chordAltMap["right"] = '4'
-	chordAltMap["x"] = '5'
-	chordAltMap["a"] = '6'
-	chordAltMap["y"] = '7'
-	chordAltMap["b"] = '8'
+	chordAltMap := make(map[int]rune)
+	// Base triggers (no modifier) - numbers
+	chordAltMap[encodeChord(modifierNone, keyDPadLeft)] = '1'
+	chordAltMap[encodeChord(modifierNone, keyDPadUp)] = '2'
+	chordAltMap[encodeChord(modifierNone, keyDPadDown)] = '3'
+	chordAltMap[encodeChord(modifierNone, keyDPadRight)] = '4'
+	chordAltMap[encodeChord(modifierNone, keyX)] = '5'
+	chordAltMap[encodeChord(modifierNone, keyA)] = '6'
+	chordAltMap[encodeChord(modifierNone, keyY)] = '7'
+	chordAltMap[encodeChord(modifierNone, keyB)] = '8'
 
-	chordAltMap["l1+left"] = ' '
-	chordAltMap["l1+up"] = ' '
-	chordAltMap["l1+down"] = ' '
-	chordAltMap["l1+right"] = ' '
-	chordAltMap["l1+x"] = ' '
-	chordAltMap["l1+a"] = ' '
-	chordAltMap["l1+y"] = ' '
-	chordAltMap["l1+b"] = ' '
+	// L1 modifier - spaces
+	chordAltMap[encodeChord(modifierL1, keyDPadLeft)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyDPadUp)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyDPadDown)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyDPadRight)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyX)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyA)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyY)] = ' '
+	chordAltMap[encodeChord(modifierL1, keyB)] = ' '
 
-	// R1 modifier - next 8 letters
-	chordAltMap["r1+left"] = ' '
-	chordAltMap["r1+up"] = ' '
-	chordAltMap["r1+down"] = ' '
-	chordAltMap["r1+right"] = ' '
-	chordAltMap["r1+x"] = ' '
-	chordAltMap["r1+a"] = ' '
-	chordAltMap["r1+y"] = ' '
-	chordAltMap["r1+b"] = ' '
+	// R1 modifier - spaces
+	chordAltMap[encodeChord(modifierR1, keyDPadLeft)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyDPadUp)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyDPadDown)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyDPadRight)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyX)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyA)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyY)] = ' '
+	chordAltMap[encodeChord(modifierR1, keyB)] = ' '
 
-	chordAltMap["l2+left"] = ' '
-	chordAltMap["l2+up"] = ' '
-	chordAltMap["l2+down"] = ' '
-	chordAltMap["l2+right"] = ' '
-	chordAltMap["l2+x"] = ' '
-	chordAltMap["l2+a"] = ' '
-	chordAltMap["l2+y"] = ' '
-	chordAltMap["l2+b"] = ' '
+	// L2 modifier - spaces
+	chordAltMap[encodeChord(modifierL2, keyDPadLeft)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyDPadUp)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyDPadDown)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyDPadRight)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyX)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyA)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyY)] = ' '
+	chordAltMap[encodeChord(modifierL2, keyB)] = ' '
 	return chordMap, chordAltMap
-}
-
-func (m *KeyboardModelChorded) getModifierString() string {
-	switch m.modifier {
-	case modifierL1:
-		return "l1"
-	case modifierR1:
-		return "r1"
-	case modifierL2:
-		return "l2"
-	case modifierR2:
-		return "r2"
-	}
-	return ""
 }
 
 func (m *KeyboardModelChorded) resetState() {
@@ -220,35 +213,8 @@ func (m *KeyboardModelChorded) HandleKey(key int) error {
 }
 
 func (m *KeyboardModelChorded) executeChord(triggerKey int) {
-	// Build chord string
-	modStr := m.getModifierString()
-	var triggerStr string
-
-	switch triggerKey {
-	case keyDPadUp:
-		triggerStr = "up"
-	case keyDPadDown:
-		triggerStr = "down"
-	case keyDPadLeft:
-		triggerStr = "left"
-	case keyDPadRight:
-		triggerStr = "right"
-	case keyA:
-		triggerStr = "a"
-	case keyB:
-		triggerStr = "b"
-	case keyX:
-		triggerStr = "x"
-	case keyY:
-		triggerStr = "y"
-	}
-
-	var chordKey string
-	if modStr == "" {
-		chordKey = triggerStr
-	} else {
-		chordKey = modStr + "+" + triggerStr
-	}
+	// Encode the chord key using current modifier and trigger key
+	chordKey := encodeChord(m.modifier, triggerKey)
 
 	// Execute the chord
 	if char, exists := m.chordMap[chordKey]; exists {
@@ -280,8 +246,8 @@ func (m *KeyboardModelChorded) RenderKey(i, j int, key string) (string, string, 
 	if len(key) == 1 {
 		if m.modeNumbers {
 			key = string(m.layoutNumbers[i][j])
-		} else if !m.modeShift {
-			key = strings.ToLower(key)
+		} else if m.modeShift {
+			key = strings.ToUpper(key)
 		}
 	}
 	if trigger, exists := m.chordActiveMap[m.modifier][fmt.Sprintf("%d,%d", i, j)]; exists {

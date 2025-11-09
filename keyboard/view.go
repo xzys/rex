@@ -11,9 +11,9 @@ import (
 
 // Common keyboard layout
 var keyboardLayout = [][]string{
-	{"123", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "BCK"},
-	{"SFT", "A", "S", "D", "F", "G", "H", "J", "K", "L", "SPC"},
-	{"DEL", "Z", "X", "C", "V", "B", "N", "M", "ENT"},
+	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "BCK"},
+	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
+	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
 }
 var keyboardOffsets = []int{0, 2, 7}
 
