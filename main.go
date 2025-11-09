@@ -1,11 +1,12 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xzys/TR3X/v2/keyboard"
+	_ "github.com/xzys/TR3X/v2/utils"
 )
 
 // Build flags:
@@ -22,6 +23,7 @@ func main() {
 	defer m.Cleanup()
 
 	if _, err := p.Run(); err != nil {
-		log.Fatal(err)
+		slog.Error("error running program", "err", err)
+		os.Exit(1)
 	}
 }

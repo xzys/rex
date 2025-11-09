@@ -2,6 +2,7 @@ package keyboard
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -134,23 +135,23 @@ func getChordMaps() (map[string]rune, map[string]rune) {
 	chordMap["l2+b"] = specialKeyClose
 
 	chordAltMap := make(map[string]rune)
-	chordAltMap["left"] = ' '
-	chordAltMap["up"] = ' '
-	chordAltMap["down"] = ' '
-	chordAltMap["right"] = ' '
-	chordAltMap["x"] = ' '
-	chordAltMap["a"] = ' '
-	chordAltMap["y"] = ' '
-	chordAltMap["b"] = ' '
+	chordAltMap["left"] = '1'
+	chordAltMap["up"] = '2'
+	chordAltMap["down"] = '3'
+	chordAltMap["right"] = '4'
+	chordAltMap["x"] = '5'
+	chordAltMap["a"] = '6'
+	chordAltMap["y"] = '7'
+	chordAltMap["b"] = '8'
 
-	chordAltMap["l1+left"] = '1'
-	chordAltMap["l1+up"] = '2'
-	chordAltMap["l1+down"] = '3'
-	chordAltMap["l1+right"] = '4'
-	chordAltMap["l1+x"] = '5'
-	chordAltMap["l1+a"] = '6'
-	chordAltMap["l1+y"] = '7'
-	chordAltMap["l1+b"] = '8'
+	chordAltMap["l1+left"] = ' '
+	chordAltMap["l1+up"] = ' '
+	chordAltMap["l1+down"] = ' '
+	chordAltMap["l1+right"] = ' '
+	chordAltMap["l1+x"] = ' '
+	chordAltMap["l1+a"] = ' '
+	chordAltMap["l1+y"] = ' '
+	chordAltMap["l1+b"] = ' '
 
 	// R1 modifier - next 8 letters
 	chordAltMap["r1+left"] = ' '
@@ -190,8 +191,6 @@ func (m *KeyboardModelChorded) getModifierString() string {
 func (m *KeyboardModelChorded) resetState() {
 	// Reset modifiers after trigger
 	m.modifier = modifierNone
-	// m.modeShift = false
-	// m.modeNumbers = false
 }
 
 func (m *KeyboardModelChorded) HandleKey(key int) error {
@@ -254,17 +253,24 @@ func (m *KeyboardModelChorded) executeChord(triggerKey int) {
 	// Execute the chord
 	if char, exists := m.chordMap[chordKey]; exists {
 		switch char {
-		case specialKeySpace:
-			// send space
 		case specialKeyShift:
-			m.modeShift = true
+			m.modeShift = !m.modeShift
+			slog.Info("switching mode shift", "shift", m.modeShift)
+		case specialKeyNumbers:
+			m.modeNumbers = !m.modeNumbers
+			slog.Info("switching mode numbers", "numbers", m.modeNumbers)
+		case specialKeyClose:
+			slog.Info("sending close")
+		case specialKeyEnter:
+			slog.Info("sending enter")
 		case specialKeyDelete:
 			// send delete
-		case specialKeyNumbers:
-			m.modeNumbers = true
-		case specialKeyClose:
-		case specialKeyEnter:
+			slog.Info("sending delete")
+		case specialKeySpace:
+			// send space
+			slog.Info("sending space")
 		default:
+			slog.Info("sending key", "key", char)
 		}
 	}
 }

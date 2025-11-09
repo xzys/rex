@@ -4,6 +4,8 @@
 package keyboard
 
 import (
+	"log/slog"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -32,6 +34,7 @@ func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyRight:
 			m.model.HandleKey(keyDPadRight)
 		case tea.KeyRunes:
+			slog.Debug("got rune", "rune", string(msg.Runes))
 			switch string(msg.Runes) {
 			case "w":
 				m.model.HandleKey(keyY)
