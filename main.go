@@ -15,30 +15,33 @@ import (
 // -tags sdl for SDL joystick support
 // otherwise uses keyboard for local keyboard support
 
-func main() {
-	serverMode := flag.Bool("server", false, "run as server")
-	flag.Parse()
-
-	if *serverMode {
-		// Run server mode
-		if err := server.Run(); err != nil {
-			slog.Error("server error", "err", err)
-			os.Exit(1)
-		}
-		return
+func runServer() {
+	if err := server.Run(); err != nil {
+		slog.Error("server error", "err", err)
+		os.Exit(1)
 	}
+}
 
-	// Run client mode (keyboard UI)
-	mode := "simple"
-	if len(flag.Args()) > 0 {
-		mode = flag.Args()[0]
-	}
-	m := keyboard.NewKeyboardView(mode)
+func runKeyboard(keyboardMode string) {
+	m := keyboard.NewKeyboardView(keyboardMode)
 	p := tea.NewProgram(m)
 	defer m.Cleanup()
 
 	if _, err := p.Run(); err != nil {
-		slog.Error("error running program", "err", err)
+		slog.Error("keyboard error", "err", err)
 		os.Exit(1)
+	}
+}
+func main() {
+	serverMode := flag.Bool("server", false, "run as server")
+	keyboardMode := flag.String("keyboard", "chord", "keyboard mode (simple or chorded)")
+	flag.Parse()
+
+	// server handles events and executes actions
+	slog.Info("starting", "server", *serverMode, "keyboard", *keyboardMode)
+	if *serverMode {
+		runServer()
+	} else {
+		runKeyboard(*keyboardMode)
 	}
 }

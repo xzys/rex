@@ -4,32 +4,17 @@ import "encoding/json"
 
 // Request types
 const (
-	RequestTypeExecuteChord = "execute_chord"
-	RequestTypeGetState     = "get_state"
+	RequestTypePressKey = "press_key"
 )
 
-// ExecuteChordRequest represents a request to execute a chord
-type ExecuteChordRequest struct {
-	Type     string `json:"type"`
-	Modifier int    `json:"modifier"`
-	Trigger  int    `json:"trigger"`
-}
-
-// GetStateRequest represents a request to get current state
-type GetStateRequest struct {
+// PressKeyRequest represents a request to press a key
+type PressKeyRequest struct {
 	Type string `json:"type"`
+	Key  string `json:"key"`
 }
 
-// StateResponse represents the current state
-type StateResponse struct {
-	Success     bool   `json:"success"`
-	ModeShift   bool   `json:"mode_shift,omitempty"`
-	ModeNumbers bool   `json:"mode_numbers,omitempty"`
-	Error       string `json:"error,omitempty"`
-}
-
-// ExecuteChordResponse represents the response from executing a chord
-type ExecuteChordResponse struct {
+// PressKeyResponse represents the response from pressing a key
+type PressKeyResponse struct {
 	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
 }
@@ -43,24 +28,17 @@ func ParseRequest(data []byte) (interface{}, error) {
 
 	reqType, ok := base["type"].(string)
 	if !ok {
-		return nil, json.Unmarshal(data, &ExecuteChordRequest{})
+		return nil, json.Unmarshal(data, &PressKeyRequest{})
 	}
 
 	switch reqType {
-	case RequestTypeExecuteChord:
-		var req ExecuteChordRequest
-		if err := json.Unmarshal(data, &req); err != nil {
-			return nil, err
-		}
-		return req, nil
-	case RequestTypeGetState:
-		var req GetStateRequest
+	case RequestTypePressKey:
+		var req PressKeyRequest
 		if err := json.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
 		return req, nil
 	default:
-		return nil, json.Unmarshal(data, &ExecuteChordRequest{})
+		return nil, json.Unmarshal(data, &PressKeyRequest{})
 	}
 }
-

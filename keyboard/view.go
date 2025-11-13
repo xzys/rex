@@ -1,6 +1,9 @@
 package keyboard
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -53,10 +56,14 @@ type KeyboardModel interface {
 
 func NewKeyboardView(mode string) KeyboardView {
 	var m KeyboardModel
-	if mode == "chord" {
+	switch mode {
+	case "chord":
 		m = NewKeyboardModelChorded(keyboardLayout)
-	} else {
+	case "simple":
 		m = NewKeyboardModelSimple()
+	default:
+		slog.Error("invalid keyboard mode", "mode", mode)
+		os.Exit(1)
 	}
 	return KeyboardView{
 		keyboard: keyboardLayout,

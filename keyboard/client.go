@@ -34,12 +34,11 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// ExecuteChord sends a chord execution request to the server
-func (c *Client) ExecuteChord(modifier, trigger int) error {
-	req := protocol.ExecuteChordRequest{
-		Type:     protocol.RequestTypeExecuteChord,
-		Modifier: modifier,
-		Trigger:  trigger,
+// PressKey sends a key press request to the server
+func (c *Client) PressKey(key string) error {
+	req := protocol.PressKeyRequest{
+		Type: protocol.RequestTypePressKey,
+		Key:  key,
 	}
 
 	data, err := json.Marshal(req)
@@ -61,7 +60,7 @@ func (c *Client) ExecuteChord(modifier, trigger int) error {
 		return os.ErrClosed
 	}
 
-	var response protocol.ExecuteChordResponse
+	var response protocol.PressKeyResponse
 	if err := json.Unmarshal(scanner.Bytes(), &response); err != nil {
 		return err
 	}
@@ -71,51 +70,10 @@ func (c *Client) ExecuteChord(modifier, trigger int) error {
 		if errorMsg == "" {
 			errorMsg = "unknown error"
 		}
-		slog.Error("chord execution failed", "error", errorMsg)
+		slog.Error("key press failed", "error", errorMsg)
 		return os.ErrInvalid
 	}
 
 	return nil
-}
-
-// GetState retrieves the current state from the server
-func (c *Client) GetState() (bool, bool, error) {
-	req := protocol.GetStateRequest{
-		Type: protocol.RequestTypeGetState,
-	}
-
-	data, err := json.Marshal(req)
-	if err != nil {
-		return false, false, err
-	}
-	data = append(data, '\n')
-
-	if _, err := c.conn.Write(data); err != nil {
-		return false, false, err
-	}
-
-	// Read response
-	scanner := bufio.NewScanner(c.conn)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return false, false, err
-		}
-		return false, false, os.ErrClosed
-	}
-
-	var response protocol.StateResponse
-	if err := json.Unmarshal(scanner.Bytes(), &response); err != nil {
-		return false, false, err
-	}
-
-	if !response.Success {
-		errorMsg := response.Error
-		if errorMsg == "" {
-			errorMsg = "unknown error"
-		}
-		return false, false, os.ErrInvalid
-	}
-
-	return response.ModeShift, response.ModeNumbers, nil
 }
 

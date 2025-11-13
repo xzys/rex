@@ -10,6 +10,9 @@ docker-build: ## Build for R36S using Docker (SDL mode)
 build-local: ## Build for local machine with keyboard input
 	go build -tags keyboard -o local-keyboard
 
+debug:
+	dlv debug . -- --server
+
 build-sdl: ## Build for machine with SDL input
 	go build -tags sdl -o r36s-keyboard
 

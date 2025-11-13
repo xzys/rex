@@ -226,25 +226,26 @@ func (m *KeyboardModelChorded) executeChord(triggerKey int) {
 		return
 	}
 
-	// Send chord execution request to server
-	if err := m.client.ExecuteChord(m.modifier, triggerKey); err != nil {
-		slog.Error("failed to execute chord", "err", err)
+	// Determine which key to press from chord map
+	chordKey := encodeChord(m.modifier, triggerKey)
+	char, exists := m.chordMap[chordKey]
+	if !exists {
+		slog.Error("chord not found in map", "modifier", m.modifier, "trigger", triggerKey)
 		return
 	}
 
-	// Check if this chord changes state (shift or numbers mode)
-	chordKey := encodeChord(m.modifier, triggerKey)
-	if char, exists := m.chordMap[chordKey]; exists {
-		if char == specialKeyShift || char == specialKeyNumbers {
-			// Sync state from server
-			modeShift, modeNumbers, err := m.client.GetState()
-			if err != nil {
-				slog.Error("failed to get state", "err", err)
-				return
-			}
-			m.modeShift = modeShift
-			m.modeNumbers = modeNumbers
-		}
+	// Update local state based on chord
+	if char == specialKeyShift {
+		m.modeShift = !m.modeShift
+	} else if char == specialKeyNumbers {
+		m.modeNumbers = !m.modeNumbers
+	}
+
+	// Send key press request to server
+	keyStr := string(char)
+	if err := m.client.PressKey(keyStr); err != nil {
+		slog.Error("failed to press key", "err", err, "key", keyStr)
+		return
 	}
 }
 

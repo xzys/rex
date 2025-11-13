@@ -16,6 +16,7 @@ const socketPath = "/tmp/tr3x.sock"
 
 // Run starts the server and blocks until interrupted
 func Run() error {
+	slog.Info("starting server")
 	// Remove socket file if it exists
 	if _, err := os.Stat(socketPath); err == nil {
 		if err := os.Remove(socketPath); err != nil {
@@ -46,8 +47,6 @@ func Run() error {
 		os.Exit(0)
 	}()
 
-	executor := NewChordExecutor()
-
 	// Accept connections
 	for {
 		conn, err := listener.Accept()
@@ -56,11 +55,11 @@ func Run() error {
 			continue
 		}
 
-		go handleConnection(conn, executor)
+		go handleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn, executor *ChordExecutor) {
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	scanner := bufio.NewScanner(conn)
@@ -78,21 +77,12 @@ func handleConnection(conn net.Conn, executor *ChordExecutor) {
 		}
 
 		switch r := req.(type) {
-		case protocol.ExecuteChordRequest:
-			if err := executor.ExecuteChord(r.Modifier, r.Trigger); err != nil {
+		case protocol.PressKeyRequest:
+			if err := PressKey(r.Key); err != nil {
 				sendError(conn, err.Error())
 				continue
 			}
-			sendSuccess(conn, &protocol.ExecuteChordResponse{Success: true})
-
-		case protocol.GetStateRequest:
-			modeShift, modeNumbers := executor.GetState()
-			response := protocol.StateResponse{
-				Success:     true,
-				ModeShift:   modeShift,
-				ModeNumbers: modeNumbers,
-			}
-			sendJSON(conn, response)
+			sendSuccess(conn, &protocol.PressKeyResponse{Success: true})
 
 		default:
 			sendError(conn, "unknown request type")
@@ -104,12 +94,12 @@ func handleConnection(conn net.Conn, executor *ChordExecutor) {
 	}
 }
 
-func sendSuccess(conn net.Conn, response *protocol.ExecuteChordResponse) {
+func sendSuccess(conn net.Conn, response *protocol.PressKeyResponse) {
 	sendJSON(conn, response)
 }
 
 func sendError(conn net.Conn, errorMsg string) {
-	response := protocol.ExecuteChordResponse{
+	response := protocol.PressKeyResponse{
 		Success: false,
 		Error:   errorMsg,
 	}
@@ -127,4 +117,3 @@ func sendJSON(conn net.Conn, v interface{}) {
 		slog.Error("failed to write response", "err", err)
 	}
 }
-
