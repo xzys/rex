@@ -5,7 +5,7 @@ import (
 )
 
 // PressKey executes a key press
-func PressKey(key string) error {
+func pressKey(key string) error {
 	if len(key) == 0 {
 		return nil
 	}

@@ -2,7 +2,7 @@ package server
 
 import (
 	"bufio"
-	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -47,19 +47,25 @@ func Run() error {
 		os.Exit(0)
 	}()
 
-	// Accept connections
+	inputHandler := NewInputHandler()
+	if err := inputHandler.Initialize(); err != nil {
+		return fmt.Errorf("failed to initialize input handler: %w", err)
+	}
+
+	// Handle connections
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			slog.Error("failed to accept connection", "err", err)
-			continue
+			return err
 		}
 
-		go handleConnection(conn)
+		if err := handleConnection(conn); err != nil {
+			return err
+		}
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn) error {
 	defer conn.Close()
 
 	scanner := bufio.NewScanner(conn)
@@ -69,51 +75,21 @@ func handleConnection(conn net.Conn) {
 			continue
 		}
 
-		req, err := protocol.ParseRequest(data)
+		msg, err := protocol.ParseMessage(data)
 		if err != nil {
-			slog.Error("failed to parse request", "err", err)
-			sendError(conn, err.Error())
-			continue
+			return fmt.Errorf("failed to parse message: %w", err)
 		}
 
-		switch r := req.(type) {
-		case protocol.PressKeyRequest:
-			if err := PressKey(r.Key); err != nil {
-				sendError(conn, err.Error())
-				continue
+		switch m := msg.(type) {
+		case *protocol.PressKeyMessage:
+			if err := pressKey(m.KeyPress); err != nil {
+				return fmt.Errorf("failed to press key: %w", err)
 			}
-			sendSuccess(conn, &protocol.PressKeyResponse{Success: true})
-
-		default:
-			sendError(conn, "unknown request type")
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		slog.Error("scanner error", "err", err)
+		return fmt.Errorf("failed to scan message: %w", err)
 	}
-}
-
-func sendSuccess(conn net.Conn, response *protocol.PressKeyResponse) {
-	sendJSON(conn, response)
-}
-
-func sendError(conn net.Conn, errorMsg string) {
-	response := protocol.PressKeyResponse{
-		Success: false,
-		Error:   errorMsg,
-	}
-	sendJSON(conn, response)
-}
-
-func sendJSON(conn net.Conn, v interface{}) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		slog.Error("failed to marshal response", "err", err)
-		return
-	}
-	data = append(data, '\n')
-	if _, err := conn.Write(data); err != nil {
-		slog.Error("failed to write response", "err", err)
-	}
+	return nil
 }

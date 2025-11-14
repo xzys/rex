@@ -46,7 +46,7 @@ type PressKeyMessage struct {
 }
 
 // ParseMessage parses a JSON request message
-func ParseMessage(data []byte) (interface{}, error) {
+func ParseMessage(data []byte) (any, error) {
 	var base map[string]interface{}
 	if err := json.Unmarshal(data, &base); err != nil {
 		return nil, err
@@ -57,17 +57,17 @@ func ParseMessage(data []byte) (interface{}, error) {
 		return nil, json.Unmarshal(data, &PressKeyMessage{})
 	}
 
-	var req any
+	var msg any
 	switch reqType {
 	case MessageTypeKeyInput:
-		req = new(KeyInputMessage)
+		msg = new(KeyInputMessage)
 	case MessageTypeKeyPress:
-		req = new(PressKeyMessage)
+		msg = new(PressKeyMessage)
 	default:
 		return nil, fmt.Errorf("unknown message type: %s", reqType)
 	}
-	if err := json.Unmarshal(data, req); err != nil {
+	if err := json.Unmarshal(data, msg); err != nil {
 		return nil, err
 	}
-	return req, nil
+	return msg, nil
 }

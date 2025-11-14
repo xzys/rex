@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -15,23 +16,32 @@ import (
 // -tags sdl for SDL joystick support
 // otherwise uses keyboard for local keyboard support
 
-func runServer() {
-	if err := server.Run(); err != nil {
-		slog.Error("server error", "err", err)
-		os.Exit(1)
+func runKeyboard(keyboardMode string) error {
+	model := keyboard.GetKeyboardModel(keyboardMode)
+	view := keyboard.NewKeyboardView(model)
+
+	client, err := keyboard.NewClient(model)
+	if err != nil {
+		return fmt.Errorf("failed to create keyboard client: %w", err)
 	}
-}
+	defer client.Close()
 
-func runKeyboard(keyboardMode string) {
-	m := keyboard.NewKeyboardView(keyboardMode)
-	p := tea.NewProgram(m)
-	defer m.Cleanup()
+	// Start handling messages from server
+	go func() {
+		if err := client.HandleMessages(); err != nil {
+			slog.Error("keyboard client error", "err", err)
+			os.Exit(1)
+		}
+	}()
 
+	// Run the UI
+	p := tea.NewProgram(view)
 	if _, err := p.Run(); err != nil {
-		slog.Error("keyboard error", "err", err)
-		os.Exit(1)
+		return err
 	}
+	return nil
 }
+
 func main() {
 	serverMode := flag.Bool("server", false, "run as server")
 	keyboardMode := flag.String("keyboard", "chord", "keyboard mode (simple or chorded)")
@@ -39,9 +49,14 @@ func main() {
 
 	// server handles events and executes actions
 	slog.Info("starting", "server", *serverMode, "keyboard", *keyboardMode)
+	var err error
 	if *serverMode {
-		runServer()
+		err = server.Run()
 	} else {
-		runKeyboard(*keyboardMode)
+		err = runKeyboard(*keyboardMode)
+	}
+	if err != nil {
+		slog.Error("error", "err", err)
+		os.Exit(1)
 	}
 }

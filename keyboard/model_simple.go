@@ -1,5 +1,9 @@
 package keyboard
 
+import (
+	"github.com/xzys/TR3X/v2/protocol"
+)
+
 type KeyboardModelSimple struct {
 	selectedRow int
 	selectedCol int
@@ -18,32 +22,39 @@ func NewKeyboardModelSimple() *KeyboardModelSimple {
 	}
 }
 
-func (m *KeyboardModelSimple) HandleKey(key int) error {
+func (m *KeyboardModelSimple) HandleKey(key int) (*string, error) {
 	switch key {
-	case keyDPadUp:
+	case protocol.KeyDPadUp:
 		if m.selectedRow > 0 {
 			m.selectedRow--
 			if m.selectedCol >= m.rowWidths[m.selectedRow] {
 				m.selectedCol = m.rowWidths[m.selectedRow] - 1
 			}
 		}
-	case keyDPadDown:
+	case protocol.KeyDPadDown:
 		if m.selectedRow < len(m.rowWidths)-1 {
 			m.selectedRow++
 			if m.selectedCol >= m.rowWidths[m.selectedRow] {
 				m.selectedCol = m.rowWidths[m.selectedRow] - 1
 			}
 		}
-	case keyDPadLeft:
+	case protocol.KeyDPadLeft:
 		if m.selectedCol > 0 {
 			m.selectedCol--
 		}
-	case keyDPadRight:
+	case protocol.KeyDPadRight:
 		if m.selectedCol < m.rowWidths[m.selectedRow]-1 {
 			m.selectedCol++
 		}
+	case protocol.KeyA:
+		// Return the currently selected key
+		if m.selectedRow >= 0 && m.selectedRow < len(keyboardLayout) &&
+			m.selectedCol >= 0 && m.selectedCol < len(keyboardLayout[m.selectedRow]) {
+			key := keyboardLayout[m.selectedRow][m.selectedCol]
+			return &key, nil
+		}
 	}
-	return nil
+	return nil, nil
 }
 
 func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, string) {
@@ -51,8 +62,4 @@ func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, st
 		return "2", "2", key
 	}
 	return "0", "0", key
-}
-
-func (m *KeyboardModelSimple) Cleanup() {
-	// No cleanup needed for simple model
 }
