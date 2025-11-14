@@ -1,26 +1,52 @@
 package protocol
 
-import "encoding/json"
-
-// Request types
-const (
-	RequestTypePressKey = "press_key"
+import (
+	"encoding/json"
+	"fmt"
 )
 
-// PressKeyRequest represents a request to press a key
-type PressKeyRequest struct {
+const (
+	KeyDPadUp = iota
+	KeyDPadDown
+	KeyDPadLeft
+	KeyDPadRight
+	KeyA
+	KeyB
+	KeyX
+	KeyY
+	KeyL1
+	KeyR1
+	KeyL2
+	KeyR2
+	KeySelect
+	KeyStart
+	KeyFn
+)
+
+// requests
+const (
+	MessageTypeKeyInput = "key_input"
+	MessageTypeKeyPress = "key_press"
+)
+
+type BaseMessage struct {
 	Type string `json:"type"`
-	Key  string `json:"key"`
 }
 
-// PressKeyResponse represents the response from pressing a key
-type PressKeyResponse struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+// sent from server to keyboard client with raw device input for translation
+type KeyInputMessage struct {
+	BaseMessage
+	KeyInput int `json:"key_input"` // raw key code from the input device
 }
 
-// ParseRequest parses a JSON request message
-func ParseRequest(data []byte) (interface{}, error) {
+// response from keyboard client with the translated virtual key
+type PressKeyMessage struct {
+	BaseMessage
+	KeyPress string `json:"key_press"` // virtual key character to press
+}
+
+// ParseMessage parses a JSON request message
+func ParseMessage(data []byte) (interface{}, error) {
 	var base map[string]interface{}
 	if err := json.Unmarshal(data, &base); err != nil {
 		return nil, err
@@ -28,17 +54,20 @@ func ParseRequest(data []byte) (interface{}, error) {
 
 	reqType, ok := base["type"].(string)
 	if !ok {
-		return nil, json.Unmarshal(data, &PressKeyRequest{})
+		return nil, json.Unmarshal(data, &PressKeyMessage{})
 	}
 
+	var req any
 	switch reqType {
-	case RequestTypePressKey:
-		var req PressKeyRequest
-		if err := json.Unmarshal(data, &req); err != nil {
-			return nil, err
-		}
-		return req, nil
+	case MessageTypeKeyInput:
+		req = new(KeyInputMessage)
+	case MessageTypeKeyPress:
+		req = new(PressKeyMessage)
 	default:
-		return nil, json.Unmarshal(data, &PressKeyRequest{})
+		return nil, fmt.Errorf("unknown message type: %s", reqType)
 	}
+	if err := json.Unmarshal(data, req); err != nil {
+		return nil, err
+	}
+	return req, nil
 }

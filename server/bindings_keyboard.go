@@ -1,7 +1,7 @@
 //go:build !sdl
 // +build !sdl
 
-package keyboard
+package server
 
 import (
 	"log/slog"
