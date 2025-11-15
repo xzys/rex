@@ -9,7 +9,7 @@ import (
 )
 
 func (k Keyboard) handleKeyboardInput(key tea.KeyMsg) tea.Cmd {
-	var keyInput int
+	keyInput := -1
 	switch key.Type {
 	case tea.KeyCtrlC:
 		return tea.Quit
@@ -25,13 +25,13 @@ func (k Keyboard) handleKeyboardInput(key tea.KeyMsg) tea.Cmd {
 		keyInput = protocol.KeyDPadRight
 	case tea.KeyRunes:
 		switch string(key.Runes) {
-		case "w":
+		case "m":
 			keyInput = protocol.KeyY
-		case "a":
+		case ",":
 			keyInput = protocol.KeyX
-		case "s":
+		case ".":
 			keyInput = protocol.KeyB
-		case "d":
+		case "/":
 			keyInput = protocol.KeyA
 		// simulate L1/R1/L2/R2
 		case "z":
@@ -43,6 +43,9 @@ func (k Keyboard) handleKeyboardInput(key tea.KeyMsg) tea.Cmd {
 		case "v":
 			keyInput = protocol.KeyR2
 		}
+	}
+	if keyInput == -1 {
+		return nil
 	}
 	// forward to main message handler
 	return k.handleDeviceInput(protocol.KeyInputMessage{
