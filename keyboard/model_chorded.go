@@ -40,9 +40,13 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 	chordMap, chordAltMap := getChordMaps()
 	chordActiveMap := make([]map[string]string, len(modifiers))
 
+	// prefull numbers layout with spaces
 	layoutNumbers := make([][]rune, len(keyboardLayout))
 	for i, row := range keyboardLayout {
 		layoutNumbers[i] = make([]rune, len(row))
+		for j := range row {
+			layoutNumbers[i][j] = ' '
+		}
 	}
 	// static which keys are active for each modifier
 	for mi, mod := range modifiers {
@@ -54,16 +58,19 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 					// encode the chord key
 					chordMapKey := encodeChord(mod, trigger)
 					chordKey := chordMap[chordMapKey]
-					chordAltKey := chordAltMap[chordMapKey]
+					chordAltKey, chordAltExists := chordAltMap[chordMapKey]
 
 					if string(chordKey) == strings.ToLower(key) {
 						// cache location of key in layout
 						chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = triggerNames[ti]
-						// make new layout of number keys
-						layoutNumbers[i][j] = chordAltKey
+						// override space with actual number if the chord exists
+						if chordAltExists {
+							layoutNumbers[i][j] = chordAltKey
+						}
 					} else {
 						if specialKey, ok := specialKeyMap[key]; ok && chordKey == specialKey {
 							chordActiveMap[mi][fmt.Sprintf("%d,%d", i, j)] = triggerNames[ti]
+							layoutNumbers[i][j] = specialKey
 						}
 					}
 				}
@@ -140,6 +147,7 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modifierL2, protocol.KeyB)] = specialKeyNumbers
 	chordMap[encodeChord(modifierL2, protocol.KeyA)] = specialKeyClose
 
+	// numbers mode
 	chordAltMap := make(map[int]rune)
 	// Base triggers (no modifier) - numbers
 	chordAltMap[encodeChord(modifierNone, protocol.KeyDPadLeft)] = '1'
@@ -150,6 +158,13 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordAltMap[encodeChord(modifierNone, protocol.KeyX)] = '6'
 	chordAltMap[encodeChord(modifierNone, protocol.KeyB)] = '7'
 	chordAltMap[encodeChord(modifierNone, protocol.KeyA)] = '8'
+
+	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = specialKeyShift
+	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = specialKeySpace
+	chordAltMap[encodeChord(modifierL2, protocol.KeyY)] = specialKeyDelete
+	chordAltMap[encodeChord(modifierL2, protocol.KeyX)] = specialKeyEnter
+	chordAltMap[encodeChord(modifierL2, protocol.KeyB)] = specialKeyNumbers
+	chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = specialKeyClose
 
 	// unmapped chords
 	/*
