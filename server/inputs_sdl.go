@@ -118,6 +118,7 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) e
 			key = protocol.KeyR2
 		default:
 			slog.Warn("unknown button: %d", event.Button)
+			return nil
 		}
 		if err := inputHandler(key); err != nil {
 			return fmt.Errorf("failed to handle button: %w", err)

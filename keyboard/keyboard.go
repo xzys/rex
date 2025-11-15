@@ -83,13 +83,16 @@ func (k *Keyboard) Init() tea.Cmd {
 }
 
 func (k *Keyboard) ReadSocket() tea.Msg {
-	k.scanner.Scan()
-	data := k.scanner.Bytes()
-	if err := k.scanner.Err(); err != nil {
-		return RuntimeError(fmt.Errorf("failed to scan message: %w", err))
+	if !k.scanner.Scan() {
+		if err := k.scanner.Err(); err != nil {
+			return RuntimeError(fmt.Errorf("failed to scan message: %w", err))
+		}
+		return RuntimeError(fmt.Errorf("connection closed"))
 	}
+
+	data := k.scanner.Bytes()
 	if len(data) == 0 {
-		return nil
+		return k.ReadSocket()
 	}
 
 	msg, err := protocol.ParseMessage(data)
