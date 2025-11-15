@@ -22,7 +22,7 @@ func NewKeyboardModelSimple() *KeyboardModelSimple {
 	}
 }
 
-func (m *KeyboardModelSimple) HandleKey(key int) (*string, error) {
+func (m *KeyboardModelSimple) HandleKey(key int) *string {
 	switch key {
 	case protocol.KeyDPadUp:
 		if m.selectedRow > 0 {
@@ -51,10 +51,10 @@ func (m *KeyboardModelSimple) HandleKey(key int) (*string, error) {
 		if m.selectedRow >= 0 && m.selectedRow < len(keyboardLayout) &&
 			m.selectedCol >= 0 && m.selectedCol < len(keyboardLayout[m.selectedRow]) {
 			key := keyboardLayout[m.selectedRow][m.selectedCol]
-			return &key, nil
+			return &key
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, string) {

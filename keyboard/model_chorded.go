@@ -18,7 +18,6 @@ type KeyboardModelChorded struct {
 	chordMap       map[int]rune
 	chordAltMap    map[int]rune
 	chordActiveMap []map[string]string
-	client         *Client // Deprecated - kept for compatibility but not used
 }
 
 const (
@@ -78,7 +77,6 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
-		client:         nil, // Client no longer needed in model
 	}
 }
 
@@ -153,35 +151,38 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordAltMap[encodeChord(modifierNone, protocol.KeyY)] = '7'
 	chordAltMap[encodeChord(modifierNone, protocol.KeyB)] = '8'
 
-	// L1 modifier - spaces
-	chordAltMap[encodeChord(modifierL1, protocol.KeyDPadLeft)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyDPadUp)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyDPadDown)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyDPadRight)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyX)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyA)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyY)] = ' '
-	chordAltMap[encodeChord(modifierL1, protocol.KeyB)] = ' '
+	// unmapped chords
+	/*
+		// L1 modifier - spaces
+		chordAltMap[encodeChord(modifierL1, protocol.KeyDPadLeft)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyDPadUp)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyDPadDown)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyDPadRight)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyX)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyA)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyY)] = ' '
+		chordAltMap[encodeChord(modifierL1, protocol.KeyB)] = ' '
 
-	// R1 modifier - spaces
-	chordAltMap[encodeChord(modifierR1, protocol.KeyDPadLeft)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyDPadUp)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyDPadDown)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyDPadRight)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyX)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyA)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyY)] = ' '
-	chordAltMap[encodeChord(modifierR1, protocol.KeyB)] = ' '
+		// R1 modifier - spaces
+		chordAltMap[encodeChord(modifierR1, protocol.KeyDPadLeft)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyDPadUp)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyDPadDown)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyDPadRight)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyX)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyA)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyY)] = ' '
+		chordAltMap[encodeChord(modifierR1, protocol.KeyB)] = ' '
 
-	// L2 modifier - spaces
-	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadUp)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadDown)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyX)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyY)] = ' '
-	chordAltMap[encodeChord(modifierL2, protocol.KeyB)] = ' '
+		// L2 modifier - spaces
+		chordAltMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyDPadUp)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyDPadDown)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyX)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyY)] = ' '
+		chordAltMap[encodeChord(modifierL2, protocol.KeyB)] = ' '
+	*/
 	return chordMap, chordAltMap
 }
 
@@ -190,7 +191,7 @@ func (m *KeyboardModelChorded) resetState() {
 	m.modifier = modifierNone
 }
 
-func (m *KeyboardModelChorded) HandleKey(key int) (*string, error) {
+func (m *KeyboardModelChorded) HandleKey(key int) *string {
 	prevModifier := m.modifier
 	switch key {
 	// Modifier keys - toggle state
@@ -208,34 +209,42 @@ func (m *KeyboardModelChorded) HandleKey(key int) (*string, error) {
 		if prevModifier == m.modifier {
 			m.resetState()
 		}
-		return nil, nil
+		return nil
 	// Trigger keys - complete the chord
 	case protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight, protocol.KeyA, protocol.KeyB, protocol.KeyX, protocol.KeyY:
-		keyStr := m.executeChord(key)
+		keyStr := m.getChord(key)
 		m.resetState()
-		return &keyStr, nil
+		return keyStr
 	}
-	return nil, nil
+	return nil
 }
 
-func (m *KeyboardModelChorded) executeChord(triggerKey int) string {
-	// Determine which key to press from chord map
+// Determine which key to press from chord map
+func (m *KeyboardModelChorded) getChord(triggerKey int) *string {
 	chordKey := encodeChord(m.modifier, triggerKey)
-	char, exists := m.chordMap[chordKey]
+
+	var char rune
+	var exists bool
+	if m.modeNumbers {
+		char, exists = m.chordAltMap[chordKey]
+	} else {
+		char, exists = m.chordMap[chordKey]
+	}
 	if !exists {
 		slog.Error("chord not found in map", "modifier", m.modifier, "trigger", triggerKey)
-		return ""
+		return nil
 	}
 
 	// Update local state based on chord
-	if char == specialKeyShift {
+	switch char {
+	case specialKeyShift:
 		m.modeShift = !m.modeShift
-	} else if char == specialKeyNumbers {
+	case specialKeyNumbers:
 		m.modeNumbers = !m.modeNumbers
 	}
-
 	// Return the key string to press
-	return string(char)
+	s := string(char)
+	return &s
 }
 
 func (m *KeyboardModelChorded) RenderKey(i, j int, key string) (string, string, string) {

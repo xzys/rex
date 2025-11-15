@@ -1,10 +1,6 @@
 package keyboard
 
 import (
-	"log/slog"
-	"os"
-
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -21,38 +17,9 @@ var keyboardLayout = [][]string{
 }
 var keyboardOffsets = []int{0, 2, 7}
 
-type KeyboardView struct {
-	keyboard [][]string
-	width    int
-	model    KeyboardModel
-}
+// implement tea.Model interface View
 
-func GetKeyboardModel(mode string) KeyboardModel {
-	switch mode {
-	case "chord":
-		return NewKeyboardModelChorded(keyboardLayout)
-	case "simple":
-		return NewKeyboardModelSimple()
-	default:
-		slog.Error("invalid keyboard mode", "mode", mode)
-		os.Exit(1)
-		return nil
-	}
-}
-
-func NewKeyboardView(model KeyboardModel) KeyboardView {
-	return KeyboardView{
-		keyboard: keyboardLayout,
-		width:    0,
-		model:    model,
-	}
-}
-
-func (k KeyboardView) Init() tea.Cmd {
-	return nil
-}
-
-func (k KeyboardView) View() string {
+func (k Keyboard) View() string {
 	var rows []string
 	for i, row := range k.keyboard {
 		var keys []string
@@ -80,15 +47,4 @@ func (k KeyboardView) View() string {
 				Padding(0, 1).
 				Render(keys),
 		)
-}
-
-func (m KeyboardView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		return m, nil
-	case tea.KeyMsg:
-		return m, m.HandleKeyMessage(msg)
-	}
-	return m, nil
 }

@@ -8,41 +8,45 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-func (k KeyboardView) HandleKeyMessage(msg tea.Msg) tea.Cmd {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
-			return tea.Quit
-		case tea.KeyUp:
-			k.model.HandleKey(protocol.KeyDPadUp)
-		case tea.KeyDown:
-			k.model.HandleKey(protocol.KeyDPadDown)
-		case tea.KeyLeft:
-			k.model.HandleKey(protocol.KeyDPadLeft)
-		case tea.KeyRight:
-			k.model.HandleKey(protocol.KeyDPadRight)
-		case tea.KeyRunes:
-			switch string(msg.Runes) {
-			case "w":
-				k.model.HandleKey(protocol.KeyY)
-			case "a":
-				k.model.HandleKey(protocol.KeyX)
-			case "s":
-				k.model.HandleKey(protocol.KeyB)
-			case "d":
-				k.model.HandleKey(protocol.KeyA)
-			// simulate L1/R1/L2/R2
-			case "z":
-				k.model.HandleKey(protocol.KeyL1)
-			case "x":
-				k.model.HandleKey(protocol.KeyR1)
-			case "c":
-				k.model.HandleKey(protocol.KeyL2)
-			case "v":
-				k.model.HandleKey(protocol.KeyR2)
-			}
+func (k Keyboard) handleKeyboardInput(key tea.KeyMsg) tea.Cmd {
+	var keyInput int
+	switch key.Type {
+	case tea.KeyCtrlC:
+		return tea.Quit
+
+	// translate keyboard input to protocol.KeyInputMessage
+	case tea.KeyUp:
+		keyInput = protocol.KeyDPadUp
+	case tea.KeyDown:
+		keyInput = protocol.KeyDPadDown
+	case tea.KeyLeft:
+		keyInput = protocol.KeyDPadLeft
+	case tea.KeyRight:
+		keyInput = protocol.KeyDPadRight
+	case tea.KeyRunes:
+		switch string(key.Runes) {
+		case "w":
+			keyInput = protocol.KeyY
+		case "a":
+			keyInput = protocol.KeyX
+		case "s":
+			keyInput = protocol.KeyB
+		case "d":
+			keyInput = protocol.KeyA
+		// simulate L1/R1/L2/R2
+		case "z":
+			keyInput = protocol.KeyL1
+		case "x":
+			keyInput = protocol.KeyR1
+		case "c":
+			keyInput = protocol.KeyL2
+		case "v":
+			keyInput = protocol.KeyR2
 		}
 	}
-	return nil
+	// forward to main message handler
+	return k.handleDeviceInput(protocol.KeyInputMessage{
+		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput},
+		KeyInput:    keyInput,
+	})
 }
