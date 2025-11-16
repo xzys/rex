@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -33,8 +32,8 @@ func (s *Server) handleKey(key int) error {
 }
 
 func (s *Server) sendKeyInputMessage(key int) error {
-	if s.keyboardConn == nil {
-		slog.Error("trying to send key input w/o connection to keyboard")
+	if s.encoder == nil {
+		slog.Error("trying to send key input w/o encoder")
 		return nil
 	}
 
@@ -42,13 +41,9 @@ func (s *Server) sendKeyInputMessage(key int) error {
 		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput},
 		KeyInput:    key,
 	}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return err
+	if err := s.encoder.Encode(msg); err != nil {
+		return fmt.Errorf("failed to encode key input: %w", err)
 	}
-	data = append(data, '\n')
-	if _, err := s.keyboardConn.Write(data); err != nil {
-		return fmt.Errorf("failed to send key input: %w", err)
-	}
+	slog.Debug("sent key input", "key", key)
 	return nil
 }

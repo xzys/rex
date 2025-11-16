@@ -260,7 +260,7 @@ func (m *KeyboardModelChorded) getChord(triggerKey int) *string {
 	if m.modeShift && !m.modeNumbers {
 		s = strings.ToUpper(s)
 	}
-	slog.Debug("send chord", "chord", s)
+	slog.Info("send chord", "chord", s)
 	return &s
 }
 

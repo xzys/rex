@@ -5,7 +5,12 @@ import (
 	"fmt"
 )
 
-const SocketPath = "/tmp/tr3x.sock"
+const (
+	// InputSocketPath is for server -> keyboard messages (KeyInput)
+	InputSocketPath = "/tmp/tr3x-input.sock"
+	// OutputSocketPath is for keyboard -> server messages (KeyPress)
+	OutputSocketPath = "/tmp/tr3x-output.sock"
+)
 
 const (
 	KeyDPadUp = iota
@@ -57,29 +62,41 @@ type PressKeyMessage struct {
 	KeyPress string `json:"key_press"` // virtual key character to press
 }
 
-// ParseMessage parses a JSON request message
-func ParseMessage(data []byte) (any, error) {
-	var base map[string]interface{}
-	if err := json.Unmarshal(data, &base); err != nil {
+// ParseMessage decodes a JSON message from the decoder
+func ParseMessage(decoder *json.Decoder) (any, error) {
+	// Decode into a map to check the type field
+	var rawMap map[string]interface{}
+	if err := decoder.Decode(&rawMap); err != nil {
 		return nil, err
 	}
 
-	reqType, ok := base["type"].(string)
+	// Get the message type
+	msgType, ok := rawMap["type"].(string)
 	if !ok {
-		return nil, json.Unmarshal(data, &PressKeyMessage{})
+		return nil, fmt.Errorf("missing or invalid type field")
 	}
 
-	var msg any
-	switch reqType {
-	case MessageTypeKeyInput:
-		msg = new(KeyInputMessage)
-	case MessageTypeKeyPress:
-		msg = new(PressKeyMessage)
-	default:
-		return nil, fmt.Errorf("unknown message type: %s", reqType)
-	}
-	if err := json.Unmarshal(data, msg); err != nil {
+	// Marshal back to bytes for final unmarshal into typed struct
+	data, err := json.Marshal(rawMap)
+	if err != nil {
 		return nil, err
 	}
-	return msg, nil
+
+	// Unmarshal into the appropriate message type
+	switch msgType {
+	case MessageTypeKeyInput:
+		var msg KeyInputMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, err
+		}
+		return msg, nil
+	case MessageTypeKeyPress:
+		var msg PressKeyMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, err
+		}
+		return msg, nil
+	default:
+		return nil, fmt.Errorf("unknown message type: %s", msgType)
+	}
 }

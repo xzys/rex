@@ -1,7 +1,7 @@
 package server
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,13 +12,12 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-var socketPath = protocol.SocketPath
-
 type inputMode string
 
 type Server struct {
-	keyboardConn net.Conn
-	mode         inputMode
+	encoder *json.Encoder
+	decoder *json.Decoder
+	mode    inputMode
 }
 
 const (
@@ -35,33 +34,43 @@ func NewServer() *Server {
 // Run starts the server and blocks until interrupted
 func (s *Server) Run() error {
 	slog.Info("starting server")
-	// Remove socket file if it exists
-	if _, err := os.Stat(socketPath); err == nil {
-		if err := os.Remove(socketPath); err != nil {
-			slog.Error("failed to remove existing socket", "err", err)
-			return err
+
+	// remove socket files if they exist
+	for _, path := range []string{protocol.InputSocketPath, protocol.OutputSocketPath} {
+		if _, err := os.Stat(path); err == nil {
+			os.Remove(path)
 		}
 	}
 
-	// Create Unix socket listener
-	listener, err := net.Listen("unix", socketPath)
+	// create Unix socket listeners
+	inputListener, err := net.Listen("unix", protocol.InputSocketPath)
 	if err != nil {
-		slog.Error("failed to create socket", "err", err)
+		slog.Error("failed to create input socket", "err", err)
 		return err
 	}
-	defer listener.Close()
-	defer os.Remove(socketPath)
+	defer inputListener.Close()
+	defer os.Remove(protocol.InputSocketPath)
 
-	slog.Info("server listening", "socket", socketPath)
+	outputListener, err := net.Listen("unix", protocol.OutputSocketPath)
+	if err != nil {
+		slog.Error("failed to create output socket", "err", err)
+		return err
+	}
+	defer outputListener.Close()
+	defer os.Remove(protocol.OutputSocketPath)
 
-	// Handle cleanup on interrupt
+	slog.Info("server listening", "input", protocol.InputSocketPath, "output", protocol.OutputSocketPath)
+
+	// handle cleanup on interrupt
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
 		slog.Info("shutting down server")
-		listener.Close()
-		os.Remove(socketPath)
+		inputListener.Close()
+		outputListener.Close()
+		os.Remove(protocol.InputSocketPath)
+		os.Remove(protocol.OutputSocketPath)
 		os.Exit(0)
 	}()
 
@@ -69,48 +78,56 @@ func (s *Server) Run() error {
 		return fmt.Errorf("failed to initialize server: %w", err)
 	}
 
-	// Handle connections in a loop
+	// handle connections in a loop
 	for {
-		slog.Info("waiting for connection")
-		if conn, err := listener.Accept(); err != nil {
-			slog.Error("failed to accept connection", "err", err)
-		} else {
-			if err := s.handleConnection(conn); err != nil {
-				slog.Error("failed to handle connection", "err", err)
-			}
+		slog.Info("waiting for connections")
+
+		inputConn, err := inputListener.Accept()
+		if err != nil {
+			slog.Error("failed to accept input connection", "err", err)
+			continue
+		}
+
+		outputConn, err := outputListener.Accept()
+		if err != nil {
+			inputConn.Close()
+			slog.Error("failed to accept output connection", "err", err)
+			continue
+		}
+
+		if err := s.handleConnections(inputConn, outputConn); err != nil {
+			slog.Error("connection error", "err", err)
 		}
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) error {
-	s.keyboardConn = conn
+func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
+	// read on decoder, write on encoder
+	s.encoder = json.NewEncoder(inputConn)
+	s.decoder = json.NewDecoder(outputConn)
 	s.mode = inputModeKeyboard
-	// reset on exit
+
 	defer func() {
-		conn.Close()
-		s.keyboardConn = nil
+		inputConn.Close()
+		outputConn.Close()
+		s.encoder = nil
+		s.decoder = nil
 		s.mode = inputModeGlobal
 	}()
 
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		data := scanner.Bytes()
-		if len(data) == 0 {
-			continue
-		}
+	slog.Info("keyboard connected")
 
-		msg, err := protocol.ParseMessage(data)
+	for {
+		msg, err := protocol.ParseMessage(s.decoder)
 		if err != nil {
 			return fmt.Errorf("failed to parse message: %w", err)
 		}
 
 		switch m := msg.(type) {
-		case *protocol.PressKeyMessage:
+		case protocol.PressKeyMessage:
 			if err := pressKey(m.KeyPress); err != nil {
 				return fmt.Errorf("failed to press key: %w", err)
 			}
 		}
 	}
-	// EOF will be nil, errors will be exposed
-	return scanner.Err()
 }

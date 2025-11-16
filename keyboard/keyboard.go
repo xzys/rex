@@ -1,7 +1,6 @@
 package keyboard
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -15,9 +14,12 @@ import (
 type Keyboard struct {
 	keyboard [][]string
 	model    KeyboardModel
-	conn     net.Conn
-	scanner  *bufio.Scanner
+	decoder  *json.Decoder
+	encoder  *json.Encoder
 	width    int
+	// connections kept for cleanup
+	inputConn  net.Conn
+	outputConn net.Conn
 }
 
 type RuntimeError error
@@ -40,38 +42,49 @@ func NewKeyboard(keyboardMode string) *Keyboard {
 	return &Keyboard{
 		keyboard: keyboardLayout,
 		model:    model,
-		conn:     nil,
 		width:    0,
 	}
 }
 
 func (k *Keyboard) Run() error {
-	// close connection on exit
+	// close connections on exit
 	defer func() {
-		if k.conn != nil {
-			k.conn.Close()
-			k.conn = nil
+		if k.inputConn != nil {
+			k.inputConn.Close()
+		}
+		if k.outputConn != nil {
+			k.outputConn.Close()
 		}
 	}()
 
-	// Run the UI
 	p := tea.NewProgram(k)
-	if _, err := p.Run(); err != nil {
-		return err
-	}
-	return nil
+	_, err := p.Run()
+	return err
 }
 
 // implement tea.Model interface Init, Update
 
 func (k *Keyboard) Init() tea.Cmd {
-	conn, err := net.Dial("unix", protocol.SocketPath)
+	// Connect to input socket (receives KeyInput from server)
+	inputConn, err := net.Dial("unix", protocol.InputSocketPath)
 	if err != nil {
-		slog.Error("failed to connect to server", "err", err)
+		slog.Error("failed to connect to input socket", "err", err)
 		os.Exit(1)
 	}
-	k.conn = conn
-	k.scanner = bufio.NewScanner(conn)
+	k.inputConn = inputConn
+	k.decoder = json.NewDecoder(inputConn)
+
+	// Connect to output socket (sends KeyPress to server)
+	outputConn, err := net.Dial("unix", protocol.OutputSocketPath)
+	if err != nil {
+		slog.Error("failed to connect to output socket", "err", err)
+		inputConn.Close()
+		os.Exit(1)
+	}
+	k.outputConn = outputConn
+	k.encoder = json.NewEncoder(outputConn)
+
+	slog.Info("connected to server", "input", protocol.InputSocketPath, "output", protocol.OutputSocketPath)
 
 	// 0. return tea.Cmd to read socket
 	// 1. ReadSocket returns a message containing the parsed message or an error
@@ -81,19 +94,7 @@ func (k *Keyboard) Init() tea.Cmd {
 }
 
 func (k *Keyboard) ReadSocket() tea.Msg {
-	if !k.scanner.Scan() {
-		if err := k.scanner.Err(); err != nil {
-			return RuntimeError(fmt.Errorf("failed to scan message: %w", err))
-		}
-		return RuntimeError(fmt.Errorf("connection closed"))
-	}
-
-	data := k.scanner.Bytes()
-	if len(data) == 0 {
-		return k.ReadSocket()
-	}
-
-	msg, err := protocol.ParseMessage(data)
+	msg, err := protocol.ParseMessage(k.decoder)
 	if err != nil {
 		return RuntimeError(fmt.Errorf("failed to parse message: %w", err))
 	}
@@ -101,25 +102,25 @@ func (k *Keyboard) ReadSocket() tea.Msg {
 }
 
 func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
 			return k, tea.Quit
 		}
+		return k, nil
 	case RuntimeError:
 		slog.Error("runtime error", "err", msg)
 		return k, tea.Quit
 	case tea.WindowSizeMsg:
 		k.width = msg.Width
+		return k, nil
 	case protocol.KeyInputMessage:
-		cmds = append(cmds, k.handleDeviceInput(msg))
+		// Process the input and send response, then read next message
+		return k, tea.Sequence(k.handleDeviceInput(msg), k.ReadSocket)
 	}
 
-	// always read socket again after other cmds
-	cmds = append(cmds, k.ReadSocket)
-	return k, tea.Batch(cmds...)
+	// For any other message type (including first message from Init), read from socket
+	return k, k.ReadSocket
 }
 
 // handle key input and optionally provide a command to send key press to server
@@ -136,13 +137,8 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 			BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyPress},
 			KeyPress:    *keyToPress,
 		}
-		messageData, err := json.Marshal(message)
-		if err != nil {
-			return RuntimeError(fmt.Errorf("failed to marshal message: %w", err))
-		}
-		messageData = append(messageData, '\n')
-		if _, err := k.conn.Write(messageData); err != nil {
-			return RuntimeError(fmt.Errorf("failed to write message: %w", err))
+		if err := k.encoder.Encode(message); err != nil {
+			return RuntimeError(fmt.Errorf("failed to encode message: %w", err))
 		}
 		return nil
 	}
