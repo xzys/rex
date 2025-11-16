@@ -23,6 +23,16 @@ const (
 	KeyFn
 )
 
+// Special key constants (non-printable control codes to avoid collisions)
+const (
+	SpecialKeySpace   = ' '
+	SpecialKeyShift   = '\x01' // Control-A
+	SpecialKeyDelete  = '\x02' // Control-B
+	SpecialKeyNumbers = '\x03' // Control-C
+	SpecialKeyClose   = '\x04' // Control-D
+	SpecialKeyEnter   = '\n'
+)
+
 // requests
 const (
 	MessageTypeKeyInput = "key_input"

@@ -51,35 +51,8 @@ for {
 
 **Fix:** detect EOF vs. errors explicitly, and clear the input handler's connection when the client disconnects.
 
-### 14. Special key constants collide with printable characters
-- `specialKeyShift = 'S'`, `specialKeyDelete = 'D'`, etc., are actual printable ASCII, so if the daemon wanted to emit a capital S or D (or 1, X, E), those would be misinterpreted by `pressKey` as special commands.
-- The daemon has no way to distinguish "literal S" from "shift toggle."
-
-```89:96:keyboard/model_chorded.go
-const (
-	specialKeySpace   = ' '
-	specialKeyShift   = 'S'
-	specialKeyDelete  = 'D'
-	specialKeyNumbers = '1'
-	specialKeyClose   = 'X'
-	specialKeyEnter   = 'E'
-)
-```
-
-**Fix:** use non-printable runes (e.g., control codes, private-use Unicode) or a structured message type so special keys can't collide with normal text. For example:
-```go
-const (
-	specialKeySpace   = ' '
-	specialKeyShift   = '\x01'  // Control-A
-	specialKeyDelete  = '\x02'  // Control-B
-	specialKeyNumbers = '\x03'  // Control-C
-	specialKeyClose   = '\x04'  // Control-D
-	specialKeyEnter   = '\n'
-)
-```
-
 ---
 
 ## Summary
-- **5 issues remaining** that need attention
+- **4 issues remaining** that need attention
 - Code is more robust but server/client integration and modifier coverage need work

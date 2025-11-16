@@ -2,6 +2,8 @@ package server
 
 import (
 	"log/slog"
+
+	"github.com/xzys/TR3X/v2/protocol"
 )
 
 // PressKey executes a key press
@@ -12,17 +14,17 @@ func pressKey(key string) error {
 
 	char := rune(key[0])
 	switch char {
-	case ' ':
+	case protocol.SpecialKeySpace:
 		slog.Info("sending space")
-	case 'S':
+	case protocol.SpecialKeyShift:
 		slog.Info("sending shift toggle")
-	case 'D':
+	case protocol.SpecialKeyDelete:
 		slog.Info("sending delete")
-	case '1':
+	case protocol.SpecialKeyNumbers:
 		slog.Info("sending numbers toggle")
-	case 'X':
+	case protocol.SpecialKeyClose:
 		slog.Info("sending close")
-	case 'E':
+	case protocol.SpecialKeyEnter:
 		slog.Info("sending enter")
 	default:
 		slog.Info("sending key", "key", char)

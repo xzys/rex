@@ -87,22 +87,13 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 	}
 }
 
-const (
-	specialKeySpace   = ' '
-	specialKeyShift   = 'S'
-	specialKeyDelete  = 'D'
-	specialKeyNumbers = '1'
-	specialKeyClose   = 'X'
-	specialKeyEnter   = 'E'
-)
-
 var specialKeyMap = map[string]rune{
-	"SPC": specialKeySpace,
-	"SFT": specialKeyShift,
-	"DEL": specialKeyDelete,
-	"123": specialKeyNumbers,
-	"BCK": specialKeyClose,
-	"ENT": specialKeyEnter,
+	"SPC": protocol.SpecialKeySpace,
+	"SFT": protocol.SpecialKeyShift,
+	"DEL": protocol.SpecialKeyDelete,
+	"123": protocol.SpecialKeyNumbers,
+	"BCK": protocol.SpecialKeyClose,
+	"ENT": protocol.SpecialKeyEnter,
 }
 
 func getChordMaps() (map[int]rune, map[int]rune) {
@@ -138,14 +129,14 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modifierR1, protocol.KeyA)] = 'm'
 
 	// L2 modifier
-	chordMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = specialKeyShift
+	chordMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = protocol.SpecialKeyShift
 	chordMap[encodeChord(modifierL2, protocol.KeyDPadUp)] = 't'
 	chordMap[encodeChord(modifierL2, protocol.KeyDPadDown)] = 'y'
-	chordMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = specialKeySpace
-	chordMap[encodeChord(modifierL2, protocol.KeyY)] = specialKeyDelete
-	chordMap[encodeChord(modifierL2, protocol.KeyX)] = specialKeyEnter
-	chordMap[encodeChord(modifierL2, protocol.KeyB)] = specialKeyNumbers
-	chordMap[encodeChord(modifierL2, protocol.KeyA)] = specialKeyClose
+	chordMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = protocol.SpecialKeySpace
+	chordMap[encodeChord(modifierL2, protocol.KeyY)] = protocol.SpecialKeyDelete
+	chordMap[encodeChord(modifierL2, protocol.KeyX)] = protocol.SpecialKeyEnter
+	chordMap[encodeChord(modifierL2, protocol.KeyB)] = protocol.SpecialKeyNumbers
+	chordMap[encodeChord(modifierL2, protocol.KeyA)] = protocol.SpecialKeyClose
 
 	// numbers mode
 	chordAltMap := make(map[int]rune)
@@ -159,12 +150,12 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordAltMap[encodeChord(modifierNone, protocol.KeyB)] = '7'
 	chordAltMap[encodeChord(modifierNone, protocol.KeyA)] = '8'
 
-	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = specialKeyShift
-	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = specialKeySpace
-	chordAltMap[encodeChord(modifierL2, protocol.KeyY)] = specialKeyDelete
-	chordAltMap[encodeChord(modifierL2, protocol.KeyX)] = specialKeyEnter
-	chordAltMap[encodeChord(modifierL2, protocol.KeyB)] = specialKeyNumbers
-	chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = specialKeyClose
+	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = protocol.SpecialKeyShift
+	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = protocol.SpecialKeySpace
+	chordAltMap[encodeChord(modifierL2, protocol.KeyY)] = protocol.SpecialKeyDelete
+	chordAltMap[encodeChord(modifierL2, protocol.KeyX)] = protocol.SpecialKeyEnter
+	chordAltMap[encodeChord(modifierL2, protocol.KeyB)] = protocol.SpecialKeyNumbers
+	chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = protocol.SpecialKeyClose
 
 	// unmapped chords
 	/*
@@ -255,11 +246,11 @@ func (m *KeyboardModelChorded) getChord(triggerKey int) *string {
 
 	// Update local state based on chord
 	switch char {
-	case specialKeyShift:
+	case protocol.SpecialKeyShift:
 		slog.Debug("toggling shift mode", "mode", m.modeShift)
 		m.modeShift = !m.modeShift
 		return nil
-	case specialKeyNumbers:
+	case protocol.SpecialKeyNumbers:
 		slog.Debug("toggling numbers mode", "mode", m.modeNumbers)
 		m.modeNumbers = !m.modeNumbers
 		return nil
