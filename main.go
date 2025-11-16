@@ -23,7 +23,7 @@ func main() {
 	slog.Info("starting", "server", *serverMode, "keyboard", *keyboardMode)
 	var err error
 	if *serverMode {
-		err = server.Run()
+		err = server.NewServer().Run()
 	} else {
 		err = keyboard.NewKeyboard(*keyboardMode).Run()
 	}

@@ -38,7 +38,7 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-func (h *InputHandler) Initialize() error {
+func (s *Server) Initialize() error {
 	// Initialize SDL
 	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
 		return fmt.Errorf("failed to initialize SDL: %w", err)
@@ -55,7 +55,7 @@ func (h *InputHandler) Initialize() error {
 		return fmt.Errorf("unable to open game controller: %s", sdl.GetError())
 	}
 
-	go runPollingLoop(joystick, h.HandleKey)
+	go runPollingLoop(joystick, s.HandleKey)
 
 	return nil
 }

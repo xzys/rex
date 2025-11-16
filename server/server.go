@@ -14,8 +14,16 @@ import (
 
 var socketPath = protocol.SocketPath
 
+type Server struct {
+	keyboardConn *net.Conn
+}
+
+func NewServer() *Server {
+	return &Server{}
+}
+
 // Run starts the server and blocks until interrupted
-func Run() error {
+func (s *Server) Run() error {
 	slog.Info("starting server")
 	// Remove socket file if it exists
 	if _, err := os.Stat(socketPath); err == nil {
@@ -47,9 +55,8 @@ func Run() error {
 		os.Exit(0)
 	}()
 
-	inputHandler := NewInputHandler()
-	if err := inputHandler.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize input handler: %w", err)
+	if err := s.Initialize(); err != nil {
+		return fmt.Errorf("failed to initialize server: %w", err)
 	}
 
 	// Handle connections
@@ -60,14 +67,17 @@ func Run() error {
 			continue
 		}
 
-		if err := handleConnection(conn); err != nil {
+		if err := s.handleConnection(conn); err != nil {
 			slog.Error("failed to handle connection", "err", err)
 		}
 	}
 }
 
-func handleConnection(conn net.Conn) error {
+func (s *Server) handleConnection(conn net.Conn) error {
 	defer conn.Close()
+
+	// Set the keyboard connection when established
+	s.keyboardConn = &conn
 
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
@@ -89,8 +99,14 @@ func handleConnection(conn net.Conn) error {
 		}
 	}
 
+	// Detect EOF vs errors explicitly
 	if err := scanner.Err(); err != nil {
+		// Clear connection on error
+		s.keyboardConn = nil
 		return fmt.Errorf("failed to scan message: %w", err)
 	}
+
+	// EOF detected (normal disconnect) - clear the connection
+	s.keyboardConn = nil
 	return nil
 }

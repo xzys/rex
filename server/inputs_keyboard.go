@@ -3,6 +3,6 @@
 
 package server
 
-func (h *InputHandler) Initialize() error {
+func (s *Server) Initialize() error {
 	return nil
 }
