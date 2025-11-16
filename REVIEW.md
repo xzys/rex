@@ -9,35 +9,23 @@
 **Fix:** either remove the R2 modifier entirely (including bindings) or define a chord & alt map for it.
 
 ### 11. Server only handles one connection then exits
-- `handleConnection` blocks synchronously, so when the connection ends, the error propagates and the server exits instead of accepting new connections.
+- The server now logs errors and continues accepting connections (the main issue is fixed), but connection lifecycle management could be improved. Each connection is handled synchronously, so if one connection blocks or takes a long time, new connections wait.
 
-```55:65:server/server.go
+```56:66:server/server.go
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			return err
+			slog.Error("failed to accept connection", "err", err)
+			continue
 		}
-		
+
 		if err := handleConnection(conn); err != nil {
-			return err
+			slog.Error("failed to handle connection", "err", err)
 		}
 	}
 ```
 
-**Fix:** don't propagate errors from `handleConnection` back to the main loop; log them and continue:
-```go
-for {
-	conn, err := listener.Accept()
-	if err != nil {
-		return err
-	}
-	
-	if err := handleConnection(conn); err != nil {
-		slog.Error("connection error", "err", err)
-		// Continue accepting new connections
-	}
-}
-```
+**Status:** Main issue fixed (server no longer exits), but consider handling connections concurrently for better scalability.
 
 ### 12. InputHandler connection is never wired to the keyboard client
 - `server.Run()` creates an `InputHandler` but never calls `SetKeyboardConn()` when the keyboard client connects.
@@ -46,8 +34,38 @@ for {
 **Fix:** pass `inputHandler` into `handleConnection` and call `SetKeyboardConn(&conn)` once the connection is established.
 
 ### 13. Server hangs on blank scanner output
-- `handleConnection` skips empty lines but never checks `scanner.Scan()`'s boolean return.
-- When the client disconnects, the scanner hits EOF, `Scan()` returns false, the loop terminates, and the function returns—but there's no mechanism to notify the input handler that the keyboard is gone.
+- `handleConnection` skips empty lines and checks `scanner.Scan()` in the loop condition, but when the client disconnects, the scanner hits EOF, `Scan()` returns false, the loop terminates, and the function returns—but there's no mechanism to notify the input handler that the keyboard is gone.
+
+```69:95:server/server.go
+func handleConnection(conn net.Conn) error {
+	defer conn.Close()
+
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		data := scanner.Bytes()
+		if len(data) == 0 {
+			continue
+		}
+
+		msg, err := protocol.ParseMessage(data)
+		if err != nil {
+			return fmt.Errorf("failed to parse message: %w", err)
+		}
+
+		switch m := msg.(type) {
+		case *protocol.PressKeyMessage:
+			if err := pressKey(m.KeyPress); err != nil {
+				return fmt.Errorf("failed to press key: %w", err)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to scan message: %w", err)
+	}
+	return nil
+}
+```
 
 **Fix:** detect EOF vs. errors explicitly, and clear the input handler's connection when the client disconnects.
 

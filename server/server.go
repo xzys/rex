@@ -12,7 +12,7 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-const socketPath = "/tmp/tr3x.sock"
+var socketPath = protocol.SocketPath
 
 // Run starts the server and blocks until interrupted
 func Run() error {
@@ -56,11 +56,12 @@ func Run() error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			return err
+			slog.Error("failed to accept connection", "err", err)
+			continue
 		}
 
 		if err := handleConnection(conn); err != nil {
-			return err
+			slog.Error("failed to handle connection", "err", err)
 		}
 	}
 }

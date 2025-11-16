@@ -45,8 +45,6 @@ func NewKeyboard(keyboardMode string) *Keyboard {
 	}
 }
 
-const socketPath = "/tmp/tr3x.sock"
-
 func (k *Keyboard) Run() error {
 	// close connection on exit
 	defer func() {
@@ -67,7 +65,7 @@ func (k *Keyboard) Run() error {
 // implement tea.Model interface Init, Update
 
 func (k *Keyboard) Init() tea.Cmd {
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := net.Dial("unix", protocol.SocketPath)
 	if err != nil {
 		slog.Error("failed to connect to server", "err", err)
 		os.Exit(1)

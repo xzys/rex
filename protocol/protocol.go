@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const SocketPath = "/tmp/tr3x.sock"
+
 const (
 	KeyDPadUp = iota
 	KeyDPadDown
