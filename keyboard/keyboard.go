@@ -101,19 +101,25 @@ func (k *Keyboard) ReadSocket() tea.Msg {
 }
 
 func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		k.width = msg.Width
-		return k, nil
 	case tea.KeyMsg:
-		return k, k.handleKeyboardInput(msg)
-	case protocol.KeyInputMessage:
-		return k, tea.Batch(k.handleDeviceInput(msg), k.ReadSocket)
+		if msg.Type == tea.KeyCtrlC {
+			return k, tea.Quit
+		}
 	case RuntimeError:
 		slog.Error("runtime error", "err", msg)
 		return k, tea.Quit
+	case tea.WindowSizeMsg:
+		k.width = msg.Width
+	case protocol.KeyInputMessage:
+		cmds = append(cmds, k.handleDeviceInput(msg))
 	}
-	return k, nil
+
+	// always read socket again after other cmds
+	cmds = append(cmds, k.ReadSocket)
+	return k, tea.Batch(cmds...)
 }
 
 // handle key input and optionally provide a command to send key press to server

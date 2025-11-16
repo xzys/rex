@@ -3,33 +3,6 @@
 
 package server
 
-// Mapping of the R36S controls
-
-// The following table show the mapping of the joystick buttons and axes to the R36S controls:
-// Joy-Button 	Description
-// 0 	B
-// 1 	A
-// 2 	X
-// 3 	Y
-// 4 	L1
-// 5 	R1
-// 6 	L2
-// 7 	R2
-// 8 	D-Up
-// 9 	D-Down
-// 10 	D-Left
-// 11 	D-Right
-// 12 	Select
-// 13 	Start
-// 16 	Fn
-
-// The axes are mapped as follows:
-// Joy-Axis 	Description
-// 0 	Left joystick - Left-Right motion
-// 1 	Left joystick - Up-Down motion
-// 2 	Right joystick - Left-Right motion
-// 3 	Right joystick - Up-Down motion
-
 import (
 	"fmt"
 	"log/slog"
@@ -87,6 +60,33 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(key int) error) {
 		}
 	}
 }
+
+// Mapping of the R36S controls
+
+// The following table show the mapping of the joystick buttons and axes to the R36S controls:
+// Joy-Button 	Description
+// 0 	B
+// 1 	A
+// 2 	X
+// 3 	Y
+// 4 	L1
+// 5 	R1
+// 6 	L2
+// 7 	R2
+// 8 	D-Up
+// 9 	D-Down
+// 10 	D-Left
+// 11 	D-Right
+// 12 	Select
+// 13 	Start
+// 16 	Fn
+
+// The axes are mapped as follows:
+// Joy-Axis 	Description
+// 0 	Left joystick - Left-Right motion
+// 1 	Left joystick - Up-Down motion
+// 2 	Right joystick - Left-Right motion
+// 3 	Right joystick - Up-Down motion
 
 func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) error) error {
 	if event.Type == sdl.JOYBUTTONDOWN {
