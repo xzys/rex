@@ -51,6 +51,10 @@ func (m *KeyboardModelSimple) HandleKey(key int) *string {
 		if m.selectedRow >= 0 && m.selectedRow < len(keyboardLayout) &&
 			m.selectedCol >= 0 && m.selectedCol < len(keyboardLayout[m.selectedRow]) {
 			key := keyboardLayout[m.selectedRow][m.selectedCol]
+			if mapped, ok := specialKeyMap[key]; ok {
+				mappedString := string(mapped)
+				return &mappedString
+			}
 			return &key
 		}
 	}

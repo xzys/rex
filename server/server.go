@@ -14,12 +14,22 @@ import (
 
 var socketPath = protocol.SocketPath
 
+type inputMode string
+
 type Server struct {
-	keyboardConn *net.Conn
+	keyboardConn net.Conn
+	mode         inputMode
 }
 
+const (
+	inputModeGlobal   inputMode = "global"
+	inputModeKeyboard inputMode = "keyboard"
+)
+
 func NewServer() *Server {
-	return &Server{}
+	return &Server{
+		mode: inputModeGlobal,
+	}
 }
 
 // Run starts the server and blocks until interrupted
@@ -59,25 +69,28 @@ func (s *Server) Run() error {
 		return fmt.Errorf("failed to initialize server: %w", err)
 	}
 
-	// Handle connections
+	// Handle connections in a loop
 	for {
-		conn, err := listener.Accept()
-		if err != nil {
+		slog.Info("waiting for connection")
+		if conn, err := listener.Accept(); err != nil {
 			slog.Error("failed to accept connection", "err", err)
-			continue
-		}
-
-		if err := s.handleConnection(conn); err != nil {
-			slog.Error("failed to handle connection", "err", err)
+		} else {
+			if err := s.handleConnection(conn); err != nil {
+				slog.Error("failed to handle connection", "err", err)
+			}
 		}
 	}
 }
 
 func (s *Server) handleConnection(conn net.Conn) error {
-	defer conn.Close()
-
-	// Set the keyboard connection when established
-	s.keyboardConn = &conn
+	s.keyboardConn = conn
+	s.mode = inputModeKeyboard
+	// reset on exit
+	defer func() {
+		conn.Close()
+		s.keyboardConn = nil
+		s.mode = inputModeGlobal
+	}()
 
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
@@ -98,15 +111,6 @@ func (s *Server) handleConnection(conn net.Conn) error {
 			}
 		}
 	}
-
-	// Detect EOF vs errors explicitly
-	if err := scanner.Err(); err != nil {
-		// Clear connection on error
-		s.keyboardConn = nil
-		return fmt.Errorf("failed to scan message: %w", err)
-	}
-
-	// EOF detected (normal disconnect) - clear the connection
-	s.keyboardConn = nil
-	return nil
+	// EOF will be nil, errors will be exposed
+	return scanner.Err()
 }

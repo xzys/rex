@@ -55,7 +55,7 @@ func (s *Server) Initialize() error {
 		return fmt.Errorf("unable to open game controller: %s", sdl.GetError())
 	}
 
-	go runPollingLoop(joystick, s.HandleKey)
+	go runPollingLoop(joystick, s.handleKey)
 
 	return nil
 }
@@ -117,7 +117,7 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) e
 		case 7: // R2
 			key = protocol.KeyR2
 		default:
-			slog.Warn("unknown button: %d", event.Button)
+			slog.Warn("unknown button", "button", event.Button)
 			return nil
 		}
 		if err := inputHandler(key); err != nil {
@@ -125,7 +125,7 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) e
 		}
 	} else {
 		// other events like button up?
-		slog.Warn("unknown event type: %T", event)
+		slog.Warn("unknown event type", "event", event)
 	}
 	return nil
 }
