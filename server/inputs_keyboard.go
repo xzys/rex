@@ -11,8 +11,14 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-func (s *Server) Initialize() error {
-	go runKeyboardInputLoop(s.handleKey)
+type KeyboardInputDevice struct{}
+
+func init() {
+	inputDevice = &KeyboardInputDevice{}
+}
+
+func (d *KeyboardInputDevice) Initialize(handler func(int) error) error {
+	go runKeyboardInputLoop(handler)
 	return nil
 }
 

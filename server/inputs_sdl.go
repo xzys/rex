@@ -11,7 +11,13 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-func (s *Server) Initialize() error {
+type SDLInputDevice struct{}
+
+func init() {
+	inputDevice = &SDLInputDevice{}
+}
+
+func (d *SDLInputDevice) Initialize(handler func(int) error) error {
 	// Initialize SDL
 	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
 		return fmt.Errorf("failed to initialize SDL: %w", err)
@@ -28,7 +34,7 @@ func (s *Server) Initialize() error {
 		return fmt.Errorf("unable to open game controller: %s", sdl.GetError())
 	}
 
-	go runPollingLoop(joystick, s.handleKey)
+	go runPollingLoop(joystick, handler)
 
 	return nil
 }
@@ -89,7 +95,8 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(key int) error) {
 // 3 	Right joystick - Up-Down motion
 
 func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) error) error {
-	if event.Type == sdl.JOYBUTTONDOWN {
+	switch event.Type {
+	case sdl.JOYBUTTONDOWN:
 		var key int
 		switch event.Button {
 		case 8: // D-Up
@@ -123,7 +130,7 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) e
 		if err := inputHandler(key); err != nil {
 			return fmt.Errorf("failed to handle button: %w", err)
 		}
-	} else {
+	default:
 		// other events like button up?
 		slog.Warn("unknown event type", "event", event)
 	}

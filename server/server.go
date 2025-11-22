@@ -14,10 +14,17 @@ import (
 
 type inputMode string
 
+type InputDevice interface {
+	Initialize(func(int) error) error
+}
+
+var inputDevice InputDevice
+
 type Server struct {
-	encoder *json.Encoder
-	decoder *json.Decoder
-	mode    inputMode
+	encoder     *json.Encoder
+	decoder     *json.Decoder
+	mode        inputMode
+	inputDevice InputDevice
 }
 
 const (
@@ -27,13 +34,19 @@ const (
 
 func NewServer() *Server {
 	return &Server{
-		mode: inputModeGlobal,
+		mode:        inputModeGlobal,
+		inputDevice: inputDevice,
 	}
 }
 
 // Run starts the server and blocks until interrupted
 func (s *Server) Run() error {
 	slog.Info("starting server")
+
+	// initialize input device, either keyboard or R36s
+	if err := s.inputDevice.Initialize(s.handleKey); err != nil {
+		return fmt.Errorf("failed to initialize input device: %w", err)
+	}
 
 	// remove socket files if they exist
 	for _, path := range []string{protocol.InputSocketPath, protocol.OutputSocketPath} {
@@ -73,10 +86,6 @@ func (s *Server) Run() error {
 		os.Remove(protocol.OutputSocketPath)
 		os.Exit(0)
 	}()
-
-	if err := s.Initialize(); err != nil {
-		return fmt.Errorf("failed to initialize server: %w", err)
-	}
 
 	// handle connections in a loop
 	for {
