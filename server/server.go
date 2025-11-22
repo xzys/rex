@@ -134,7 +134,7 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 
 		switch m := msg.(type) {
 		case protocol.PressKeyMessage:
-			if err := pressKey(m.KeyPress); err != nil {
+			if err := s.pressKey(m.KeyPress); err != nil {
 				return fmt.Errorf("failed to press key: %w", err)
 			}
 		}
