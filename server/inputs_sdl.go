@@ -6,6 +6,7 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xzys/TR3X/v2/protocol"
@@ -40,29 +41,31 @@ func (d *SDLInputDevice) Initialize(handler func(int) error) error {
 }
 
 func runPollingLoop(joystick *sdl.Joystick, inputHandler func(key int) error) {
+	var err error
 	defer func() {
 		sdl.Quit()
 		if joystick != nil {
 			joystick.Close()
 		}
+		if err != nil {
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
 	}()
 
-	running := true
-	for running {
-		event := sdl.PollEvent()
-		if event != nil {
-			switch e := event.(type) {
-			case *sdl.QuitEvent:
-				running = false
-			case *sdl.JoyButtonEvent:
-				if err := handleJoystickEvent(e, inputHandler); err != nil {
-					slog.Error("failed to handle joystick event: %v", err)
-					running = false
-				}
+	for {
+		event := sdl.WaitEvent()
+		if event == nil {
+			continue
+		}
+
+		switch e := event.(type) {
+		case *sdl.JoyButtonEvent:
+			if err = handleJoystickEvent(e, inputHandler); err != nil {
+				slog.Error("failed to handle joystick event", "err", err)
+				return
 			}
-		} else {
-			// Small delay to avoid busy-waiting
-			sdl.Delay(10) // ~100 FPS polling rate
 		}
 	}
 }

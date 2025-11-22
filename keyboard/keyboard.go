@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xzys/TR3X/v2/protocol"
@@ -31,9 +30,7 @@ func getKeyboardModel(mode string) KeyboardModel {
 	case "simple":
 		return NewKeyboardModelSimple()
 	default:
-		slog.Error("invalid keyboard mode", "mode", mode)
-		os.Exit(1)
-		return nil
+		panic("invalid keyboard mode")
 	}
 }
 
@@ -69,7 +66,7 @@ func (k *Keyboard) Init() tea.Cmd {
 	inputConn, err := net.Dial("unix", protocol.InputSocketPath)
 	if err != nil {
 		slog.Error("failed to connect to input socket", "err", err)
-		os.Exit(1)
+		return tea.Quit
 	}
 	k.inputConn = inputConn
 	k.decoder = json.NewDecoder(inputConn)
@@ -79,7 +76,7 @@ func (k *Keyboard) Init() tea.Cmd {
 	if err != nil {
 		slog.Error("failed to connect to output socket", "err", err)
 		inputConn.Close()
-		os.Exit(1)
+		return tea.Quit
 	}
 	k.outputConn = outputConn
 	k.encoder = json.NewEncoder(outputConn)
