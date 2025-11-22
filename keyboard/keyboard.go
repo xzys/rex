@@ -60,13 +60,14 @@ func (k *Keyboard) Run() error {
 }
 
 // implement tea.Model interface Init, Update
+var QuitCmd = tea.Sequence(tea.ExitAltScreen, tea.Quit)
 
 func (k *Keyboard) Init() tea.Cmd {
 	// Connect to input socket (receives KeyInput from server)
 	inputConn, err := net.Dial("unix", protocol.InputSocketPath)
 	if err != nil {
 		slog.Error("failed to connect to input socket", "err", err)
-		return tea.Quit
+		return QuitCmd
 	}
 	k.inputConn = inputConn
 	k.decoder = json.NewDecoder(inputConn)
@@ -76,7 +77,7 @@ func (k *Keyboard) Init() tea.Cmd {
 	if err != nil {
 		slog.Error("failed to connect to output socket", "err", err)
 		inputConn.Close()
-		return tea.Quit
+		return QuitCmd
 	}
 	k.outputConn = outputConn
 	k.encoder = json.NewEncoder(outputConn)
@@ -87,7 +88,7 @@ func (k *Keyboard) Init() tea.Cmd {
 	// 1. ReadSocket returns a message containing the parsed message or an error
 	// 2. Update parses message and returns ReadSocket command again
 	// 3. back to 1
-	return k.ReadSocket
+	return tea.EnterAltScreen
 }
 
 func (k *Keyboard) ReadSocket() tea.Msg {
@@ -99,14 +100,16 @@ func (k *Keyboard) ReadSocket() tea.Msg {
 }
 
 func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// slog.Debug("main loop update", "type", fmt.Sprintf("%T", msg), "msg", msg)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyCtrlC {
-			return k, tea.Quit
+			return k, QuitCmd
 		}
 	case RuntimeError:
 		slog.Error("runtime error", "err", msg)
-		return k, tea.Quit
+		return k, QuitCmd
 	case tea.WindowSizeMsg:
 		k.width = msg.Width
 		// NOTE somehow returning read socket here causes an issue
