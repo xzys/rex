@@ -26,10 +26,3 @@ ENV GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
     CGO_LDFLAGS='-L/usr/lib/aarch64-linux-gnu'
 
 WORKDIR /app
-COPY go.mod go.sum ./
-
-RUN go mod download
-
-COPY . .
-
-RUN go build -tags sdl -v -o r36s-keyboard

@@ -1,0 +1,22 @@
+# Build artifacts
+local-keyboard
+r36s-keyboard
+TR3X
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
