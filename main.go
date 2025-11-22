@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -14,19 +15,32 @@ import (
 // -tags sdl for SDL joystick support
 // otherwise uses keyboard for local keyboard support
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "usage: tr3x server\n")
+	fmt.Fprintf(os.Stderr, "       tr3x keyboard [--mode MODE]\n")
+	os.Exit(1)
+}
+
 func main() {
-	serverMode := flag.Bool("server", false, "run as server")
-	keyboardMode := flag.String("keyboard", "chord", "keyboard mode (simple or chorded)")
+	if len(os.Args) < 2 {
+		usage()
+	}
+
+	subcommand := os.Args[1]
+	os.Args = os.Args[1:]
 	flag.Parse()
 
-	// server handles events and executes actions
-	slog.Info("starting", "server", *serverMode, "keyboard", *keyboardMode)
 	var err error
-	if *serverMode {
+	switch subcommand {
+	case "server":
 		err = server.NewServer().Run()
-	} else {
+	case "keyboard":
+		keyboardMode := flag.String("mode", "chord", "keyboard mode (simple or chorded)")
 		err = keyboard.NewKeyboard(*keyboardMode).Run()
+	default:
+		usage()
 	}
+
 	if err != nil {
 		slog.Error("error", "err", err)
 		os.Exit(1)

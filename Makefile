@@ -9,19 +9,16 @@ docker-build: ## Build for R36S using Docker (SDL mode)
 		-v $$(pwd):/build \
 		-w /build \
 		r36s-keyboard-builder \
-		go build -tags sdl -o r36s-keyboard
+		go build -tags sdl -o tr3x
 
 build-local: ## Build for local machine with keyboard input
-	go build -tags keyboard -o local-keyboard
+	go build -tags keyboard -o tr3x-local
 
 debug:
 	dlv debug . -- --server
 
 build-sdl: ## Build for machine with SDL input
-	go build -tags sdl -o r36s-keyboard
-
-build-server: ## Build the server binary
-	go build -o tr3x-server ./server
+	go build -tags sdl -o tr3x
 
 rebuild-r36s: docker-build
-	scp r36s-keyboard r36s:bin/
+	scp tr3x r36s:bin/
