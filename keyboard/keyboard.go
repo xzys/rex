@@ -104,12 +104,12 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyCtrlC {
 			return k, tea.Quit
 		}
-		return k, nil
 	case RuntimeError:
 		slog.Error("runtime error", "err", msg)
 		return k, tea.Quit
 	case tea.WindowSizeMsg:
 		k.width = msg.Width
+		// NOTE somehow returning read socket here causes an issue
 		return k, nil
 	case protocol.KeyInputMessage:
 		// Process the input and send response, then read next message
