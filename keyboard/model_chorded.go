@@ -293,5 +293,5 @@ func (m *KeyboardModelChorded) RenderKey(i, j int, key string) (string, string, 
 			return "1", "1", key
 		}
 	}
-	return "0", "0", key
+	return "7", "0", key
 }

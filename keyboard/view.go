@@ -28,8 +28,8 @@ func (k Keyboard) View() string {
 			style := lipgloss.NewStyle().
 				Padding(0, 1).
 				Border(lipgloss.NormalBorder()).
-				BorderForeground(lipgloss.Color(fg)).
-				Foreground(lipgloss.Color(bg))
+				BorderForeground(lipgloss.Color(bg)).
+				Foreground(lipgloss.Color(fg))
 
 			keys = append(keys, style.Render(key))
 		}
