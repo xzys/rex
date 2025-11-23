@@ -18,7 +18,10 @@ type InputDevice interface {
 	Initialize(func(int) error) error
 }
 
-var inputDevice InputDevice
+var (
+	inputDevice InputDevice
+	binaryName  string
+)
 
 type Server struct {
 	encoder     *json.Encoder
@@ -42,6 +45,13 @@ func NewServer() *Server {
 // Run starts the server and blocks until interrupted
 func (s *Server) Run() error {
 	slog.Info("starting server")
+
+	// get binary name
+	if execPath, err := os.Executable(); err != nil {
+		return fmt.Errorf("failed to get binary name: %w", err)
+	} else {
+		binaryName = execPath
+	}
 
 	// initialize input device, either keyboard or R36s
 	if err := s.inputDevice.Initialize(s.handleKey); err != nil {

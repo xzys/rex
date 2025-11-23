@@ -15,14 +15,18 @@ func (s *Server) handleKey(key int) error {
 	case inputModeGlobal:
 		switch key {
 		case protocol.KeyR2:
-			// TODO open keyboard app
+			if err = s.openKeyboardPane(); err == nil {
+				s.mode = inputModeKeyboard
+			}
 		default:
-			slog.Warn("no connection to keyboard, ignoring key", "key", key)
+			slog.Warn("key not mapped, ignoring", "key", key)
 		}
 	case inputModeKeyboard:
 		switch key {
 		case protocol.KeyR2:
-			// TODO close keyboard app
+			if err = s.closeKeyboardPane(); err == nil {
+				s.mode = inputModeGlobal
+			}
 		default:
 			// send key input message to keyboard
 			err = s.sendKeyInputMessage(key)
