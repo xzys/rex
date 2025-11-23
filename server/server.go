@@ -12,8 +12,6 @@ import (
 	"github.com/xzys/TR3X/v2/protocol"
 )
 
-type inputMode string
-
 type InputDevice interface {
 	Initialize(func(int) error) error
 }
@@ -23,23 +21,24 @@ var (
 	binaryName  string
 )
 
+type Operator interface {
+	HandleKey(key int) error
+}
+
 type Server struct {
 	encoder     *json.Encoder
 	decoder     *json.Decoder
-	mode        inputMode
 	inputDevice InputDevice
+	operator    *GlobalOperator
 }
 
-const (
-	inputModeGlobal   inputMode = "global"
-	inputModeKeyboard inputMode = "keyboard"
-)
-
 func NewServer() *Server {
-	return &Server{
-		mode:        inputModeGlobal,
+	server := &Server{
 		inputDevice: inputDevice,
 	}
+	server.operator = NewGlobalOperator(server, map[string]Operator{
+	})
+	return server
 }
 
 // Run starts the server and blocks until interrupted
@@ -54,7 +53,7 @@ func (s *Server) Run() error {
 	}
 
 	// initialize input device, either keyboard or R36s
-	if err := s.inputDevice.Initialize(s.handleKey); err != nil {
+	if err := s.inputDevice.Initialize(s.operator.HandleKey); err != nil {
 		return fmt.Errorf("failed to initialize input device: %w", err)
 	}
 
@@ -124,14 +123,14 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 	// read on decoder, write on encoder
 	s.encoder = json.NewEncoder(inputConn)
 	s.decoder = json.NewDecoder(outputConn)
-	s.mode = inputModeKeyboard
+	s.operator.SetKeyboardActive(true)
 
 	defer func() {
 		inputConn.Close()
 		outputConn.Close()
 		s.encoder = nil
 		s.decoder = nil
-		s.mode = inputModeGlobal
+		s.operator.SetKeyboardActive(false)
 	}()
 
 	slog.Info("keyboard connected")
@@ -144,9 +143,26 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 
 		switch m := msg.(type) {
 		case protocol.PressKeyMessage:
-			if err := s.pressKey(m.KeyPress); err != nil {
+			if err := s.operator.PressKey(m.KeyPress); err != nil {
 				return fmt.Errorf("failed to press key: %w", err)
 			}
 		}
 	}
+}
+
+func (s *Server) SendKeyInputMessage(key int) error {
+	if s.encoder == nil {
+		slog.Error("trying to send key input w/o encoder")
+		return nil
+	}
+
+	msg := protocol.KeyInputMessage{
+		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput},
+		KeyInput:    key,
+	}
+	if err := s.encoder.Encode(msg); err != nil {
+		return fmt.Errorf("failed to encode key input: %w", err)
+	}
+	slog.Debug("sent key input", "key", key)
+	return nil
 }
