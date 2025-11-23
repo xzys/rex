@@ -126,6 +126,12 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) e
 			key = protocol.KeyL2
 		case 7: // R2
 			key = protocol.KeyR2
+		case 12: // Select
+			key = protocol.KeySelect
+		case 13: // Start
+			key = protocol.KeyStart
+		case 16: // Fn
+			key = protocol.KeyFn
 		default:
 			slog.Warn("unknown button", "button", event.Button)
 			return nil

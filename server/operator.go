@@ -13,6 +13,7 @@ type GlobalOperator struct {
 	keyboardActive bool
 	server         *Server
 	operators      map[string]Operator
+	activeOperator *Operator
 }
 
 func NewGlobalOperator(server *Server, operators map[string]Operator) *GlobalOperator {
@@ -29,9 +30,7 @@ func (o *GlobalOperator) HandleKey(key int) error {
 	if o.keyboardActive {
 		switch key {
 		case protocol.KeyR2:
-			if err = o.closeKeyboardPane(); err == nil {
-				o.SetKeyboardActive(false)
-			}
+			err = o.closeKeyboardPane()
 		default:
 			// send key input message to keyboard
 			err = o.server.SendKeyInputMessage(key)
@@ -43,12 +42,26 @@ func (o *GlobalOperator) HandleKey(key int) error {
 		case protocol.KeyL1:
 			err = o.prevWindow()
 		case protocol.KeyR2:
-			if err = o.openKeyboardPane(); err == nil {
-				o.SetKeyboardActive(true)
-			}
+			err = o.openKeyboardPane()
 		case protocol.KeyL2:
+			// TODO open start menu
+			err = o.newWindow()
+		// arrow keys are common keys in all apps
+		case protocol.KeyDPadUp:
+			err = execute("tmux", "send-keys", "-t", "0", "Up")
+		case protocol.KeyDPadDown:
+			err = execute("tmux", "send-keys", "-t", "0", "Down")
+		case protocol.KeyDPadLeft:
+			err = execute("tmux", "send-keys", "-t", "0", "Left")
+		case protocol.KeyDPadRight:
+			err = execute("tmux", "send-keys", "-t", "0", "Right")
 		default:
-			slog.Warn("key not mapped, ignoring", "key", key)
+			// pass key to active operator, if any
+			if o.activeOperator != nil {
+				err = (*o.activeOperator).HandleKey(key)
+			} else {
+				slog.Warn("no active operator, ignoring", "key", key)
+			}
 		}
 	}
 	return err
@@ -59,14 +72,13 @@ func (o *GlobalOperator) SetKeyboardActive(active bool) {
 }
 
 // executes a key press using tmux
-func (o *GlobalOperator) PressKey(key string) error {
+func (o *GlobalOperator) HandleKeyPress(key string) error {
 	if len(key) == 0 {
 		return nil
 	}
-
 	char := rune(key[0])
-	var tmuxKey string
 
+	var tmuxKey string
 	switch char {
 	case protocol.SpecialKeySpace:
 		tmuxKey = "Space"
@@ -82,19 +94,8 @@ func (o *GlobalOperator) PressKey(key string) error {
 	default:
 		tmuxKey = string(char)
 	}
-
 	// Send keys to pane 0 (top pane, main pane)
 	return execute("tmux", "send-keys", "-t", "0", tmuxKey)
-}
-
-// returns the index of the currently focused pane in tmux
-func (o *GlobalOperator) getActivePane() (string, error) {
-	cmd := exec.Command("tmux", "display-message", "-p", "#{pane_index}")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get active pane: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
 }
 
 // creates a horizontal split at the bottom running the keyboard command
@@ -114,20 +115,47 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	); err != nil {
 		return fmt.Errorf("failed to open keyboard pane: %w", err)
 	}
+	o.SetKeyboardActive(true)
 	return nil
 }
 
 // kills the keyboard process, which will close the pane
 func (o *GlobalOperator) closeKeyboardPane() error {
-	return execute("pkill", "-f", binaryName+" keyboard")
+	if err := execute("pkill", "-f", binaryName+" keyboard"); err != nil {
+		return err
+	}
+	o.SetKeyboardActive(false)
+	return nil
+}
+
+// set active operator based on the currently focused pane
+func (o *GlobalOperator) updateActiveOperator() error {
+	cmd := exec.Command("tmux", "display-message", "-p", "-t", "0", "#{pane_current_command}")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get active command: %w", err)
+	}
+	commandName := strings.TrimSpace(string(output))
+	if operator, ok := o.operators[commandName]; ok {
+		o.activeOperator = &operator
+	} else {
+		o.activeOperator = nil
+	}
+	return nil
 }
 
 func (o *GlobalOperator) nextWindow() error {
-	return execute("tmux", "next-window")
+	if err := execute("tmux", "next-window"); err != nil {
+		return err
+	}
+	return o.updateActiveOperator()
 }
 
 func (o *GlobalOperator) prevWindow() error {
-	return execute("tmux", "previous-window")
+	if err := execute("tmux", "previous-window"); err != nil {
+		return err
+	}
+	return o.updateActiveOperator()
 }
 
 func (o *GlobalOperator) newWindow() error {

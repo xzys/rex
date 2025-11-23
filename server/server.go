@@ -37,6 +37,7 @@ func NewServer() *Server {
 		inputDevice: inputDevice,
 	}
 	server.operator = NewGlobalOperator(server, map[string]Operator{
+		"ncmpcpp": NewNcmpcppOperator(),
 	})
 	return server
 }
@@ -143,7 +144,7 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 
 		switch m := msg.(type) {
 		case protocol.PressKeyMessage:
-			if err := s.operator.PressKey(m.KeyPress); err != nil {
+			if err := s.operator.HandleKeyPress(m.KeyPress); err != nil {
 				return fmt.Errorf("failed to press key: %w", err)
 			}
 		}
