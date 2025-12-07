@@ -7,9 +7,9 @@ import (
 
 const (
 	// InputSocketPath is for server -> keyboard messages (KeyInput)
-	InputSocketPath = "/tmp/tr3x-input.sock"
+	InputSocketPath = "/tmp/rex-input.sock"
 	// OutputSocketPath is for keyboard -> server messages (KeyPress)
-	OutputSocketPath = "/tmp/tr3x-output.sock"
+	OutputSocketPath = "/tmp/rex-output.sock"
 )
 
 const (

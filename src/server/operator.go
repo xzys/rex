@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/xzys/TR3X/v2/protocol"
+	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 type GlobalOperator struct {

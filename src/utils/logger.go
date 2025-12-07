@@ -10,7 +10,7 @@ import (
 )
 
 func setupLogger() {
-	logFileName := "/tmp/tr3x.log"
+	logFileName := "/tmp/rex.log"
 
 	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {

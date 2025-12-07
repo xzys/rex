@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/eiannone/keyboard"
-	"github.com/xzys/TR3X/v2/protocol"
+	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 type KeyboardInputDevice struct{}

@@ -1,4 +1,4 @@
-module github.com/xzys/TR3X/v2
+module github.com/xrfr/t-rex/v2
 
 go 1.24.1
 

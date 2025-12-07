@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/xzys/TR3X/v2/keyboard"
-	"github.com/xzys/TR3X/v2/server"
-	"github.com/xzys/TR3X/v2/start_menu"
-	_ "github.com/xzys/TR3X/v2/utils"
+	"github.com/xrfr/t-rex/v2/keyboard"
+	"github.com/xrfr/t-rex/v2/server"
+	"github.com/xrfr/t-rex/v2/start_menu"
+	_ "github.com/xrfr/t-rex/v2/utils"
 )
 
 // Build flags:
@@ -17,9 +17,9 @@ import (
 // otherwise uses keyboard for local keyboard support
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: tr3x server\n")
-	fmt.Fprintf(os.Stderr, "       tr3x keyboard [--mode MODE]\n")
-	fmt.Fprintf(os.Stderr, "       tr3x menu [--config PATH]\n")
+	fmt.Fprintf(os.Stderr, "usage: rex server\n")
+	fmt.Fprintf(os.Stderr, "       rex keyboard [--mode MODE]\n")
+	fmt.Fprintf(os.Stderr, "       rex menu [--config PATH]\n")
 	os.Exit(1)
 }
 

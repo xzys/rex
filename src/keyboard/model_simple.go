@@ -1,7 +1,7 @@
 package keyboard
 
 import (
-	"github.com/xzys/TR3X/v2/protocol"
+	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 type KeyboardModelSimple struct {
