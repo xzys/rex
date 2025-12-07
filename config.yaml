@@ -7,6 +7,11 @@ layout:
 apps:
   - name: ncmpcpp
     icon: "♫"
-    color: "1"
+    color: 1
     executable_path: /usr/bin/ncmpcpp
 
+
+  - name: lazygit
+    icon: "⑃"
+    color: 3
+    executable_path: /opt/homebrew/bin/lazygit
