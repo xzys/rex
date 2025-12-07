@@ -2,11 +2,11 @@ layout:
   gap: 2
   margin_x: 4
   margin_y: 2
-  square_size: 8
+  square_size: 9
 
 apps:
   - name: ncmpcpp
     icon: "♫"
-    color: "#FF6B6B"
+    color: "1"
     executable_path: /usr/bin/ncmpcpp
 
