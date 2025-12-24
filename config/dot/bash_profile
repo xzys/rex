@@ -1,0 +1,7 @@
+# Switch to virtual terminal 2 on login
+sudo chvt 2 2>/dev/null || true
+
+# Auto-start screen on tty2 login
+if [[ $(tty) == "/dev/tty2" ]]; then
+    exec ~/bin/screen_attach.sh
+fi
