@@ -18,7 +18,7 @@ docker-build-r36s: ## Build for R36S using Docker
 		go build -tags sdl -o /output/rex
 
 sync-r36s:
-	scp bin/rex r36s:bin/
+	rsync bin/rex r36s:bin/
 
 docker-build-ext-%: ## Build program from ext/
 	docker build -f ext/$*/Dockerfile -t r36s-$*-builder ext/$*
@@ -38,19 +38,19 @@ install-system-files: install-dotfiles install-bin install-systemd ## Install al
 install-dotfiles:
 	@echo "Syncing dotfiles..."
 	for f in config/dot/*; do \
-		scp "$$f" r36s:~/.$$(basename "$$f"); \
+		rsync "$$f" r36s:~/.$$(basename "$$f"); \
 	done
 
 install-bin:
 	@echo "Syncing bin scripts..."
 	ssh r36s 'mkdir -p ~/bin'
-	scp -r config/bin/* r36s:bin/
+	rsync -r config/bin/ r36s:bin/
 	ssh r36s 'chmod +x ~/bin/*.sh'
 
 install-systemd:
 	@echo "Syncing systemd services..."
 	ssh r36s 'mkdir -p /tmp/systemd'
-	scp -r config/systemd/* r36s:/tmp/systemd/
+	rsync -r config/systemd/ r36s:/tmp/systemd/
 	ssh r36s 'for f in /tmp/systemd/*.service; do \
 		sudo mv $$f /etc/systemd/system/; \
 	done && \
