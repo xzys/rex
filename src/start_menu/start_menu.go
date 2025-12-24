@@ -159,7 +159,7 @@ func (s *StartMenu) View() string {
 		Width(layout.SquareSize).
 		Height(layout.SquareSize/2).
 		Align(lipgloss.Center, lipgloss.Center).
-		Border(lipgloss.RoundedBorder())
+		Border(lipgloss.NormalBorder())
 
 	var rows []string
 	var currentRow []string
@@ -167,7 +167,8 @@ func (s *StartMenu) View() string {
 	for i, app := range s.config.Apps {
 		style := baseStyle.
 			BorderForeground(lipgloss.Color(app.Color)).
-			Foreground(lipgloss.Color(app.Color))
+			Foreground(lipgloss.Color(app.Color)).
+			MarginRight(layout.Gap)
 
 		if i == s.cursor {
 			style = style.
