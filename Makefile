@@ -1,7 +1,7 @@
 .PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd
 
 build-local: ## Build for local machine with keyboard input
-	cd src && go build -tags keyboard -o ../rex-local
+	cd src && go build -tags keyboard -o ../bin/rex-local
 
 debug:
 	cd src && dlv debug . -- --server
@@ -12,16 +12,26 @@ docker-build-r36s: ## Build for R36S using Docker
 		-v go-mod-cache:/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
 		-v $$(pwd)/src:/app \
+		-v $$(pwd)/bin:/output \
 		-w /app \
 		r36s-keyboard-builder \
-		go build -tags sdl -o ../bin/rex
+		go build -tags sdl -o /output/rex
 
 sync-r36s:
 	scp bin/rex r36s:bin/
 
 docker-build-ext-%: ## Build program from ext/
-	mkdir -p bin
-	./ext/$*/build.sh
+	docker build -f ext/$*/Dockerfile -t r36s-$*-builder ext/$*
+	docker run --rm --platform linux/amd64 \
+		-v go-mod-cache:/go/pkg/mod \
+		-v go-build-cache:/root/.cache/go-build \
+		-e GOPATH=/root/go \
+		-v $$(pwd)/bin:/output \
+		-v $$(pwd)/ext/$*:/app \
+		-w /app \
+		r36s-$*-builder \
+		/app/build.sh
+
 
 install-system-files: install-dotfiles install-bin install-systemd ## Install all system files to r36s
 

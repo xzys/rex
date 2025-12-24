@@ -22,8 +22,3 @@ ENV PATH=/usr/local/go/bin:$PATH
 ENV GOOS=linux GOARCH=arm64 CGO_ENABLED=0
 
 WORKDIR /app
-
-# --- build lf ----------------------------------------------------------------
-RUN GOPATH=/root/go go install -ldflags='-s -w' github.com/gokcehan/lf@latest && \
-    mkdir -p /app/bin && \
-    cp /root/go/bin/linux_arm64/lf /app/bin/lf || cp /root/go/bin/lf /app/bin/lf
