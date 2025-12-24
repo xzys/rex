@@ -2,6 +2,7 @@ package start_menu
 
 import (
 	"os"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -28,15 +29,44 @@ type Config struct {
 }
 
 type StartMenu struct {
-	config       Config
-	cursor       int
-	width        int
-	height       int
-	itemsPerRow  int
+	config      Config
+	cursor      int
+	width       int
+	height      int
+	itemsPerRow int
+}
+
+// findConfigPath tries multiple paths and returns the first one that exists
+func findConfigPath(userPath string) (string, error) {
+	if userPath != "" {
+		if _, err := os.Stat(userPath); err == nil {
+			return userPath, nil
+		} else {
+			return "", err
+		}
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		defaultPath := filepath.Join(homeDir, ".config", "rex", "config.yaml")
+		if _, err := os.Stat(defaultPath); err == nil {
+			return defaultPath, nil
+		}
+	}
+
+	if _, err := os.Stat("config.yaml"); err == nil {
+		return "config.yaml", nil
+	}
+
+	return "", os.ErrNotExist
 }
 
 func LoadConfig(path string) (Config, error) {
-	data, err := os.ReadFile(path)
+	configPath, err := findConfigPath(path)
+	if err != nil {
+		return Config{}, err
+	}
+
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return Config{}, err
 	}
@@ -127,7 +157,7 @@ func (s *StartMenu) View() string {
 
 	baseStyle := lipgloss.NewStyle().
 		Width(layout.SquareSize).
-		Height(layout.SquareSize / 2).
+		Height(layout.SquareSize/2).
 		Align(lipgloss.Center, lipgloss.Center).
 		Border(lipgloss.RoundedBorder())
 
@@ -181,4 +211,3 @@ func (s *StartMenu) SelectedApp() *App {
 	}
 	return nil
 }
-

@@ -40,7 +40,7 @@ func main() {
 		keyboardMode := flag.String("mode", "chord", "keyboard mode (simple or chorded)")
 		err = keyboard.NewKeyboard(*keyboardMode).Run()
 	case "menu":
-		configPath := flag.String("config", "config.yaml", "path to config file")
+		configPath := flag.String("config", "", "path to config file (default: ~/.config/rex/config.yaml, $PWD/config.yaml)")
 		flag.Parse()
 		var menu *start_menu.StartMenu
 		menu, err = start_menu.NewStartMenu(*configPath)

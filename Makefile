@@ -19,6 +19,8 @@ docker-build-r36s: ## Build for R36S using Docker
 
 sync-r36s:
 	rsync bin/rex r36s:bin/
+	ssh r36s 'mkdir -p ~/.config/rex'
+	rsync config.yaml r36s:~/.config/rex/
 
 docker-build-ext-%: ## Build program from ext/
 	docker build -f ext/$*/Dockerfile -t r36s-$*-builder ext/$*
