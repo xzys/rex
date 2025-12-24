@@ -14,13 +14,14 @@ docker-build-r36s: ## Build for R36S using Docker
 		-v $$(pwd)/src:/app \
 		-w /app \
 		r36s-keyboard-builder \
-		go build -tags sdl -o ../rex
+		go build -tags sdl -o ../bin/rex
 
 sync-r36s:
-	scp rex r36s:bin/
+	scp bin/rex r36s:bin/
 
 docker-build-ext-%: ## Build program from ext/
-	./ext/build.sh $*
+	mkdir -p bin
+	./ext/$*/build.sh
 
 install-system-files: install-dotfiles install-bin install-systemd ## Install all system files to r36s
 
