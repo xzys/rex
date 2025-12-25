@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/xrfr/t-rex/v2/keyboard"
+	"github.com/xrfr/t-rex/v2/menu"
 	"github.com/xrfr/t-rex/v2/server"
-	"github.com/xrfr/t-rex/v2/start_menu"
 	_ "github.com/xrfr/t-rex/v2/utils"
 )
 
@@ -42,10 +42,10 @@ func main() {
 	case "menu":
 		configPath := flag.String("config", "", "path to config file (default: ~/.config/rex/config.yaml, $PWD/config.yaml)")
 		flag.Parse()
-		var menu *start_menu.StartMenu
-		menu, err = start_menu.NewStartMenu(*configPath)
+		var m *menu.Menu
+		m, err = menu.NewMenu(*configPath)
 		if err == nil {
-			err = menu.Run()
+			err = m.Run()
 		}
 	default:
 		usage()

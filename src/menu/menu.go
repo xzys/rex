@@ -1,4 +1,4 @@
-package start_menu
+package menu
 
 import (
 	"os"
@@ -28,7 +28,7 @@ type Config struct {
 	Apps   []App  `yaml:"apps"`
 }
 
-type StartMenu struct {
+type Menu struct {
 	config      Config
 	cursor      int
 	width       int
@@ -80,80 +80,79 @@ func LoadConfig(path string) (Config, error) {
 	return config, nil
 }
 
-func NewStartMenu(configPath string) (*StartMenu, error) {
+func NewMenu(configPath string) (*Menu, error) {
 	config, err := LoadConfig(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &StartMenu{
+	return &Menu{
 		config:      config,
 		cursor:      0,
 		itemsPerRow: 4,
 	}, nil
 }
 
-func (s *StartMenu) Run() error {
-	p := tea.NewProgram(s, tea.WithAltScreen())
+func (m *Menu) Run() error {
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
 
-func (s *StartMenu) Init() tea.Cmd {
+func (m *Menu) Init() tea.Cmd {
 	return nil
 }
 
-func (s *StartMenu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
-			return s, tea.Quit
+			return m, tea.Quit
 		case "left", "h":
-			if s.cursor > 0 {
-				s.cursor--
+			if m.cursor > 0 {
+				m.cursor--
 			}
 		case "right", "l":
-			if s.cursor < len(s.config.Apps)-1 {
-				s.cursor++
+			if m.cursor < len(m.config.Apps)-1 {
+				m.cursor++
 			}
 		case "up", "k":
-			if s.cursor >= s.itemsPerRow {
-				s.cursor -= s.itemsPerRow
+			if m.cursor >= m.itemsPerRow {
+				m.cursor -= m.itemsPerRow
 			}
 		case "down", "j":
-			if s.cursor+s.itemsPerRow < len(s.config.Apps) {
-				s.cursor += s.itemsPerRow
+			if m.cursor+m.itemsPerRow < len(m.config.Apps) {
+				m.cursor += m.itemsPerRow
 			}
 		case "enter":
-			if s.cursor < len(s.config.Apps) {
-				// Return selected app - caller can handle execution
-				return s, tea.Quit
+			if m.cursor < len(m.config.Apps) {
+				return m, tea.Quit
 			}
 		}
 	case tea.WindowSizeMsg:
-		s.width = msg.Width
-		s.height = msg.Height
-		s.calculateItemsPerRow()
+		m.width = msg.Width
+		m.height = msg.Height
+		m.calculateItemsPerRow()
 	}
 
-	return s, nil
+	return m, nil
 }
 
-func (s *StartMenu) calculateItemsPerRow() {
-	layout := s.config.Layout
-	availableWidth := s.width - (layout.MarginX * 2)
+func (m *Menu) calculateItemsPerRow() {
+	layout := m.config.Layout
+	availableWidth := m.width - (layout.MarginX * 2)
 	itemWidth := layout.SquareSize + layout.Gap
 	if itemWidth > 0 {
-		s.itemsPerRow = availableWidth / itemWidth
-		if s.itemsPerRow < 1 {
-			s.itemsPerRow = 1
+		m.itemsPerRow = availableWidth / itemWidth
+		if m.itemsPerRow < 1 {
+			m.itemsPerRow = 1
 		}
 	}
 }
 
-func (s *StartMenu) View() string {
-	layout := s.config.Layout
+func (m *Menu) View() string {
+	layout := m.config.Layout
 
 	baseStyle := lipgloss.NewStyle().
 		Width(layout.SquareSize).
@@ -164,13 +163,13 @@ func (s *StartMenu) View() string {
 	var rows []string
 	var currentRow []string
 
-	for i, app := range s.config.Apps {
+	for i, app := range m.config.Apps {
 		style := baseStyle.
 			BorderForeground(lipgloss.Color(app.Color)).
 			Foreground(lipgloss.Color(app.Color)).
 			MarginRight(layout.Gap)
 
-		if i == s.cursor {
+		if i == m.cursor {
 			style = style.
 				Background(lipgloss.Color(app.Color)).
 				Foreground(lipgloss.Color("#000000"))
@@ -180,14 +179,13 @@ func (s *StartMenu) View() string {
 		square := style.Render(content)
 		currentRow = append(currentRow, square)
 
-		if len(currentRow) >= s.itemsPerRow {
+		if len(currentRow) >= m.itemsPerRow {
 			row := lipgloss.JoinHorizontal(lipgloss.Top, currentRow...)
 			rows = append(rows, row)
 			currentRow = nil
 		}
 	}
 
-	// Handle remaining items in last row
 	if len(currentRow) > 0 {
 		row := lipgloss.JoinHorizontal(lipgloss.Top, currentRow...)
 		rows = append(rows, row)
@@ -206,9 +204,9 @@ func (s *StartMenu) View() string {
 		Render(grid)
 }
 
-func (s *StartMenu) SelectedApp() *App {
-	if s.cursor >= 0 && s.cursor < len(s.config.Apps) {
-		return &s.config.Apps[s.cursor]
+func (m *Menu) SelectedApp() *App {
+	if m.cursor >= 0 && m.cursor < len(m.config.Apps) {
+		return &m.config.Apps[m.cursor]
 	}
 	return nil
 }
