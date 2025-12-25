@@ -22,7 +22,7 @@ var (
 )
 
 type Operator interface {
-	HandleKey(key int) error
+	HandleKey(key int) (bool, error)
 }
 
 type Server struct {

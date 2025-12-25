@@ -36,6 +36,19 @@ func (o *GlobalOperator) HandleKey(key int) error {
 			err = o.server.SendKeyInputMessage(key)
 		}
 	} else {
+		// sync active operator with current window
+		o.updateActiveOperator()
+		// try active operator first
+		if o.activeOperator != nil {
+			handled, err := (*o.activeOperator).HandleKey(key)
+			if err != nil {
+				return err
+			}
+			if handled {
+				return nil
+			}
+		}
+		// fall back to global keys
 		switch key {
 		case protocol.KeyR1:
 			err = o.nextWindow()
@@ -47,7 +60,6 @@ func (o *GlobalOperator) HandleKey(key int) error {
 			err = o.newWindow()
 		case protocol.KeyStart:
 			err = o.openMenu()
-		// arrow keys are common keys in all apps
 		case protocol.KeyDPadUp:
 			err = execute("tmux", "send-keys", "-t", "0", "Up")
 		case protocol.KeyDPadDown:
@@ -56,13 +68,6 @@ func (o *GlobalOperator) HandleKey(key int) error {
 			err = execute("tmux", "send-keys", "-t", "0", "Left")
 		case protocol.KeyDPadRight:
 			err = execute("tmux", "send-keys", "-t", "0", "Right")
-		default:
-			// pass key to active operator, if any
-			if o.activeOperator != nil {
-				err = (*o.activeOperator).HandleKey(key)
-			} else {
-				slog.Warn("no active operator, ignoring", "key", key)
-			}
 		}
 	}
 	return err
@@ -141,12 +146,7 @@ func (o *GlobalOperator) openMenu() error {
 
 	slog.Info("opening menu")
 	// Create a new window running the menu command
-	err := execute("tmux", "new-window", "-n", "menu", binaryName, "menu")
-	if err != nil {
-		return fmt.Errorf("failed to open menu: %w", err)
-	}
-	// Update active operator after opening menu
-	return o.updateActiveOperator()
+	return execute("tmux", "new-window", "-n", "menu", binaryName, "menu")
 }
 
 // set active operator based on the currently focused window name
@@ -157,27 +157,24 @@ func (o *GlobalOperator) updateActiveOperator() error {
 		return fmt.Errorf("failed to get window name: %w", err)
 	}
 	windowName := strings.TrimSpace(string(output))
-	slog.Debug("updated active operator", "window", windowName)
+	prev := o.activeOperator
 	if operator, ok := o.operators[windowName]; ok {
 		o.activeOperator = &operator
 	} else {
 		o.activeOperator = nil
 	}
+	if o.activeOperator != prev {
+		slog.Debug("active operator changed", "window", windowName)
+	}
 	return nil
 }
 
 func (o *GlobalOperator) nextWindow() error {
-	if err := execute("tmux", "next-window"); err != nil {
-		return err
-	}
-	return o.updateActiveOperator()
+	return execute("tmux", "next-window")
 }
 
 func (o *GlobalOperator) prevWindow() error {
-	if err := execute("tmux", "previous-window"); err != nil {
-		return err
-	}
-	return o.updateActiveOperator()
+	return execute("tmux", "previous-window")
 }
 
 func (o *GlobalOperator) newWindow() error {
