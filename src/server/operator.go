@@ -131,7 +131,7 @@ func (o *GlobalOperator) closeKeyboardPane() error {
 
 // opens the menu in a new window
 func (o *GlobalOperator) openMenu() error {
-	// Check if menu is already running
+	// Check if menu is already running and kill it if it is
 	if err := execute("pgrep", "-f", binaryName+" menu"); err == nil {
 		slog.Info("menu already exists, killing it first")
 		if err := execute("pkill", "-f", binaryName+" menu"); err != nil {
@@ -141,26 +141,24 @@ func (o *GlobalOperator) openMenu() error {
 
 	slog.Info("opening menu")
 	// Create a new window running the menu command
-	if err := execute("tmux", "new-window",
-		"-n", "menu",
-		binaryName, "menu",
-	); err != nil {
+	err := execute("tmux", "new-window", "-n", "menu", binaryName, "menu")
+	if err != nil {
 		return fmt.Errorf("failed to open menu: %w", err)
 	}
 	// Update active operator after opening menu
 	return o.updateActiveOperator()
 }
 
-// set active operator based on the currently focused pane
+// set active operator based on the currently focused window name
 func (o *GlobalOperator) updateActiveOperator() error {
-	cmd := exec.Command("tmux", "display-message", "-p", "#{pane_current_command}")
+	cmd := exec.Command("tmux", "display-message", "-p", "#{window_name}")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to get active command: %w", err)
+		return fmt.Errorf("failed to get window name: %w", err)
 	}
-	commandName := strings.TrimSpace(string(output))
-	slog.Debug("updated active operator", "command", commandName)
-	if operator, ok := o.operators[commandName]; ok {
+	windowName := strings.TrimSpace(string(output))
+	slog.Debug("updated active operator", "window", windowName)
+	if operator, ok := o.operators[windowName]; ok {
 		o.activeOperator = &operator
 	} else {
 		o.activeOperator = nil
