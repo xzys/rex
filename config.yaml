@@ -26,6 +26,6 @@ apps:
     executable_path: /usr/bin/emulationstation/emulationstation.sh
 
   - name: btm
-    icon: "▲"
+    icon: "↓"
     color: 5
     executable_path: btm
