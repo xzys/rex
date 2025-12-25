@@ -2,14 +2,14 @@
 
 ## Overview
 
-TR3X is a client-server keyboard input system designed for the R36S handheld gaming device. It enables gamepad/joystick input to be translated into keyboard characters through a chorded keyboard interface. The system consists of two main components: a **server** that handles input device events and a **keyboard client** that provides a visual keyboard interface and translates gamepad inputs into characters.
+REX is a client-server keyboard input system designed for the R36S handheld gaming device. It enables gamepad/joystick input to be translated into keyboard characters through a chorded keyboard interface. The system consists of two main components: a **server** that handles input device events and a **keyboard client** that provides a visual keyboard interface and translates gamepad inputs into characters.
 
 ## Usage
 
 ```
-tr3x server                    # Start the daemon
-tr3x keyboard [--mode MODE]    # Start keyboard (mode: chord or simple)
-tr3x menu [--config PATH]      # Start menu (default: config.yaml)
+rex server                    # Start the daemon
+rex keyboard [--mode MODE]    # Start keyboard (mode: chord or simple)
+rex menu [--config PATH]      # Start menu (default: config.yaml)
 ```
 
 ## System Architecture
@@ -48,8 +48,8 @@ tr3x menu [--config PATH]      # Start menu (default: config.yaml)
 ### Server (`server/`)
 - Manages input device polling (SDL gamepad or keyboard)
 - Accepts keyboard client connections via Unix sockets:
-  - `/tmp/tr3x-input.sock` - server → keyboard (KeyInput messages)
-  - `/tmp/tr3x-output.sock` - keyboard → server (KeyPress messages)
+  - `/tmp/rex-input.sock` - server → keyboard (KeyInput messages)
+  - `/tmp/rex-output.sock` - keyboard → server (KeyPress messages)
 - Forwards device input to keyboard client as `KeyInputMessage`
 - Receives `PressKeyMessage` from keyboard client and executes key presses via tmux
 
@@ -126,7 +126,7 @@ For local development without a gamepad (`make build-local`):
 
 ## Logging
 
-Logs are written to `/tmp/tr3x.log` with debug-level output.
+Logs are written to `/tmp/rex.log` with debug-level output.
 
 ## Design Decisions
 

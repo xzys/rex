@@ -18,7 +18,8 @@ docker-build-r36s: ## Build for R36S using Docker
 		go build -tags sdl -o /output/rex
 
 sync-r36s:
-	rsync bin/rex r36s:bin/
+	@echo "Syncing rex binary and scripts to r36s..."
+	rsync bin/rex config/bin/* r36s:bin/
 	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 
@@ -35,19 +36,13 @@ docker-build-ext-%: ## Build program from ext/
 		/app/build.sh
 
 
-install-system-files: install-dotfiles install-bin install-systemd ## Install all system files to r36s
+install-system-files: install-dotfiles install-systemd ## Install all system files to r36s
 
 install-dotfiles:
 	@echo "Syncing dotfiles..."
 	for f in config/dot/*; do \
 		rsync "$$f" r36s:~/.$$(basename "$$f"); \
 	done
-
-install-bin:
-	@echo "Syncing bin scripts..."
-	ssh r36s 'mkdir -p ~/bin'
-	rsync -r config/bin/ r36s:bin/
-	ssh r36s 'chmod +x ~/bin/*.sh'
 
 install-systemd:
 	@echo "Syncing systemd services..."
