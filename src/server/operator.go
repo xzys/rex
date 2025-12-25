@@ -44,8 +44,9 @@ func (o *GlobalOperator) HandleKey(key int) error {
 		case protocol.KeyR2:
 			err = o.openKeyboardPane()
 		case protocol.KeyL2:
-			// TODO open start menu
 			err = o.newWindow()
+		case protocol.KeyStart:
+			err = o.openMenu()
 		// arrow keys are common keys in all apps
 		case protocol.KeyDPadUp:
 			err = execute("tmux", "send-keys", "-t", "0", "Up")
@@ -128,14 +129,37 @@ func (o *GlobalOperator) closeKeyboardPane() error {
 	return nil
 }
 
+// opens the menu in a new window
+func (o *GlobalOperator) openMenu() error {
+	// Check if menu is already running
+	if err := execute("pgrep", "-f", binaryName+" menu"); err == nil {
+		slog.Info("menu already exists, killing it first")
+		if err := execute("pkill", "-f", binaryName+" menu"); err != nil {
+			return err
+		}
+	}
+
+	slog.Info("opening menu")
+	// Create a new window running the menu command
+	if err := execute("tmux", "new-window",
+		"-n", "menu",
+		binaryName, "menu",
+	); err != nil {
+		return fmt.Errorf("failed to open menu: %w", err)
+	}
+	// Update active operator after opening menu
+	return o.updateActiveOperator()
+}
+
 // set active operator based on the currently focused pane
 func (o *GlobalOperator) updateActiveOperator() error {
-	cmd := exec.Command("tmux", "display-message", "-p", "-t", "0", "#{pane_current_command}")
+	cmd := exec.Command("tmux", "display-message", "-p", "#{pane_current_command}")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to get active command: %w", err)
 	}
 	commandName := strings.TrimSpace(string(output))
+	slog.Debug("updated active operator", "command", commandName)
 	if operator, ok := o.operators[commandName]; ok {
 		o.activeOperator = &operator
 	} else {

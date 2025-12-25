@@ -38,7 +38,7 @@ func NewServer() *Server {
 	}
 	server.operator = NewGlobalOperator(server, map[string]Operator{
 		"ncmpcpp": NewNcmpcppOperator(),
-		"rex":     NewMenuOperator(),
+		"menu":    NewMenuOperator(),
 	})
 	return server
 }
