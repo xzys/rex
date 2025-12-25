@@ -109,6 +109,12 @@ func (m *Menu) Run() error {
 			return err
 		}
 		slog.Info("opening app", "name", app.Name, "executable", execPath)
+
+		cmd := exec.Command("tmux", "rename-window", app.Name)
+		if err := cmd.Run(); err != nil {
+			slog.Warn("failed to rename window", "name", app.Name, "err", err)
+		}
+
 		return syscall.Exec(execPath, []string{execPath}, os.Environ())
 	}
 	return nil
