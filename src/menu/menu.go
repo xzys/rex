@@ -17,6 +17,7 @@ type App struct {
 	Icon           string `yaml:"icon"`
 	Color          string `yaml:"color"`
 	ExecutablePath string `yaml:"executable_path"`
+	Exclusive      bool   `yaml:"exclusive"`
 }
 
 type Layout struct {
@@ -116,9 +117,17 @@ func (m *Menu) Run() error {
 			slog.Warn("failed to rename window", "name", app.Name, "err", err)
 		}
 
+		if app.Exclusive {
+			return runExclusive(execPath)
+		}
 		return syscall.Exec(execPath, []string{execPath}, os.Environ())
 	}
 	return nil
+}
+
+func runExclusive(execPath string) error {
+	rexPath, _ := os.Executable()
+	return syscall.Exec(rexPath, []string{rexPath, "exclusive", execPath}, os.Environ())
 }
 
 func (m *Menu) Init() tea.Cmd {
