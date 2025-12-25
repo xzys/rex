@@ -1,7 +1,5 @@
 FROM --platform=linux/amd64 debian:buster
 
-ARG GO_VERSION=1.24.1
-
 # --- configure archive repositories (Buster is EOL) -------------------------
 RUN sed -i 's/deb.debian.org/archive.debian.org/g' /etc/apt/sources.list && \
     sed -i 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' /etc/apt/sources.list && \
@@ -17,6 +15,8 @@ RUN dpkg --add-architecture arm64 && \
         pkg-config \
         libsdl2-dev:arm64 libsdl2-ttf-dev:arm64 libsdl2-image-dev:arm64 \
         && rm -rf /var/lib/apt/lists/*
+
+ARG GO_VERSION=1.24.1
 
 # --- Go tool-chain (linux-amd64 tarball) ------------------------------------
 RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \

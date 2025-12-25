@@ -1,7 +1,7 @@
 .PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd
 
 build-local: ## Build for local machine with keyboard input
-	cd src && go build -tags keyboard -o ../bin/rex-local
+	cd src && go build -tags keyboard -o ../rex-local
 
 debug:
 	cd src && dlv debug . -- --server
@@ -19,7 +19,7 @@ docker-build-r36s: ## Build for R36S using Docker
 
 sync-r36s:
 	@echo "Syncing rex binary and scripts to r36s..."
-	rsync bin/rex config/bin/* r36s:bin/
+	rsync bin/* config/bin/* r36s:bin/
 	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 

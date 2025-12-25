@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,6 +108,7 @@ func (m *Menu) Run() error {
 		if err != nil {
 			return err
 		}
+		slog.Info("opening app", "name", app.Name, "executable", execPath)
 		return syscall.Exec(execPath, []string{execPath}, os.Environ())
 	}
 	return nil
