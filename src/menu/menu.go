@@ -2,7 +2,9 @@ package menu
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -34,6 +36,7 @@ type Menu struct {
 	width       int
 	height      int
 	itemsPerRow int
+	selected    bool
 }
 
 // findConfigPath tries multiple paths and returns the first one that exists
@@ -95,8 +98,18 @@ func NewMenu(configPath string) (*Menu, error) {
 
 func (m *Menu) Run() error {
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	if _, err := p.Run(); err != nil {
+		return err
+	}
+	if m.selected {
+		app := m.SelectedApp()
+		execPath, err := exec.LookPath(app.ExecutablePath)
+		if err != nil {
+			return err
+		}
+		return syscall.Exec(execPath, []string{execPath}, os.Environ())
+	}
+	return nil
 }
 
 func (m *Menu) Init() tea.Cmd {
@@ -127,6 +140,7 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if m.cursor < len(m.config.Apps) {
+				m.selected = true
 				return m, tea.Quit
 			}
 		}

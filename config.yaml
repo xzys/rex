@@ -8,16 +8,19 @@ apps:
   - name: ncmpcpp
     icon: "√"
     color: 1
-    executable_path: /usr/bin/ncmpcpp
-
+    executable_path: ncmpcpp
 
   - name: lazygit
     icon: "¥"
     color: 3
-    executable_path: /opt/homebrew/bin/lazygit
-
+    executable_path: lazygit
 
   - name: lf
     icon: "≠"
     color: 4
-    executable_path: /usr/local/bin/lf
+    executable_path: lf
+
+  - name: games
+    icon: "©"
+    color: 2
+    executable_path: /usr/bin/emulationstation/emulationstation.sh
