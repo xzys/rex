@@ -1,7 +1,16 @@
 # Switch to virtual terminal 2 on login
 sudo chvt 2 2>/dev/null || true
 
-# Auto-start screen on tty2 login
+# Auto-start rex on tty2 login
 if [[ $(tty) == "/dev/tty2" ]]; then
-    exec ~/bin/screen_attach.sh
+    recovery_msg="Plug in USB keyboard and switch to another terminal (Ctrl+Alt+F1)"
+    if [[ ! -x ~/bin/rex ]]; then
+        echo "ERROR: ~/bin/rex not found or not executable"
+        echo "$recovery_msg"
+    elif ~/bin/rex 2>&1; then
+        exit 0
+    else
+        echo "ERROR: rex exited with error"
+        echo "$recovery_msg"
+    fi
 fi

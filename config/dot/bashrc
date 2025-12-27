@@ -17,22 +17,7 @@ HISTSIZE=1000
 HISTFILESIZE=2000
 shopt -s histappend
 
-# Update window size after each command
-shopt -s checkwinsize
-
 # Prompt: yellow user@host, blue directory
 PS1='\[\033[33m\]\u@\h\[\033[0m\]:\[\033[34m\]\w\[\033[0m\]\$ '
 
-# Colors for ls and grep
-if [ -x /usr/bin/dircolors ]; then
-    eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
-    alias grep='grep --color=auto'
-fi
-
-# Aliases
-alias ll='ls -alF'
-alias la='ls -A'
-
-# Path
 export PATH=$HOME/bin:$PATH
