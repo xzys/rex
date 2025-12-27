@@ -9,8 +9,11 @@ REX is a client-server keyboard input system designed for the R36S handheld gami
 ```
 rex server                    # Start the daemon
 rex keyboard [--mode MODE]    # Start keyboard (mode: chord or simple)
-rex menu [--config PATH]      # Start menu (default: config.yaml)
+rex menu [--config PATH]      # Start menu
+rex exclusive <path>          # Run app with exclusive SDL access (kills/restarts server)
 ```
+
+Config file search order for menu: `--config PATH` → `~/.config/rex/config.yaml` → `$PWD/config.yaml`
 
 ## System Architecture
 
@@ -59,10 +62,23 @@ rex menu [--config PATH]      # Start menu (default: config.yaml)
 - Translates gamepad inputs to characters using chorded or simple model
 - Sends translated characters back to server as `PressKeyMessage`
 
-### Start Menu (`start_menu/`)
+### Start Menu (`menu/`)
 - Grid-based app launcher with configurable apps
-- Configured via YAML file (see `config.yaml`)
 - Uses arrow keys/D-pad to navigate, Enter/A to select
+- Config structure:
+  ```yaml
+  layout:
+    gap: 4           # spacing between items
+    margin_x: 4      # horizontal margin
+    margin_y: 2      # vertical margin
+    square_size: 9   # item size
+  apps:
+    - name: app_name
+      icon: "√"               # single character icon
+      color: 1                # ANSI color code
+      executable_path: /path  # or just binary name
+      exclusive: true         # optional: kills rex server while running
+  ```
 
 ### Protocol (`protocol/`)
 - Defines key constants (D-Pad, face buttons, modifiers)
@@ -72,7 +88,8 @@ rex menu [--config PATH]      # Start menu (default: config.yaml)
 ### Operators (`server/operator*.go`)
 - Handle app-specific key bindings when keyboard is not active
 - `GlobalOperator`: Manages tmux windows and routes keys to active operator
-- `NcmpcppOperator`: Music player controls (A=select, B=play/pause, X=skip, Y=back)
+- `MenuOperator`: A=Enter
+- `NcmpcppOperator`: A=select, B=play/pause, X=skip, Y=back, Left/Right=cycle screens
 
 ### Keyboard Models
 - **Chorded**: Modifier + trigger combinations (L1/R1/L2 + D-Pad/buttons), supports shift and numbers modes
@@ -83,6 +100,7 @@ rex menu [--config PATH]      # Start menu (default: config.yaml)
 When keyboard is **not** active:
 | Key | Action |
 |-----|--------|
+| Start | Open menu |
 | R2 | Open keyboard pane |
 | R1 | Next tmux window |
 | L1 | Previous tmux window |
@@ -120,9 +138,10 @@ For local development without a gamepad (`make build-local`):
 ## Build
 
 - `make build-local`: Keyboard input for development/testing
-- `make build-sdl`: Build for machine with SDL input
-- `make docker-build`: Build for R36S using Docker (cross-compile)
-- `make rebuild-r36s`: Build and deploy to R36S via scp
+- `make docker-build-r36s`: Build for R36S using Docker (cross-compile)
+- `make sync-r36s`: Sync binary and config to R36S via rsync
+- `make docker-build-ext-<name>`: Build external program from `ext/` (e.g., `make docker-build-ext-lf`)
+- `make install-system-files`: Install dotfiles and systemd services to R36S
 
 ## Logging
 
