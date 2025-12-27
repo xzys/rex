@@ -19,7 +19,8 @@ import (
 // otherwise uses keyboard for local keyboard support
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: rex server\n")
+	fmt.Fprintf(os.Stderr, "usage: rex\n")
+	fmt.Fprintf(os.Stderr, "       rex server\n")
 	fmt.Fprintf(os.Stderr, "       rex keyboard [--mode MODE]\n")
 	fmt.Fprintf(os.Stderr, "       rex menu [--config PATH]\n")
 	fmt.Fprintf(os.Stderr, "       rex exclusive <path>\n")
@@ -27,16 +28,19 @@ func usage() {
 }
 
 func main() {
+	var subcommand string
 	if len(os.Args) < 2 {
-		usage()
+		subcommand = ""
+	} else {
+		subcommand = os.Args[1]
+		os.Args = os.Args[1:]
 	}
-
-	subcommand := os.Args[1]
-	os.Args = os.Args[1:]
 	flag.Parse()
 
 	var err error
 	switch subcommand {
+	case "":
+		err = startOrAttach()
 	case "server":
 		err = server.NewServer().Run()
 	case "keyboard":
@@ -63,6 +67,53 @@ func main() {
 		slog.Error("error", "err", err)
 		os.Exit(1)
 	}
+}
+
+const tmuxSessionName = "rex"
+
+func startOrAttach() error {
+	if exec.Command("tmux", "has-session", "-t", tmuxSessionName).Run() == nil {
+		cmd := exec.Command("tmux", "attach-session", "-t", tmuxSessionName)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		return cmd.Run()
+	}
+
+	rexPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get rex path: %w", err)
+	}
+
+	exec.Command("pkill", "-f", rexPath+" server").Run()
+
+	serverCmd := exec.Command(rexPath, "server")
+	serverCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := serverCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	tmuxCmd := exec.Command("tmux", "new-session", "-s", tmuxSessionName)
+	tmuxCmd.Stdout = os.Stdout
+	tmuxCmd.Stderr = os.Stderr
+	tmuxCmd.Stdin = os.Stdin
+	if err := tmuxCmd.Start(); err != nil {
+		serverCmd.Process.Kill()
+		return fmt.Errorf("failed to start tmux: %w", err)
+	}
+
+	done := make(chan error, 2)
+	go func() { done <- serverCmd.Wait() }()
+	go func() { done <- tmuxCmd.Wait() }()
+
+	<-done
+
+	serverCmd.Process.Kill()
+	tmuxCmd.Process.Signal(syscall.SIGHUP)
+	serverCmd.Wait()
+	tmuxCmd.Wait()
+
+	return nil
 }
 
 func runExclusive(execPath string) error {
