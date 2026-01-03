@@ -1,7 +1,3 @@
-# Switch to virtual terminal 2 on login
-sudo chvt 2 2>/dev/null || true
-
-# Auto-start rex on tty2 login
 if [[ $(tty) == "/dev/tty2" ]]; then
     recovery_msg="Plug in USB keyboard and switch to another terminal (Ctrl+Alt+F1)"
     if [[ ! -x ~/bin/rex ]]; then
@@ -14,3 +10,8 @@ if [[ $(tty) == "/dev/tty2" ]]; then
         echo "$recovery_msg"
     fi
 fi
+
+# Load interactive shell config for login shells
+case $- in
+    *i*) [ -f ~/.bashrc ] && . ~/.bashrc ;;
+esac
