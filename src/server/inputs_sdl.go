@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xrfr/t-rex/v2/protocol"
@@ -48,6 +49,7 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(key int) error) {
 			joystick.Close()
 		}
 		if err != nil {
+			exec.Command("tmux", "kill-session", "-t", "rex").Run()
 			os.Exit(1)
 		} else {
 			os.Exit(0)

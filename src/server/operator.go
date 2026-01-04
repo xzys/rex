@@ -170,11 +170,11 @@ func (o *GlobalOperator) updateActiveOperator() error {
 }
 
 func (o *GlobalOperator) nextWindow() error {
-	return execute("tmux", "next-window")
+	return tryExecute("tmux", []string{"no next window"}, "next-window")
 }
 
 func (o *GlobalOperator) prevWindow() error {
-	return execute("tmux", "previous-window")
+	return tryExecute("tmux", []string{"no previous window"}, "previous-window")
 }
 
 func (o *GlobalOperator) newWindow() error {
