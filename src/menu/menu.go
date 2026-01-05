@@ -30,8 +30,9 @@ type Layout struct {
 }
 
 type Config struct {
-	Layout Layout `yaml:"layout"`
-	Apps   []App  `yaml:"apps"`
+	Layout   Layout   `yaml:"layout"`
+	Apps     []App    `yaml:"apps"`
+	SSHHosts []string `yaml:"ssh_hosts"`
 }
 
 type Menu struct {
@@ -93,13 +94,16 @@ func NewMenu(configPath string, sshHost *string) (*Menu, error) {
 	if err != nil {
 		return nil, err
 	}
+	return NewMenuWithConfig(config, sshHost), nil
+}
 
+func NewMenuWithConfig(config Config, sshHost *string) *Menu {
 	return &Menu{
 		config:      config,
 		cursor:      0,
 		itemsPerRow: 4,
 		sshHost:     sshHost,
-	}, nil
+	}
 }
 
 func (m *Menu) Run() error {

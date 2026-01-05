@@ -60,19 +60,40 @@ func main() {
 		fs := flag.NewFlagSet("menu", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }
 		configPath := fs.String("config", "", "path to config file (default: ~/.config/rex/config.yaml, $PWD/config.yaml)")
-		sshHostFlag := fs.String("ssh", "", "SSH host to open app in")
+		sshMode := fs.Bool("ssh", false, "select SSH host to open app in")
 		fs.Parse(args)
 
-		var sshHost *string
-		if *sshHostFlag != "" {
-			sshHost = sshHostFlag
+		config, configErr := menu.LoadConfig(*configPath)
+		if configErr != nil {
+			err = configErr
+			break
 		}
 
-		var m *menu.Menu
-		m, err = menu.NewMenu(*configPath, sshHost)
-		if err == nil {
-			err = m.Run()
+		var sshHost *string
+		if *sshMode {
+			hosts, hostErr := menu.GetSSHHosts(config.SSHHosts)
+			if hostErr != nil {
+				err = fmt.Errorf("failed to get SSH hosts: %w", hostErr)
+				break
+			}
+			if len(hosts) == 0 {
+				err = fmt.Errorf("no SSH hosts found")
+				break
+			}
+			selector := menu.NewSSHSelect(hosts)
+			selected, selectErr := selector.Run()
+			if selectErr != nil {
+				err = selectErr
+				break
+			}
+			if selected == "" {
+				break
+			}
+			sshHost = &selected
 		}
+
+		m := menu.NewMenuWithConfig(config, sshHost)
+		err = m.Run()
 	case "exclusive":
 		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
 		fs.Usage = func() {

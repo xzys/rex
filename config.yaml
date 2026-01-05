@@ -34,4 +34,8 @@ apps:
   - name: ssh
     icon: "≈"
     color: 6
-    command: ./rex-local menu --ssh seaking-local
+    command: ./rex-local menu --ssh
+
+ssh_hosts:
+  - macbook-air
+  - seaking-local
