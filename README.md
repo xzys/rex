@@ -155,12 +155,16 @@ Logs are written to `/tmp/rex.log` with debug-level output.
 
 ## Dependencies
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework
-- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Styling
-- [go-sdl2](https://github.com/veandco/go-sdl2) - SDL2 bindings (for R36S build)
-- [eiannone/keyboard](https://github.com/eiannone/keyboard) - Keyboard input (for local build)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework ([docs](https://pkg.go.dev/github.com/charmbracelet/bubbletea))
+- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Styling ([docs](https://pkg.go.dev/github.com/charmbracelet/lipgloss))
+- [go-sdl2](https://github.com/veandco/go-sdl2) - SDL2 bindings (for R36S build) ([docs](https://pkg.go.dev/github.com/veandco/go-sdl2))
 
 # TODO
+
+## Features
+
+- [ ] bubbletea app to connect to SSH -- the name of the pane
+
 
 ## Bug Reports
 

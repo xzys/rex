@@ -19,48 +19,75 @@ import (
 // otherwise uses keyboard for local keyboard support
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: rex\n")
-	fmt.Fprintf(os.Stderr, "       rex server\n")
-	fmt.Fprintf(os.Stderr, "       rex keyboard [--mode MODE]\n")
-	fmt.Fprintf(os.Stderr, "       rex menu [--config PATH]\n")
-	fmt.Fprintf(os.Stderr, "       rex exclusive <path>\n")
-	os.Exit(1)
+	fmt.Fprintf(os.Stderr, `usage: rex
+       rex server
+       rex keyboard [options]
+       rex menu [options]
+       rex exclusive <path>
+
+Use 'rex <command> --help' for more information about a command.
+`)
 }
 
 func main() {
-	var subcommand string
 	if len(os.Args) < 2 {
-		subcommand = ""
-	} else {
-		subcommand = os.Args[1]
-		os.Args = os.Args[1:]
+		if err := startOrAttach(); err != nil {
+			slog.Error("error", "err", err)
+			os.Exit(1)
+		}
+		return
 	}
-	flag.Parse()
+
+	subcommand := os.Args[1]
+	args := os.Args[2:]
 
 	var err error
 	switch subcommand {
-	case "":
-		err = startOrAttach()
+	case "-h", "-help", "--help":
+		usage()
 	case "server":
+		fs := flag.NewFlagSet("server", flag.ExitOnError)
+		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex server\n\nStart the rex server.\n") }
+		fs.Parse(args)
 		err = server.NewServer().Run()
 	case "keyboard":
-		keyboardMode := flag.String("mode", "chord", "keyboard mode (simple or chorded)")
+		fs := flag.NewFlagSet("keyboard", flag.ExitOnError)
+		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex keyboard [options]\n\n"); fs.PrintDefaults() }
+		keyboardMode := fs.String("mode", "chord", "keyboard mode (simple or chorded)")
+		fs.Parse(args)
 		err = keyboard.NewKeyboard(*keyboardMode).Run()
 	case "menu":
-		configPath := flag.String("config", "", "path to config file (default: ~/.config/rex/config.yaml, $PWD/config.yaml)")
-		flag.Parse()
+		fs := flag.NewFlagSet("menu", flag.ExitOnError)
+		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }
+		configPath := fs.String("config", "", "path to config file (default: ~/.config/rex/config.yaml, $PWD/config.yaml)")
+		sshHostFlag := fs.String("ssh", "", "SSH host to open app in")
+		fs.Parse(args)
+
+		var sshHost *string
+		if *sshHostFlag != "" {
+			sshHost = sshHostFlag
+		}
+
 		var m *menu.Menu
-		m, err = menu.NewMenu(*configPath)
+		m, err = menu.NewMenu(*configPath, sshHost)
 		if err == nil {
 			err = m.Run()
 		}
 	case "exclusive":
-		if len(os.Args) < 2 {
-			usage()
+		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
+		fs.Usage = func() {
+			fmt.Fprintf(os.Stderr, "usage: rex exclusive <path>\n\nRun an application exclusively, stopping the rex server temporarily.\n")
 		}
-		err = runExclusive(os.Args[1])
+		fs.Parse(args)
+		if fs.NArg() < 1 {
+			fs.Usage()
+			os.Exit(1)
+		}
+		err = runExclusive(fs.Arg(0))
 	default:
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", subcommand)
 		usage()
+		os.Exit(1)
 	}
 
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,6 +40,7 @@ type Menu struct {
 	height      int
 	itemsPerRow int
 	selected    bool
+	sshHost     *string
 }
 
 // findConfigPath tries multiple paths and returns the first one that exists
@@ -85,7 +87,7 @@ func LoadConfig(path string) (Config, error) {
 	return config, nil
 }
 
-func NewMenu(configPath string) (*Menu, error) {
+func NewMenu(configPath string, sshHost *string) (*Menu, error) {
 	config, err := LoadConfig(configPath)
 	if err != nil {
 		return nil, err
@@ -95,6 +97,7 @@ func NewMenu(configPath string) (*Menu, error) {
 		config:      config,
 		cursor:      0,
 		itemsPerRow: 4,
+		sshHost:     sshHost,
 	}, nil
 }
 
@@ -117,15 +120,28 @@ func (m *Menu) Run() error {
 			slog.Warn("failed to rename window", "name", app.Name, "err", err)
 		}
 
+		if m.sshHost != nil {
+			return m.runSSH(app.ExecutablePath)
+		}
+
 		if app.Exclusive {
-			return runExclusive(execPath)
+			return m.runExclusive(execPath)
 		}
 		return syscall.Exec(execPath, []string{execPath}, os.Environ())
 	}
 	return nil
 }
 
-func runExclusive(execPath string) error {
+func (m *Menu) runSSH(command string) error {
+	commandStr := `'` + command + `'`
+	cmd := exec.Command("ssh", "-t", *m.sshHost, "sh", "-ic", commandStr)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func (m *Menu) runExclusive(execPath string) error {
 	rexPath, _ := os.Executable()
 	return syscall.Exec(rexPath, []string{rexPath, "exclusive", execPath}, os.Environ())
 }
@@ -231,9 +247,39 @@ func (m *Menu) View() string {
 
 	grid := lipgloss.JoinVertical(lipgloss.Left, gappedRows...)
 
-	return lipgloss.NewStyle().
+	content := lipgloss.NewStyle().
 		Padding(layout.MarginY, layout.MarginX).
 		Render(grid)
+
+	if m.sshHost != nil {
+		barStyle := lipgloss.NewStyle().
+			Width(m.width).
+			Height(1).
+			Background(lipgloss.Color("4")).
+			Foreground(lipgloss.Color("0")).
+			Align(lipgloss.Left, lipgloss.Center).
+			Padding(0, 1)
+
+		barText := "open remotely in " + *m.sshHost
+		bar := barStyle.Render(barText)
+
+		contentHeight := strings.Count(content, "\n")
+		spacerHeight := m.height - contentHeight - 1
+		if spacerHeight < 0 {
+			spacerHeight = 0
+		}
+
+		spacer := lipgloss.NewStyle().Height(spacerHeight).Render("")
+		combined := lipgloss.JoinVertical(lipgloss.Left, content, spacer, bar)
+
+		containerStyle := lipgloss.NewStyle().
+			Width(m.width).
+			Height(m.height)
+
+		return containerStyle.Render(combined)
+	}
+
+	return content
 }
 
 func (m *Menu) SelectedApp() *App {
