@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -14,11 +15,11 @@ import (
 )
 
 type App struct {
-	Name           string `yaml:"name"`
-	Icon           string `yaml:"icon"`
-	Color          string `yaml:"color"`
-	ExecutablePath string `yaml:"executable_path"`
-	Exclusive      bool   `yaml:"exclusive"`
+	Name      string `yaml:"name"`
+	Icon      string `yaml:"icon"`
+	Color     string `yaml:"color"`
+	Command   string `yaml:"command"`
+	Exclusive bool   `yaml:"exclusive"`
 }
 
 type Layout struct {
@@ -108,26 +109,35 @@ func (m *Menu) Run() error {
 	}
 	if m.selected {
 		app := m.SelectedApp()
-		execPath, err := exec.LookPath(app.ExecutablePath)
-		if err != nil {
-			return err
-		}
 
-		slog.Info("opening app", "name", app.Name, "executable", execPath)
+		slog.Info("opening app", "name", app.Name, "command", app.Command)
 
+		// keyboard operator uses window name to identify the app and change keybindings
 		cmd := exec.Command("tmux", "rename-window", app.Name)
 		if err := cmd.Run(); err != nil {
 			slog.Warn("failed to rename window", "name", app.Name, "err", err)
 		}
 
 		if m.sshHost != nil {
-			return m.runSSH(app.ExecutablePath)
+			return m.runSSH(app.Command)
 		}
 
-		if app.Exclusive {
-			return m.runExclusive(execPath)
+		fields := strings.Fields(app.Command)
+		if len(fields) == 0 {
+			return fmt.Errorf("empty command")
 		}
-		return syscall.Exec(execPath, []string{execPath}, os.Environ())
+
+		execPath, err := exec.LookPath(fields[0])
+		if err != nil {
+			return err
+		}
+
+		args := append([]string{execPath}, fields[1:]...)
+
+		if app.Exclusive {
+			return m.runExclusive(args)
+		}
+		return syscall.Exec(execPath, args, os.Environ())
 	}
 	return nil
 }
@@ -141,9 +151,10 @@ func (m *Menu) runSSH(command string) error {
 	return cmd.Run()
 }
 
-func (m *Menu) runExclusive(execPath string) error {
+func (m *Menu) runExclusive(args []string) error {
 	rexPath, _ := os.Executable()
-	return syscall.Exec(rexPath, []string{rexPath, "exclusive", execPath}, os.Environ())
+	rexArgs := append([]string{rexPath, "exclusive"}, args...)
+	return syscall.Exec(rexPath, rexArgs, os.Environ())
 }
 
 func (m *Menu) Init() tea.Cmd {

@@ -76,14 +76,14 @@ func main() {
 	case "exclusive":
 		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
 		fs.Usage = func() {
-			fmt.Fprintf(os.Stderr, "usage: rex exclusive <path>\n\nRun an application exclusively, stopping the rex server temporarily.\n")
+			fmt.Fprintf(os.Stderr, "usage: rex exclusive <command> [args...]\n\nRun an application exclusively, stopping the rex server temporarily.\n")
 		}
 		fs.Parse(args)
 		if fs.NArg() < 1 {
 			fs.Usage()
 			os.Exit(1)
 		}
-		err = runExclusive(fs.Arg(0))
+		err = runExclusive(fs.Args())
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", subcommand)
 		usage()
@@ -143,7 +143,7 @@ func startOrAttach() error {
 	return nil
 }
 
-func runExclusive(execPath string) error {
+func runExclusive(args []string) error {
 	rexPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get rex path: %w", err)
@@ -152,13 +152,13 @@ func runExclusive(execPath string) error {
 	slog.Info("killing rex server")
 	exec.Command("pkill", "-f", rexPath+" server").Run()
 
-	slog.Info("starting exclusive app", "path", execPath)
-	cmd := exec.Command(execPath)
+	slog.Info("starting exclusive app", "args", args)
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 	if err := cmd.Run(); err != nil {
-		slog.Error("emulationstation exited with error", "err", err)
+		slog.Error("exclusive app exited with error", "err", err)
 	}
 
 	slog.Info("restarting rex server")

@@ -8,25 +8,30 @@ apps:
   - name: ncmpcpp
     icon: "√"
     color: 1
-    executable_path: ncmpcpp
+    command: ncmpcpp
 
   - name: lazygit
     icon: "¥"
     color: 3
-    executable_path: lazygit
+    command: lazygit
 
   - name: lf
     icon: "≠"
     color: 4
-    executable_path: lf
+    command: lf
 
   - name: games
     icon: "©"
     color: 2
-    executable_path: /usr/bin/emulationstation/emulationstation.sh
+    command: /usr/bin/emulationstation/emulationstation.sh
     exclusive: true
 
   - name: btm
     icon: "↓"
     color: 5
-    executable_path: btm
+    command: btm
+
+  - name: ssh
+    icon: "≈"
+    color: 6
+    command: ./rex-local menu --ssh seaking-local
