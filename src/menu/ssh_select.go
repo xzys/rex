@@ -1,59 +1,21 @@
 package menu
 
 import (
-	"bufio"
-	"os"
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-func GetSSHHosts(configHosts []string) ([]string, error) {
-	if len(configHosts) > 0 {
-		return configHosts, nil
-	}
-	return parseSSHConfig()
-}
-
-func parseSSHConfig() ([]string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-
-	configPath := filepath.Join(homeDir, ".ssh", "config")
-	file, err := os.Open(configPath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var hosts []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(strings.ToLower(line), "host ") {
-			host := strings.TrimSpace(strings.TrimPrefix(line, line[:5]))
-			if host != "*" && !strings.Contains(host, "*") {
-				hosts = append(hosts, host)
-			}
-		}
-	}
-
-	return hosts, scanner.Err()
-}
-
 type SSHSelect struct {
-	hosts    []string
+	hosts    []SSHHost
 	cursor   int
 	selected string
 	width    int
 	height   int
 }
 
-func NewSSHSelect(hosts []string) *SSHSelect {
+func NewSSHSelect(hosts []SSHHost) *SSHSelect {
 	return &SSHSelect{
 		hosts:  hosts,
 		cursor: 0,
@@ -88,7 +50,7 @@ func (s *SSHSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.cursor++
 			}
 		case "enter":
-			s.selected = s.hosts[s.cursor]
+			s.selected = s.hosts[s.cursor].Name
 			return s, tea.Quit
 		}
 	case tea.WindowSizeMsg:
@@ -99,52 +61,176 @@ func (s *SSHSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *SSHSelect) View() string {
-	titleStyle := lipgloss.NewStyle().
+	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("6")).
-		MarginBottom(1)
+		Foreground(lipgloss.Color("4")).
+		Padding(0, 1)
 
 	normalStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("7")).
-		PaddingLeft(2)
+		Padding(0, 1)
 
 	selectedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("0")).
-		Background(lipgloss.Color("6")).
-		PaddingLeft(2).
-		PaddingRight(1)
+		Background(lipgloss.Color("4")).
+		Padding(0, 1)
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("Select SSH Host"))
-	b.WriteString("\n\n")
 
-	for i, host := range s.hosts {
-		if i == s.cursor {
-			b.WriteString(selectedStyle.Render("▸ " + host))
-		} else {
-			b.WriteString(normalStyle.Render("  " + host))
+	var tableContent strings.Builder
+	if len(s.hosts) == 0 {
+		tableContent.WriteString("No SSH hosts found")
+	} else {
+		colWidths := s.calculateColumnWidths()
+
+		header := s.formatCell("Name", colWidths[0]) +
+			s.formatCell("User", colWidths[1]) +
+			s.formatCell("Host", colWidths[2]) +
+			s.formatCell("Port", colWidths[3]) +
+			s.formatCell("Identity", colWidths[4])
+		tableContent.WriteString(headerStyle.Render(header))
+		tableContent.WriteString("\n")
+
+		totalWidth := colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4]
+		separatorWidth := totalWidth
+		if separatorWidth < 1 {
+			separatorWidth = 1
 		}
-		b.WriteString("\n")
+		tableContent.WriteString(strings.Repeat("─", separatorWidth))
+		tableContent.WriteString("\n")
+
+		totalWidth = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4]
+		emptyRow := strings.Repeat(" ", totalWidth)
+
+		contentPadding := 4
+		borderLines := 2
+		borderPadding := 2
+		headerLines := 2
+		controlsLines := 2
+		safetyMargin := 1
+		overhead := contentPadding + borderLines + borderPadding + headerLines + controlsLines + safetyMargin
+
+		availableRows := s.height - overhead
+		if availableRows < 1 {
+			availableRows = 1
+		}
+
+		for i := 0; i < availableRows; i++ {
+			if i < len(s.hosts) {
+				host := s.hosts[i]
+				name := host.Name
+				if name == "" {
+					name = "-"
+				}
+				user := host.User
+				if user == "" {
+					user = "-"
+				}
+				hostAddr := host.Host
+				if hostAddr == "" {
+					hostAddr = "-"
+				}
+				port := host.Port
+				if port == "" {
+					port = "22"
+				}
+				identityFile := host.IdentityFile
+				if identityFile == "" {
+					identityFile = "-"
+				}
+
+				row := s.formatCell(name, colWidths[0]) +
+					s.formatCell(user, colWidths[1]) +
+					s.formatCell(hostAddr, colWidths[2]) +
+					s.formatCell(port, colWidths[3]) +
+					s.formatCell(identityFile, colWidths[4])
+
+				if i == s.cursor {
+					tableContent.WriteString(selectedStyle.Render(row))
+				} else {
+					tableContent.WriteString(normalStyle.Render(row))
+				}
+			} else {
+				tableContent.WriteString(normalStyle.Render(emptyRow))
+			}
+			tableContent.WriteString("\n")
+		}
+
+		barStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Padding(0, 1)
+
+		barText := "↑/↓ navigate • enter select • esc cancel"
+		tableContent.WriteString("\n")
+		tableContent.WriteString(barStyle.Render(barText))
 	}
+
+	tableStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("4")).
+		Padding(1, 2)
+
+	table := tableStyle.Render(tableContent.String())
+	b.WriteString(table)
 
 	content := lipgloss.NewStyle().
 		Padding(2, 4).
 		Render(b.String())
 
-	barStyle := lipgloss.NewStyle().
-		Width(s.width).
-		Foreground(lipgloss.Color("8")).
-		Padding(0, 1)
+	return content
+}
 
-	bar := barStyle.Render("↑/↓ navigate • enter select • esc cancel")
+func (s *SSHSelect) calculateColumnWidths() [5]int {
+	contentPadding := 4
+	borderPadding := 2
+	availableWidth := s.width - (contentPadding * 2) - (borderPadding * 2) - 2
 
-	contentHeight := strings.Count(content, "\n")
-	spacerHeight := s.height - contentHeight - 1
-	if spacerHeight < 0 {
-		spacerHeight = 0
+	if availableWidth < 20 {
+		availableWidth = 20
 	}
 
-	spacer := lipgloss.NewStyle().Height(spacerHeight).Render("")
+	percentages := [5]float64{0.20, 0.15, 0.25, 0.08, 0.32}
+	colWidths := [5]int{}
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, spacer, bar)
+	for i, pct := range percentages {
+		colWidths[i] = int(float64(availableWidth) * pct)
+	}
+
+	minWidths := [5]int{4, 4, 4, 4, 8}
+	for i := range colWidths {
+		if colWidths[i] < minWidths[i] {
+			colWidths[i] = minWidths[i]
+		}
+	}
+
+	totalWidth := 0
+	for _, w := range colWidths {
+		totalWidth += w
+	}
+
+	diff := availableWidth - totalWidth
+	if diff != 0 {
+		colWidths[4] += diff
+		if colWidths[4] < minWidths[4] {
+			colWidths[4] = minWidths[4]
+		}
+	}
+
+	return colWidths
+}
+
+func (s *SSHSelect) formatCell(value string, width int) string {
+	if width < 1 {
+		width = 1
+	}
+	if len(value) > width-2 && width > 5 {
+		value = value[:width-5] + "..."
+	} else if len(value) > width {
+		value = value[:width]
+	}
+	padding := width - len(value)
+	if padding < 0 {
+		padding = 0
+	}
+	return value + strings.Repeat(" ", padding)
 }
