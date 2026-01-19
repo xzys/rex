@@ -101,7 +101,7 @@ When keyboard is **not** active:
 | Key | Action |
 |-----|--------|
 | Start | Open menu |
-| R2 | Open keyboard pane |
+| Select | Open keyboard pane |
 | R1 | Next tmux window |
 | L1 | Previous tmux window |
 | L2 | New tmux window |
@@ -110,7 +110,7 @@ When keyboard is **not** active:
 When keyboard **is** active:
 | Key | Action |
 |-----|--------|
-| R2 | Close keyboard pane |
+| Select | Close keyboard pane |
 | All others | Sent to keyboard for chord processing |
 
 ## Development Keyboard Mappings
@@ -124,6 +124,7 @@ For local development without a gamepad (`make build-local`):
 | , | X |
 | . | B |
 | / | A |
+| s | Select |
 | z | L1 |
 | x | R1 |
 | c | L2 |
@@ -149,7 +150,7 @@ Logs are written to `/tmp/rex.log` with debug-level output.
 
 ## Design Decisions
 
-- **R2**: Use this to open/close the keyboard app
+- **Select**: Use this to open/close the keyboard app
 - **Synchronous connections**: Only one keyboard allowed at a time
 - **Tmux integration**: All key presses are executed via tmux send-keys to pane 0
 

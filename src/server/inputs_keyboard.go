@@ -92,6 +92,8 @@ func handleKeyPress(char rune, key keyboard.Key) int {
 		return protocol.KeyL2
 	case 'v':
 		return protocol.KeyR2
+	case 's':
+		return protocol.KeySelect
 	default:
 		return -1
 	}

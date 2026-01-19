@@ -29,7 +29,7 @@ func (o *GlobalOperator) HandleKey(key int) error {
 	var err error
 	if o.keyboardActive {
 		switch key {
-		case protocol.KeyR2:
+		case protocol.KeySelect:
 			err = o.closeKeyboardPane()
 		default:
 			// send key input message to keyboard
@@ -54,7 +54,7 @@ func (o *GlobalOperator) HandleKey(key int) error {
 			err = o.nextWindow()
 		case protocol.KeyL1:
 			err = o.prevWindow()
-		case protocol.KeyR2:
+		case protocol.KeySelect:
 			err = o.openKeyboardPane()
 		case protocol.KeyL2:
 			err = o.newWindow()
