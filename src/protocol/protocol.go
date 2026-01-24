@@ -53,7 +53,8 @@ type BaseMessage struct {
 // sent from server to keyboard client with raw device input for translation
 type KeyInputMessage struct {
 	BaseMessage
-	KeyInput int `json:"key_input"` // raw key code from the input device
+	KeyInput  int  `json:"key_input"` // raw key code from the input device
+	IsKeyDown bool `json:"is_key_down"`
 }
 
 // response from keyboard client with the translated virtual key

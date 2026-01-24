@@ -130,6 +130,25 @@ For local development without a gamepad (`make build-local`):
 | c | L2 |
 | v | R2 |
 
+## Stdin Input Mode
+
+Set `REX_INPUT_DEVICE=stdin` to read input events from stdin. Each line is:
+
+```
+down|up <key>
+```
+
+Key tokens are case-insensitive and accept an optional `Key` prefix:
+`KeyA`, `KeyB`, `KeyX`, `KeyY`, `KeyDPadUp`, `KeyDPadDown`, `KeyDPadLeft`, `KeyDPadRight`,
+`KeyL1`, `KeyR1`, `KeyL2`, `KeyR2`, `KeySelect`, `KeyStart`, `KeyFn`.
+`up`, `down`, `left`, `right` are accepted as D-pad aliases.
+
+Manual harness:
+
+```
+./scripts/test_stdin_input.sh
+```
+
 ## Data Flow
 
 1. Input device → Server (`HandleKey`) → `KeyInputMessage` → Keyboard client

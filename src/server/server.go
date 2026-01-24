@@ -7,13 +7,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 type InputDevice interface {
-	Initialize(func(int) error) error
+	Initialize(func(InputEvent) error) error
 }
 
 var (
@@ -34,13 +35,20 @@ type Server struct {
 
 func NewServer() *Server {
 	server := &Server{
-		inputDevice: inputDevice,
+		inputDevice: selectInputDevice(),
 	}
 	server.operator = NewGlobalOperator(server, map[string]Operator{
 		"ncmpcpp": NewNcmpcppOperator(),
 		"menu":    NewMenuOperator(),
 	})
 	return server
+}
+
+func selectInputDevice() InputDevice {
+	if strings.EqualFold(os.Getenv("REX_INPUT_DEVICE"), "stdin") {
+		return NewStdinInputDevice(os.Stdin)
+	}
+	return inputDevice
 }
 
 // Run starts the server and blocks until interrupted
@@ -55,7 +63,7 @@ func (s *Server) Run() error {
 	}
 
 	// initialize input device, either keyboard or R36s
-	if err := s.inputDevice.Initialize(s.operator.HandleKey); err != nil {
+	if err := s.inputDevice.Initialize(s.operator.HandleInput); err != nil {
 		return fmt.Errorf("failed to initialize input device: %w", err)
 	}
 
@@ -152,7 +160,7 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 	}
 }
 
-func (s *Server) SendKeyInputMessage(key int) error {
+func (s *Server) SendKeyInputMessage(event InputEvent) error {
 	if s.encoder == nil {
 		slog.Error("trying to send key input w/o encoder")
 		return nil
@@ -160,11 +168,12 @@ func (s *Server) SendKeyInputMessage(key int) error {
 
 	msg := protocol.KeyInputMessage{
 		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput},
-		KeyInput:    key,
+		KeyInput:    event.Key,
+		IsKeyDown:   event.IsDown,
 	}
 	if err := s.encoder.Encode(msg); err != nil {
 		return fmt.Errorf("failed to encode key input: %w", err)
 	}
-	slog.Debug("sent key input", "key", key)
+	slog.Debug("sent key input", "key", event.Key, "isDown", event.IsDown)
 	return nil
 }
