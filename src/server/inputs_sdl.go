@@ -19,7 +19,7 @@ func init() {
 	inputDevice = &SDLInputDevice{}
 }
 
-func (d *SDLInputDevice) Initialize(handler func(int) error) error {
+func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 	// Initialize SDL
 	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
 		return fmt.Errorf("failed to initialize SDL: %w", err)
@@ -41,7 +41,7 @@ func (d *SDLInputDevice) Initialize(handler func(int) error) error {
 	return nil
 }
 
-func runPollingLoop(joystick *sdl.Joystick, inputHandler func(key int) error) {
+func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error) {
 	var err error
 	defer func() {
 		sdl.Quit()
@@ -99,7 +99,7 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(key int) error) {
 // 2 	Right joystick - Left-Right motion
 // 3 	Right joystick - Up-Down motion
 
-func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) error) error {
+func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent) error) error {
 	switch event.Type {
 	case sdl.JOYBUTTONDOWN:
 		var key int
@@ -138,7 +138,7 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(key int) e
 			slog.Warn("unknown button", "button", event.Button)
 			return nil
 		}
-		if err := inputHandler(key); err != nil {
+		if err := inputHandler(InputEvent{Key: key, IsDown: true}); err != nil {
 			return fmt.Errorf("failed to handle button: %w", err)
 		}
 	default:
