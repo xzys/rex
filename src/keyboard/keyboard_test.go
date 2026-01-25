@@ -96,16 +96,13 @@ func TestChordedKeyboardAllLetters(t *testing.T) {
 	defer ptmx.Close()
 	defer utils.TerminateProcess(keyboardCmd, 2*time.Second)
 	
-	// Read PTY output in background for debugging
+	// Read PTY output to prevent buffer from filling up
 	go func() {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 4096)
 		for {
-			n, err := ptmx.Read(buf)
+			_, err := ptmx.Read(buf)
 			if err != nil {
 				return
-			}
-			if n > 0 {
-				t.Logf("Keyboard output: %s", buf[:n])
 			}
 		}
 	}()
@@ -145,7 +142,7 @@ func TestChordedKeyboardAllLetters(t *testing.T) {
 				if err := encoder.Encode(msg); err != nil {
 					t.Fatalf("encode modifier: %v", err)
 				}
-				// Give keyboard time to process modifier before trigger
+				// Delay to prevent JSON decoder sync issues in Bubble Tea
 				time.Sleep(50 * time.Millisecond)
 			}
 
@@ -158,6 +155,9 @@ func TestChordedKeyboardAllLetters(t *testing.T) {
 			if err := encoder.Encode(msg); err != nil {
 				t.Fatalf("encode trigger: %v", err)
 			}
+			
+			// Small delay to let keyboard process and respond
+			time.Sleep(10 * time.Millisecond)
 
 			// Read PressKeyMessage from keyboard
 			response, err := protocol.ParseMessage(decoder)
