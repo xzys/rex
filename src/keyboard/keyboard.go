@@ -125,13 +125,10 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handle key input and optionally provide a command to send key press to server
 func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
-	if !msg.IsKeyDown {
-		return nil
-	}
-	// Process the key input through the model
-	keyToPress := k.model.HandleKey(msg.KeyInput)
+	// Process the key input through the model (both keydown and keyup)
+	keyToPress := k.model.HandleKey(msg.KeyInput, msg.IsKeyDown)
 	if keyToPress == nil {
-		// for ex. with modifier keys
+		// for ex. with modifier keys or keyup events
 		return nil
 	}
 

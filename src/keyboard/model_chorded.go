@@ -18,6 +18,7 @@ type KeyboardModelChorded struct {
 	chordMap       map[int]rune
 	chordAltMap    map[int]rune
 	chordActiveMap []map[string]string
+	simultaneous   bool
 }
 
 const (
@@ -84,6 +85,7 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
+		simultaneous:   true,
 	}
 }
 
@@ -197,7 +199,66 @@ func (m *KeyboardModelChorded) resetState() {
 	m.modifier = modifierNone
 }
 
-func (m *KeyboardModelChorded) HandleKey(key int) *string {
+func (m *KeyboardModelChorded) HandleKey(key int, isKeyDown bool) *string {
+	if m.simultaneous {
+		return m.handleKeySimultaneous(key, isKeyDown)
+	}
+	return m.handleKeyToggle(key, isKeyDown)
+}
+
+func (m *KeyboardModelChorded) handleKeySimultaneous(key int, isKeyDown bool) *string {
+	switch key {
+	// Modifier keys - set on keydown, clear on keyup
+	case protocol.KeyL1, protocol.KeyR1, protocol.KeyL2, protocol.KeyR2:
+		if isKeyDown {
+			switch key {
+			case protocol.KeyL1:
+				m.modifier = modifierL1
+			case protocol.KeyR1:
+				m.modifier = modifierR1
+			case protocol.KeyL2:
+				m.modifier = modifierL2
+			case protocol.KeyR2:
+				m.modifier = modifierR2
+			}
+			slog.Debug("setting modifier", "modifier", m.modifier)
+		} else {
+			// On keyup, clear modifier if it matches the active one
+			switch key {
+			case protocol.KeyL1:
+				if m.modifier == modifierL1 {
+					m.modifier = modifierNone
+				}
+			case protocol.KeyR1:
+				if m.modifier == modifierR1 {
+					m.modifier = modifierNone
+				}
+			case protocol.KeyL2:
+				if m.modifier == modifierL2 {
+					m.modifier = modifierNone
+				}
+			case protocol.KeyR2:
+				if m.modifier == modifierR2 {
+					m.modifier = modifierNone
+				}
+			}
+			slog.Debug("clearing modifier", "modifier", m.modifier)
+		}
+		return nil
+	// Trigger keys - complete the chord
+	case protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight, protocol.KeyA, protocol.KeyB, protocol.KeyX, protocol.KeyY:
+		if !isKeyDown {
+			return nil
+		}
+		return m.getChord(key)
+	}
+	return nil
+}
+
+func (m *KeyboardModelChorded) handleKeyToggle(key int, isKeyDown bool) *string {
+	if !isKeyDown {
+		return nil
+	}
 	prevModifier := m.modifier
 	switch key {
 	// Modifier keys - toggle state
