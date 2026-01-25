@@ -46,21 +46,21 @@ func TestStdinInputForwardsToKeyboard(t *testing.T) {
 	defer utils.TerminateProcess(serverCmd, 2*time.Second)
 
 	// Wait for sockets so the keyboard can connect.
-	if err := utils.WaitForSocket(protocol.InputSocketPath, 2*time.Second); err != nil {
+	if err := utils.WaitForSocket(protocol.InputSocketPath(), 2*time.Second); err != nil {
 		t.Fatalf("wait for input socket: %v", err)
 	}
-	if err := utils.WaitForSocket(protocol.OutputSocketPath, 2*time.Second); err != nil {
+	if err := utils.WaitForSocket(protocol.OutputSocketPath(), 2*time.Second); err != nil {
 		t.Fatalf("wait for output socket: %v", err)
 	}
 
 	// Connect keyboard sockets so we can observe KeyInput messages.
-	inputConn, err := net.Dial("unix", protocol.InputSocketPath)
+	inputConn, err := net.Dial("unix", protocol.InputSocketPath())
 	if err != nil {
 		t.Fatalf("dial input socket: %v", err)
 	}
 	defer inputConn.Close()
 
-	outputConn, err := net.Dial("unix", protocol.OutputSocketPath)
+	outputConn, err := net.Dial("unix", protocol.OutputSocketPath())
 	if err != nil {
 		t.Fatalf("dial output socket: %v", err)
 	}

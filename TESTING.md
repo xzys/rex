@@ -36,8 +36,8 @@ When testing components that connect to Unix sockets (like `keyboard` or `menu`)
 
 ```go
 // Test acts as server
-inputListener, _ := net.Listen("unix", protocol.InputSocketPath)
-outputListener, _ := net.Listen("unix", protocol.OutputSocketPath)
+inputListener, _ := net.Listen("unix", protocol.InputSocketPath())
+outputListener, _ := net.Listen("unix", protocol.OutputSocketPath())
 defer inputListener.Close()
 defer outputListener.Close()
 

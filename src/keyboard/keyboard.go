@@ -66,7 +66,7 @@ var QuitCmd = tea.Sequence(tea.ExitAltScreen, tea.Quit)
 
 func (k *Keyboard) Init() tea.Cmd {
 	// Connect to input socket (receives KeyInput from server)
-	inputConn, err := net.Dial("unix", protocol.InputSocketPath)
+	inputConn, err := net.Dial("unix", protocol.InputSocketPath())
 	if err != nil {
 		slog.Error("failed to connect to input socket", "err", err)
 		return QuitCmd
@@ -75,7 +75,7 @@ func (k *Keyboard) Init() tea.Cmd {
 	k.decoder = json.NewDecoder(inputConn)
 
 	// Connect to output socket (sends KeyPress to server)
-	outputConn, err := net.Dial("unix", protocol.OutputSocketPath)
+	outputConn, err := net.Dial("unix", protocol.OutputSocketPath())
 	if err != nil {
 		slog.Error("failed to connect to output socket", "err", err)
 		inputConn.Close()
@@ -84,7 +84,7 @@ func (k *Keyboard) Init() tea.Cmd {
 	k.outputConn = outputConn
 	k.encoder = json.NewEncoder(outputConn)
 
-	slog.Info("connected to server", "input", protocol.InputSocketPath, "output", protocol.OutputSocketPath)
+	slog.Info("connected to server", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath())
 
 	// 0. return tea.Cmd to read socket
 	// 1. ReadSocket returns a message containing the parsed message or an error

@@ -68,30 +68,30 @@ func (s *Server) Run() error {
 	}
 
 	// remove socket files if they exist
-	for _, path := range []string{protocol.InputSocketPath, protocol.OutputSocketPath} {
+	for _, path := range []string{protocol.InputSocketPath(), protocol.OutputSocketPath()} {
 		if _, err := os.Stat(path); err == nil {
 			os.Remove(path)
 		}
 	}
 
 	// create Unix socket listeners
-	inputListener, err := net.Listen("unix", protocol.InputSocketPath)
+	inputListener, err := net.Listen("unix", protocol.InputSocketPath())
 	if err != nil {
 		slog.Error("failed to create input socket", "err", err)
 		return err
 	}
 	defer inputListener.Close()
-	defer os.Remove(protocol.InputSocketPath)
+	defer os.Remove(protocol.InputSocketPath())
 
-	outputListener, err := net.Listen("unix", protocol.OutputSocketPath)
+	outputListener, err := net.Listen("unix", protocol.OutputSocketPath())
 	if err != nil {
 		slog.Error("failed to create output socket", "err", err)
 		return err
 	}
 	defer outputListener.Close()
-	defer os.Remove(protocol.OutputSocketPath)
+	defer os.Remove(protocol.OutputSocketPath())
 
-	slog.Info("server listening", "input", protocol.InputSocketPath, "output", protocol.OutputSocketPath)
+	slog.Info("server listening", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath())
 
 	// handle cleanup on interrupt
 	sigChan := make(chan os.Signal, 1)
@@ -101,8 +101,8 @@ func (s *Server) Run() error {
 		slog.Info("shutting down server")
 		inputListener.Close()
 		outputListener.Close()
-		os.Remove(protocol.InputSocketPath)
-		os.Remove(protocol.OutputSocketPath)
+		os.Remove(protocol.InputSocketPath())
+		os.Remove(protocol.OutputSocketPath())
 		os.Exit(0)
 	}()
 
