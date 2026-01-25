@@ -1,5 +1,9 @@
 # Instructions
 
+## Notes
+
+Project learnings and documentation are in `notes/`. Check relevant files before starting work on a feature.
+
 ## Building
 
 Build the app locally before testing:
