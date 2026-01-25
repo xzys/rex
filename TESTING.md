@@ -172,6 +172,13 @@ See `keyboard/keyboard_test.go` for a complete example.
    }
    ```
 
+**How the keyboard test is organized:**
+
+- `TestKeyboardModes` runs sub-suites per mode (`chorded`, `chorded-simultaneous`, `simple`) so each mode gets an isolated keyboard process and a clear failure surface.
+- The chorded suites are built from base `chordTestCases` plus helpers that layer in numbers mode, special key chords, and shift-mode uppercase coverage.
+- The simple suite reuses `simpleLayout` to drive both lowercase letters and special-key selections, so the test stays aligned with the UI layout.
+- `keyboardCase` + `inputEvent` model the input stream and expected outputs, while `runKeyboardCase` wires those through socket IO for each case.
+
 ### Testing Server Components
 
 See `server/inputs_stdin_test.go` for examples.

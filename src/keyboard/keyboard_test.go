@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ type keyboardCase struct {
 }
 
 var chordTestCases = []chordTestCase{
+	// Base chord map (letters), used across modes.
 	// R2 modifier - DPad triggers
 	{protocol.KeyR2, protocol.KeyDPadLeft, "a"},
 	{protocol.KeyR2, protocol.KeyDPadUp, "s"},
@@ -71,11 +73,41 @@ var chordTestCases = []chordTestCase{
 }
 
 var simpleLayout = [][]string{
+	// Mirror the on-screen simple layout to drive navigation tests.
 	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "BCK"},
 	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
 	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
 }
 
+var simpleSpecialKeyOutputs = map[string]string{
+	"SPC": string(protocol.SpecialKeySpace),
+	"ENT": string(protocol.SpecialKeyEnter),
+	"DEL": string(protocol.SpecialKeyDelete),
+	"BCK": string(protocol.SpecialKeyClose),
+	"SFT": string(protocol.SpecialKeyShift),
+	"123": string(protocol.SpecialKeyNumbers),
+}
+
+var chordedNumberCases = []chordTestCase{
+	{protocol.KeyR2, protocol.KeyDPadLeft, "1"},
+	{protocol.KeyR2, protocol.KeyDPadUp, "2"},
+	{protocol.KeyR2, protocol.KeyDPadDown, "3"},
+	{protocol.KeyR2, protocol.KeyDPadRight, "4"},
+	{protocol.KeyR2, protocol.KeyY, "5"},
+	{protocol.KeyR2, protocol.KeyX, "6"},
+	{protocol.KeyR2, protocol.KeyB, "7"},
+	{protocol.KeyR2, protocol.KeyA, "8"},
+}
+
+var chordedSpecialCases = []chordTestCase{
+	{protocol.KeyL2, protocol.KeyDPadRight, string(protocol.SpecialKeySpace)},
+	{protocol.KeyL2, protocol.KeyX, string(protocol.SpecialKeyEnter)},
+	{protocol.KeyL2, protocol.KeyY, string(protocol.SpecialKeyDelete)},
+	{protocol.KeyL2, protocol.KeyA, string(protocol.SpecialKeyClose)},
+}
+
+// TestKeyboardModes verifies chorded (toggle and simultaneous) and simple layouts,
+// covering letters, digits 1-8, and special keys (space/enter/delete/close/shift/numbers).
 func TestKeyboardModes(t *testing.T) {
 	modeSuites := []struct {
 		name  string
@@ -85,7 +117,11 @@ func TestKeyboardModes(t *testing.T) {
 		{
 			name: "chorded-toggle",
 			mode: "chorded",
-			cases: append(buildChordedCases(false),
+			cases: append(append(append(append(
+				buildChordedCases(false),
+				buildChordedNumberCases(false)...),
+				buildChordedSpecialCases(false)...),
+				buildChordedShiftCases(false)...),
 				keyboardCase{
 					name: "double_modifier_clears",
 					inputs: []inputEvent{
@@ -99,7 +135,11 @@ func TestKeyboardModes(t *testing.T) {
 		{
 			name: "chorded-simultaneous",
 			mode: "chorded-simultaneous",
-			cases: append(buildChordedCases(true),
+			cases: append(append(append(append(
+				buildChordedCases(true),
+				buildChordedNumberCases(true)...),
+				buildChordedSpecialCases(true)...),
+				buildChordedShiftCases(true)...),
 				keyboardCase{
 					name: "modifier_keyup_clears",
 					inputs: []inputEvent{
@@ -113,7 +153,9 @@ func TestKeyboardModes(t *testing.T) {
 		{
 			name: "simple",
 			mode: "simple",
-			cases: append(buildSimpleLetterCases(),
+			cases: append(append(
+				buildSimpleLetterCases(),
+				buildSimpleSpecialCases()...),
 				keyboardCase{
 					name: "select_enter",
 					inputs: []inputEvent{
@@ -167,6 +209,78 @@ func buildChordedCases(includeKeyUp bool) []keyboardCase {
 	return cases
 }
 
+func buildChordedNumberCases(includeKeyUp bool) []keyboardCase {
+	return buildChordedModeCases("numbers", chordedNumberCases, includeKeyUp, func() []inputEvent {
+		inputs := []inputEvent{
+			keyDown(protocol.KeyL2),
+			keyDown(protocol.KeyB),
+		}
+		if includeKeyUp {
+			inputs = append(inputs, keyUp(protocol.KeyL2))
+		}
+		return inputs
+	})
+}
+
+func buildChordedSpecialCases(includeKeyUp bool) []keyboardCase {
+	return buildChordedModeCases("special", chordedSpecialCases, includeKeyUp, nil)
+}
+
+func buildChordedShiftCases(includeKeyUp bool) []keyboardCase {
+	var inputs []inputEvent
+	inputs = append(inputs, keyDown(protocol.KeyL2), keyDown(protocol.KeyDPadLeft))
+	if includeKeyUp {
+		inputs = append(inputs, keyUp(protocol.KeyL2))
+	}
+
+	expected := make([]string, 0, len(chordTestCases))
+	for _, tc := range chordTestCases {
+		inputs = append(inputs, keyDown(tc.modifier), keyDown(tc.trigger))
+		if includeKeyUp {
+			inputs = append(inputs, keyUp(tc.modifier))
+		}
+		expected = append(expected, strings.ToUpper(tc.expected))
+	}
+
+	inputs = append(inputs, keyDown(protocol.KeyL2), keyDown(protocol.KeyDPadLeft))
+	if includeKeyUp {
+		inputs = append(inputs, keyUp(protocol.KeyL2))
+	}
+
+	return []keyboardCase{
+		{
+			name:     "shift_mode_letters",
+			inputs:   inputs,
+			expected: expected,
+		},
+	}
+}
+
+func buildChordedModeCases(prefix string, cases []chordTestCase, includeKeyUp bool, preface func() []inputEvent) []keyboardCase {
+	var inputs []inputEvent
+	if preface != nil {
+		inputs = append(inputs, preface()...)
+	}
+
+	// Flatten multiple chords into one input stream to validate order and state.
+	expected := make([]string, 0, len(cases))
+	for _, tc := range cases {
+		inputs = append(inputs, keyDown(tc.modifier), keyDown(tc.trigger))
+		if includeKeyUp {
+			inputs = append(inputs, keyUp(tc.modifier))
+		}
+		expected = append(expected, tc.expected)
+	}
+
+	return []keyboardCase{
+		{
+			name:     fmt.Sprintf("%s_mode_chords", prefix),
+			inputs:   inputs,
+			expected: expected,
+		},
+	}
+}
+
 func buildSimpleLetterCases() []keyboardCase {
 	var cases []keyboardCase
 	for rowIdx, row := range simpleLayout {
@@ -180,6 +294,26 @@ func buildSimpleLetterCases() []keyboardCase {
 				name:     fmt.Sprintf("select_%s", key),
 				inputs:   inputs,
 				expected: []string{key},
+			})
+		}
+	}
+	return cases
+}
+
+func buildSimpleSpecialCases() []keyboardCase {
+	var cases []keyboardCase
+	for rowIdx, row := range simpleLayout {
+		for colIdx, key := range row {
+			expected, ok := simpleSpecialKeyOutputs[key]
+			if !ok {
+				continue
+			}
+			inputs := buildSimpleInputsTo(rowIdx, colIdx)
+			inputs = append(inputs, keyDown(protocol.KeyA))
+			cases = append(cases, keyboardCase{
+				name:     fmt.Sprintf("select_%s", key),
+				inputs:   inputs,
+				expected: []string{expected},
 			})
 		}
 	}
