@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -26,12 +27,12 @@ func ResolveRexBinary(ctx context.Context) (string, func() error, error) {
 		return "", nil, err
 	}
 
-	defaultPath := filepath.Join(moduleRoot, "rex-local")
+	defaultPath := filepath.Join(filepath.Dir(moduleRoot), "rex-local")
 	if isExecutable(defaultPath) {
 		return defaultPath, func() error { return nil }, nil
 	}
 
-	if err := buildRexBinary(ctx, moduleRoot); err != nil {
+	if err := buildRexBinary(ctx); err != nil {
 		return "", nil, err
 	}
 
@@ -123,9 +124,17 @@ func findModuleRoot(startDir string) (string, error) {
 	}
 }
 
-func buildRexBinary(ctx context.Context, moduleRoot string) error {
+func buildRexBinary(ctx context.Context) error {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return fmt.Errorf("failed to get current file path")
+	}
+
+	currentFileDir := filepath.Dir(filename)
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFileDir)))
+
 	cmd := exec.CommandContext(ctx, "make", "build-local")
-	cmd.Dir = moduleRoot
+	cmd.Dir = projectRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("make build-local failed: %w\n%s", err, string(output))
