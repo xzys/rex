@@ -34,7 +34,7 @@ func encodeChord(modifier, trigger int) int {
 	return modifier | (trigger << 4)
 }
 
-func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
+func NewKeyboardModelChorded(keyboardLayout [][]string, simultaneous bool) *KeyboardModelChorded {
 	modifiers := []int{modifierNone, modifierL1, modifierR1, modifierL2, modifierR2}
 	triggers := []int{protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight, protocol.KeyX, protocol.KeyA, protocol.KeyY, protocol.KeyB}
 	triggerNames := []string{"up", "down", "left", "right", "x", "a", "y", "b"}
@@ -85,7 +85,7 @@ func NewKeyboardModelChorded(keyboardLayout [][]string) *KeyboardModelChorded {
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
-		simultaneous:   true,
+		simultaneous:   simultaneous,
 	}
 }
 

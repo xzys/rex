@@ -53,7 +53,7 @@ func main() {
 	case "keyboard":
 		fs := flag.NewFlagSet("keyboard", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex keyboard [options]\n\n"); fs.PrintDefaults() }
-		keyboardMode := fs.String("mode", "chord", "keyboard mode (simple or chorded)")
+		keyboardMode := fs.String("mode", "chorded", "keyboard mode (simple, chorded, chorded-simultaneous)")
 		fs.Parse(args)
 		err = keyboard.NewKeyboard(*keyboardMode).Run()
 	case "menu":

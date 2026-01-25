@@ -25,8 +25,10 @@ type RuntimeError error
 
 func getKeyboardModel(mode string) KeyboardModel {
 	switch mode {
-	case "chord":
-		return NewKeyboardModelChorded(keyboardLayout)
+	case "chorded":
+		return NewKeyboardModelChorded(keyboardLayout, false)
+	case "chorded-simultaneous":
+		return NewKeyboardModelChorded(keyboardLayout, true)
 	case "simple":
 		return NewKeyboardModelSimple()
 	default:
