@@ -20,16 +20,16 @@ type chordTestCase struct {
 }
 
 var chordTestCases = []chordTestCase{
-	// No modifier - DPad triggers
-	{-1, protocol.KeyDPadLeft, "a"},
-	{-1, protocol.KeyDPadUp, "s"},
-	{-1, protocol.KeyDPadDown, "d"},
-	{-1, protocol.KeyDPadRight, "f"},
-	// No modifier - Face button triggers
-	{-1, protocol.KeyY, "h"},
-	{-1, protocol.KeyX, "j"},
-	{-1, protocol.KeyB, "k"},
-	{-1, protocol.KeyA, "l"},
+	// R2 modifier - DPad triggers
+	{protocol.KeyR2, protocol.KeyDPadLeft, "a"},
+	{protocol.KeyR2, protocol.KeyDPadUp, "s"},
+	{protocol.KeyR2, protocol.KeyDPadDown, "d"},
+	{protocol.KeyR2, protocol.KeyDPadRight, "f"},
+	// R2 modifier - Face button triggers
+	{protocol.KeyR2, protocol.KeyY, "h"},
+	{protocol.KeyR2, protocol.KeyX, "j"},
+	{protocol.KeyR2, protocol.KeyB, "k"},
+	{protocol.KeyR2, protocol.KeyA, "l"},
 
 	// L1 modifier - DPad triggers
 	{protocol.KeyL1, protocol.KeyDPadLeft, "q"},

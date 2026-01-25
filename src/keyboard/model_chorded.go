@@ -98,15 +98,15 @@ var specialKeyMap = map[string]rune{
 
 func getChordMaps() (map[int]rune, map[int]rune) {
 	chordMap := make(map[int]rune)
-	// Base triggers (no modifier)
-	chordMap[encodeChord(modifierNone, protocol.KeyDPadLeft)] = 'a'
-	chordMap[encodeChord(modifierNone, protocol.KeyDPadUp)] = 's'
-	chordMap[encodeChord(modifierNone, protocol.KeyDPadDown)] = 'd'
-	chordMap[encodeChord(modifierNone, protocol.KeyDPadRight)] = 'f'
-	chordMap[encodeChord(modifierNone, protocol.KeyY)] = 'h'
-	chordMap[encodeChord(modifierNone, protocol.KeyX)] = 'j'
-	chordMap[encodeChord(modifierNone, protocol.KeyB)] = 'k'
-	chordMap[encodeChord(modifierNone, protocol.KeyA)] = 'l'
+	// R2 modifier (base letters)
+	chordMap[encodeChord(modifierR2, protocol.KeyDPadLeft)] = 'a'
+	chordMap[encodeChord(modifierR2, protocol.KeyDPadUp)] = 's'
+	chordMap[encodeChord(modifierR2, protocol.KeyDPadDown)] = 'd'
+	chordMap[encodeChord(modifierR2, protocol.KeyDPadRight)] = 'f'
+	chordMap[encodeChord(modifierR2, protocol.KeyY)] = 'h'
+	chordMap[encodeChord(modifierR2, protocol.KeyX)] = 'j'
+	chordMap[encodeChord(modifierR2, protocol.KeyB)] = 'k'
+	chordMap[encodeChord(modifierR2, protocol.KeyA)] = 'l'
 
 	// L1 modifier
 	chordMap[encodeChord(modifierL1, protocol.KeyDPadLeft)] = 'q'
@@ -140,15 +140,15 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 
 	// numbers mode
 	chordAltMap := make(map[int]rune)
-	// Base triggers (no modifier) - numbers
-	chordAltMap[encodeChord(modifierNone, protocol.KeyDPadLeft)] = '1'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyDPadUp)] = '2'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyDPadDown)] = '3'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyDPadRight)] = '4'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyY)] = '5'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyX)] = '6'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyB)] = '7'
-	chordAltMap[encodeChord(modifierNone, protocol.KeyA)] = '8'
+	// R2 modifier (base digits)
+	chordAltMap[encodeChord(modifierR2, protocol.KeyDPadLeft)] = '1'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyDPadUp)] = '2'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyDPadDown)] = '3'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyDPadRight)] = '4'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyY)] = '5'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyX)] = '6'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyB)] = '7'
+	chordAltMap[encodeChord(modifierR2, protocol.KeyA)] = '8'
 
 	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadLeft)] = protocol.SpecialKeyShift
 	chordAltMap[encodeChord(modifierL2, protocol.KeyDPadRight)] = protocol.SpecialKeySpace
