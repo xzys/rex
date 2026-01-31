@@ -1,3 +1,4 @@
 bin
+!config/bin
 rex-local
 .env
