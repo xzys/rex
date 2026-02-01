@@ -1,15 +1,4 @@
-if [[ $(tty) == "/dev/tty2" ]]; then
-    recovery_msg="Plug in USB keyboard and switch to another terminal (Ctrl+Alt+F1)"
-    if [[ ! -x ~/bin/rex ]]; then
-        echo "ERROR: ~/bin/rex not found or not executable"
-        echo "$recovery_msg"
-    elif ~/bin/rex 2>&1; then
-        exit 0
-    else
-        echo "ERROR: rex exited with error"
-        echo "$recovery_msg"
-    fi
-fi
+export PATH=$HOME/bin:$PATH
 
 # Load interactive shell config for login shells
 case $- in

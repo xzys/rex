@@ -1,0 +1,23 @@
+[Unit]
+Description=Rex
+After=multi-user.target getty@tty2.service
+Conflicts=getty@tty2.service emulationstation.service
+
+[Service]
+Type=simple
+User=ark
+WorkingDirectory=/home/ark
+ExecStartPre=/usr/bin/setupcon
+ExecStartPre=/usr/bin/chvt 2
+ExecStart=/home/ark/bin/rex
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty2
+TTYReset=yes
+TTYVHangup=yes
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

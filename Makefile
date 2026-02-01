@@ -19,7 +19,6 @@ build-docker-r36s: ## Build for R36S using Docker
 
 sync-r36s:
 	@echo "Syncing rex binary and scripts to r36s..."
-	rsync bin/* config/bin/* r36s:bin/
 	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 
