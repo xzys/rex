@@ -3,14 +3,31 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 )
 
 const (
 	// InputSocketPath is for server -> keyboard messages (KeyInput)
-	InputSocketPath = "/tmp/rex-input.sock"
+	defaultInputSocketPath = "/tmp/rex-input.sock"
 	// OutputSocketPath is for keyboard -> server messages (KeyPress)
-	OutputSocketPath = "/tmp/rex-output.sock"
+	defaultOutputSocketPath = "/tmp/rex-output.sock"
+	envInputSocketPath      = "REX_INPUT_SOCKET"
+	envOutputSocketPath     = "REX_OUTPUT_SOCKET"
 )
+
+func InputSocketPath() string {
+	if path := os.Getenv(envInputSocketPath); path != "" {
+		return path
+	}
+	return defaultInputSocketPath
+}
+
+func OutputSocketPath() string {
+	if path := os.Getenv(envOutputSocketPath); path != "" {
+		return path
+	}
+	return defaultOutputSocketPath
+}
 
 const (
 	KeyDPadUp = iota
@@ -53,7 +70,8 @@ type BaseMessage struct {
 // sent from server to keyboard client with raw device input for translation
 type KeyInputMessage struct {
 	BaseMessage
-	KeyInput int `json:"key_input"` // raw key code from the input device
+	KeyInput  int  `json:"key_input"` // raw key code from the input device
+	IsKeyDown bool `json:"is_key_down"`
 }
 
 // response from keyboard client with the translated virtual key

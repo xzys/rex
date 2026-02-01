@@ -1,0 +1,4 @@
+# /etc/systemd/system/getty@tty2.service.d/override.conf
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ark --noclear %I $TERM

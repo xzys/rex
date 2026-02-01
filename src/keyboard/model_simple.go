@@ -22,7 +22,10 @@ func NewKeyboardModelSimple() *KeyboardModelSimple {
 	}
 }
 
-func (m *KeyboardModelSimple) HandleKey(key int) *string {
+func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
+	if !isKeyDown {
+		return nil
+	}
 	switch key {
 	case protocol.KeyDPadUp:
 		if m.selectedRow > 0 {

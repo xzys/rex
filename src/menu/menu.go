@@ -148,7 +148,7 @@ func (m *Menu) Run() error {
 
 func (m *Menu) runSSH(command string) error {
 	commandStr := `'` + command + `'`
-	cmd := exec.Command("ssh", "-t", *m.sshHost, "sh", "-ic", commandStr)
+	cmd := exec.Command("ssh", "-v", "-o", "ConnectTimeout=10", "-t", *m.sshHost, "sh", "-ic", commandStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

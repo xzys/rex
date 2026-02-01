@@ -34,4 +34,4 @@ apps:
   - name: ssh
     icon: "≈"
     color: 6
-    command: ./rex-local menu --ssh
+    command: rex menu --ssh

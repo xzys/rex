@@ -7,13 +7,15 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 type InputDevice interface {
-	Initialize(func(int) error) error
+	Initialize(func(InputEvent) error) error
 }
 
 var (
@@ -30,17 +32,25 @@ type Server struct {
 	decoder     *json.Decoder
 	inputDevice InputDevice
 	operator    *GlobalOperator
+	disabled    atomic.Bool
 }
 
 func NewServer() *Server {
 	server := &Server{
-		inputDevice: inputDevice,
+		inputDevice: selectInputDevice(),
 	}
 	server.operator = NewGlobalOperator(server, map[string]Operator{
 		"ncmpcpp": NewNcmpcppOperator(),
 		"menu":    NewMenuOperator(),
 	})
 	return server
+}
+
+func selectInputDevice() InputDevice {
+	if strings.EqualFold(os.Getenv("REX_INPUT_DEVICE"), "stdin") {
+		return NewStdinInputDevice(os.Stdin)
+	}
+	return inputDevice
 }
 
 // Run starts the server and blocks until interrupted
@@ -55,35 +65,45 @@ func (s *Server) Run() error {
 	}
 
 	// initialize input device, either keyboard or R36s
-	if err := s.inputDevice.Initialize(s.operator.HandleKey); err != nil {
+	if err := s.inputDevice.Initialize(s.operator.HandleInput); err != nil {
 		return fmt.Errorf("failed to initialize input device: %w", err)
 	}
 
 	// remove socket files if they exist
-	for _, path := range []string{protocol.InputSocketPath, protocol.OutputSocketPath} {
+	for _, path := range []string{protocol.InputSocketPath(), protocol.OutputSocketPath(), ControlSocketPath()} {
 		if _, err := os.Stat(path); err == nil {
 			os.Remove(path)
 		}
 	}
 
 	// create Unix socket listeners
-	inputListener, err := net.Listen("unix", protocol.InputSocketPath)
+	inputListener, err := net.Listen("unix", protocol.InputSocketPath())
 	if err != nil {
 		slog.Error("failed to create input socket", "err", err)
 		return err
 	}
 	defer inputListener.Close()
-	defer os.Remove(protocol.InputSocketPath)
+	defer os.Remove(protocol.InputSocketPath())
 
-	outputListener, err := net.Listen("unix", protocol.OutputSocketPath)
+	outputListener, err := net.Listen("unix", protocol.OutputSocketPath())
 	if err != nil {
 		slog.Error("failed to create output socket", "err", err)
 		return err
 	}
 	defer outputListener.Close()
-	defer os.Remove(protocol.OutputSocketPath)
+	defer os.Remove(protocol.OutputSocketPath())
 
-	slog.Info("server listening", "input", protocol.InputSocketPath, "output", protocol.OutputSocketPath)
+	controlListener, err := net.Listen("unix", ControlSocketPath())
+	if err != nil {
+		slog.Error("failed to create control socket", "err", err)
+		return err
+	}
+	defer controlListener.Close()
+	defer os.Remove(ControlSocketPath())
+
+	slog.Info("server listening", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath(), "control", ControlSocketPath())
+
+	go s.handleControlConnections(controlListener)
 
 	// handle cleanup on interrupt
 	sigChan := make(chan os.Signal, 1)
@@ -93,8 +113,10 @@ func (s *Server) Run() error {
 		slog.Info("shutting down server")
 		inputListener.Close()
 		outputListener.Close()
-		os.Remove(protocol.InputSocketPath)
-		os.Remove(protocol.OutputSocketPath)
+		controlListener.Close()
+		os.Remove(protocol.InputSocketPath())
+		os.Remove(protocol.OutputSocketPath())
+		os.Remove(ControlSocketPath())
 		os.Exit(0)
 	}()
 
@@ -152,7 +174,7 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 	}
 }
 
-func (s *Server) SendKeyInputMessage(key int) error {
+func (s *Server) SendKeyInputMessage(event InputEvent) error {
 	if s.encoder == nil {
 		slog.Error("trying to send key input w/o encoder")
 		return nil
@@ -160,11 +182,42 @@ func (s *Server) SendKeyInputMessage(key int) error {
 
 	msg := protocol.KeyInputMessage{
 		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput},
-		KeyInput:    key,
+		KeyInput:    event.Key,
+		IsKeyDown:   event.IsDown,
 	}
 	if err := s.encoder.Encode(msg); err != nil {
 		return fmt.Errorf("failed to encode key input: %w", err)
 	}
-	slog.Debug("sent key input", "key", key)
+	slog.Debug("sent key input", "key", event.Key, "isDown", event.IsDown)
 	return nil
+}
+
+func (s *Server) handleControlConnections(listener net.Listener) {
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			slog.Error("failed to accept control connection", "err", err)
+			continue
+		}
+		go s.handleControlConnection(conn)
+	}
+}
+
+func (s *Server) handleControlConnection(conn net.Conn) {
+	defer conn.Close()
+	decoder := json.NewDecoder(conn)
+	for {
+		msg, err := ParseControlMessage(decoder)
+		if err != nil {
+			return
+		}
+		if m, ok := msg.(DisableMessage); ok {
+			s.disabled.Store(m.Disable)
+			slog.Info("disabled state changed", "disabled", m.Disable)
+		}
+	}
+}
+
+func (s *Server) IsDisabled() bool {
+	return s.disabled.Load()
 }

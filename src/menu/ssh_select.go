@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +33,7 @@ func (s *SSHSelect) Run() (string, error) {
 }
 
 func (s *SSHSelect) Init() tea.Cmd {
+	exec.Command("tmux", "rename-window", "menu").Run()
 	return nil
 }
 

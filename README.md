@@ -1,8 +1,6 @@
-# Architecture Overview
+# REX
 
-## Overview
-
-REX is a client-server keyboard input system designed for the R36S handheld gaming device. It enables gamepad/joystick input to be translated into keyboard characters through a chorded keyboard interface. The system consists of two main components: a **server** that handles input device events and a **keyboard client** that provides a visual keyboard interface and translates gamepad inputs into characters.
+REX is a client-server keyboard input system designed for the R36S handheld gaming device. It enables gamepad/joystick input to be translated into keyboard characters through a chorded keyboard interface.
 
 ## Usage
 
@@ -15,89 +13,26 @@ rex exclusive <path>          # Run app with exclusive SDL access (kills/restart
 
 Config file search order for menu: `--config PATH` → `~/.config/rex/config.yaml` → `$PWD/config.yaml`
 
-## System Architecture
+### Menu Config
 
-```
-┌──────────┐
-│   R36S   │
-└────┬─────┘
-     │ SDL events
-┌────▼─────────────────────────────────────────────────────┐
-│                          Daemon                          │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │  SDL Input Handler                                 │  │
-│  │  - Polls gamepad                                   │  │
-│  │  - When keyboard active: sends KeyInputMessage     │  │
-│  └───────────┬────────────────────────────────────────┘  │
-│              │                                           │
-│  ┌───────────▼────────────────────────────────────────┐  │
-│  │  Connection Handler                                │  │
-│  │  - Sends input_key to keyboard                     │  │
-│  │  - Receives key_press and executes operation       │  │
-│  └───────────┬────────────────────────────────────────┘  │
-└──────────────┼────────────────────────▲──────────────────┘
-               │                        |
-               │  input_key             │  key_press
-               |                        │
-┌──────────────▼────────────────────────┼──────────────────┐
-│                        Keyboard                          │
-│  - Manages state: modifiers, modes (shift, numbers)      │
-│  - Simple / Chorded UX modes                             |
-└──────────────────────────────────────────────────────────┘
+```yaml
+layout:
+  gap: 4           # spacing between items
+  margin_x: 4      # horizontal margin
+  margin_y: 2      # vertical margin
+  square_size: 9   # item size
+apps:
+  - name: app_name
+    icon: "√"               # single character icon
+    color: 1                # ANSI color code
+    executable_path: /path  # or just binary name
+    exclusive: true         # optional: kills rex server while running
 ```
 
-## Components
-
-### Server (`server/`)
-- Manages input device polling (SDL gamepad or keyboard)
-- Accepts keyboard client connections via Unix sockets:
-  - `/tmp/rex-input.sock` - server → keyboard (KeyInput messages)
-  - `/tmp/rex-output.sock` - keyboard → server (KeyPress messages)
-- Forwards device input to keyboard client as `KeyInputMessage`
-- Receives `PressKeyMessage` from keyboard client and executes key presses via tmux
-
-### Keyboard Client (`keyboard/`)
-- Visual keyboard interface using Bubble Tea
-- Connects to server and receives device input
-- Translates gamepad inputs to characters using chorded or simple model
-- Sends translated characters back to server as `PressKeyMessage`
-
-### Start Menu (`menu/`)
-- Grid-based app launcher with configurable apps
-- Uses arrow keys/D-pad to navigate, Enter/A to select
-- Config structure:
-  ```yaml
-  layout:
-    gap: 4           # spacing between items
-    margin_x: 4      # horizontal margin
-    margin_y: 2      # vertical margin
-    square_size: 9   # item size
-  apps:
-    - name: app_name
-      icon: "√"               # single character icon
-      color: 1                # ANSI color code
-      executable_path: /path  # or just binary name
-      exclusive: true         # optional: kills rex server while running
-  ```
-
-### Protocol (`protocol/`)
-- Defines key constants (D-Pad, face buttons, modifiers)
-- Special keys use non-printable control codes (`\x01`-`\x04`) to avoid collisions
-- JSON messages over Unix socket, line-delimited
-
-### Operators (`server/operator*.go`)
-- Handle app-specific key bindings when keyboard is not active
-- `GlobalOperator`: Manages tmux windows and routes keys to active operator
-- `MenuOperator`: A=Enter
-- `NcmpcppOperator`: A=select, B=play/pause, X=skip, Y=back, Left/Right=cycle screens
-
-### Keyboard Models
-- **Chorded**: Modifier + trigger combinations (L1/R1/L2 + D-Pad/buttons), supports shift and numbers modes
-- **Simple**: Move to key and press A to select
-
-## Global Key Bindings
+## Key Bindings
 
 When keyboard is **not** active:
+
 | Key | Action |
 |-----|--------|
 | Start | Open menu |
@@ -108,12 +43,13 @@ When keyboard is **not** active:
 | D-Pad | Arrow keys (sent to tmux) |
 
 When keyboard **is** active:
+
 | Key | Action |
 |-----|--------|
 | Select | Close keyboard pane |
 | All others | Sent to keyboard for chord processing |
 
-## Development Keyboard Mappings
+### Development Keyboard Mappings
 
 For local development without a gamepad (`make build-local`):
 
@@ -130,43 +66,36 @@ For local development without a gamepad (`make build-local`):
 | c | L2 |
 | v | R2 |
 
-## Data Flow
-
-1. Input device → Server (`HandleKey`) → `KeyInputMessage` → Keyboard client
-2. Keyboard client → Model (`HandleKey`) → Character → `PressKeyMessage` → Server
-3. Server → `HandleKeyPress()` → Execute key press via tmux
-
 ## Build
 
-- `make build-local`: Keyboard input for development/testing
-- `make docker-build-r36s`: Build for R36S using Docker (cross-compile)
-- `make sync-r36s`: Sync binary and config to R36S via rsync
-- `make docker-build-ext-<name>`: Build external program from `ext/` (e.g., `make docker-build-ext-lf`)
-- `make install-system-files`: Install dotfiles and systemd services to R36S
+```bash
+make build-local              # Build for local development
+make docker-build-r36s        # Build for R36S (cross-compile)
+make sync-r36s                # Sync binary and config to R36S
+make docker-build-ext-<name>  # Build external program from ext/
+make install-system-files     # Install dotfiles and systemd services
+```
 
-## Logging
+## Documentation
 
-Logs are written to `/tmp/rex.log` with debug-level output.
-
-## Design Decisions
-
-- **Select**: Use this to open/close the keyboard app
-- **Synchronous connections**: Only one keyboard allowed at a time
-- **Tmux integration**: All key presses are executed via tmux send-keys to pane 0
+- `notes/architecture.md` - System design, components, data flow
+- `notes/protocol.md` - Socket protocol specification
+- `notes/keyboard-modes.md` - Chorded and simple keyboard mappings
+- `notes/testing.md` - Testing patterns and utilities
+- `notes/bugs/` - Known issues and investigations
 
 ## Dependencies
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework ([docs](https://pkg.go.dev/github.com/charmbracelet/bubbletea))
-- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Styling ([docs](https://pkg.go.dev/github.com/charmbracelet/lipgloss))
-- [go-sdl2](https://github.com/veandco/go-sdl2) - SDL2 bindings (for R36S build) ([docs](https://pkg.go.dev/github.com/veandco/go-sdl2))
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework
+- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Styling
+- [go-sdl2](https://github.com/veandco/go-sdl2) - SDL2 bindings (for R36S build)
 
-# TODO
+## TODO
 
-## Features
+### Features
 
 - [ ] bubbletea app to connect to SSH -- the name of the pane
 
-
-## Bug Reports
+### Bug Reports
 
 - [ ] [JSON decoder out of sync - data changing underfoot?](notes/bugs/json_decode_bug.md)

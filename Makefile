@@ -6,7 +6,7 @@ build-local: ## Build for local machine with keyboard input
 debug:
 	cd src && dlv debug . -- --server
 
-docker-build-r36s: ## Build for R36S using Docker
+build-docker-r36s: ## Build for R36S using Docker
 	docker build -f src/Dockerfile -t r36s-keyboard-builder src/
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/go/pkg/mod \
@@ -19,11 +19,10 @@ docker-build-r36s: ## Build for R36S using Docker
 
 sync-r36s:
 	@echo "Syncing rex binary and scripts to r36s..."
-	rsync bin/* config/bin/* r36s:bin/
 	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 
-docker-build-ext-%: ## Build program from ext/
+build-docker-ext-%: ## Build program from ext/
 	docker build -f ext/$*/Dockerfile -t r36s-$*-builder ext/$*
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/go/pkg/mod \

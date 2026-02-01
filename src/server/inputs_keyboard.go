@@ -17,12 +17,12 @@ func init() {
 	inputDevice = &KeyboardInputDevice{}
 }
 
-func (d *KeyboardInputDevice) Initialize(handler func(int) error) error {
+func (d *KeyboardInputDevice) Initialize(handler func(InputEvent) error) error {
 	go runKeyboardInputLoop(handler)
 	return nil
 }
 
-func runKeyboardInputLoop(handler func(int) error) {
+func runKeyboardInputLoop(handler func(InputEvent) error) {
 	// handle errors and exit
 	var err error
 	defer func() {
@@ -55,7 +55,8 @@ func runKeyboardInputLoop(handler func(int) error) {
 			}
 
 			if mappedKey := handleKeyPress(char, key); mappedKey != -1 {
-				if err := handler(mappedKey); err != nil {
+				event := InputEvent{Key: mappedKey, IsDown: true}
+				if err := handler(event); err != nil {
 					return err
 				}
 			}

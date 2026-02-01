@@ -25,22 +25,27 @@ func NewGlobalOperator(server *Server, operators map[string]Operator) *GlobalOpe
 }
 
 // keymappings for tmux/keyboard
-func (o *GlobalOperator) HandleKey(key int) error {
+func (o *GlobalOperator) HandleInput(event InputEvent) error {
+	if o.server.IsDisabled() {
+		return nil
+	}
+
 	var err error
 	if o.keyboardActive {
-		switch key {
-		case protocol.KeySelect:
-			err = o.closeKeyboardPane()
-		default:
-			// send key input message to keyboard
-			err = o.server.SendKeyInputMessage(key)
+		if event.Key == protocol.KeySelect && event.IsDown {
+			return o.closeKeyboardPane()
 		}
+		// send key input message to keyboard
+		return o.server.SendKeyInputMessage(event)
 	} else {
+		if !event.IsDown {
+			return nil
+		}
 		// sync active operator with current window
 		o.updateActiveOperator()
 		// try active operator first
 		if o.activeOperator != nil {
-			handled, err := (*o.activeOperator).HandleKey(key)
+			handled, err := (*o.activeOperator).HandleKey(event.Key)
 			if err != nil {
 				return err
 			}
@@ -49,7 +54,7 @@ func (o *GlobalOperator) HandleKey(key int) error {
 			}
 		}
 		// fall back to global keys
-		switch key {
+		switch event.Key {
 		case protocol.KeyR1:
 			err = o.nextWindow()
 		case protocol.KeyL1:
