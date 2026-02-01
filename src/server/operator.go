@@ -26,6 +26,10 @@ func NewGlobalOperator(server *Server, operators map[string]Operator) *GlobalOpe
 
 // keymappings for tmux/keyboard
 func (o *GlobalOperator) HandleInput(event InputEvent) error {
+	if o.server.IsDisabled() {
+		return nil
+	}
+
 	var err error
 	if o.keyboardActive {
 		if event.Key == protocol.KeySelect && event.IsDown {

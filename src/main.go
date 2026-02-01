@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"syscall"
@@ -23,7 +25,7 @@ func usage() {
        rex server
        rex keyboard [options]
        rex menu [options]
-       rex exclusive <path>
+       rex exclusive <command> [args...]
 
 Use 'rex <command> --help' for more information about a command.
 `)
@@ -97,7 +99,7 @@ func main() {
 	case "exclusive":
 		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
 		fs.Usage = func() {
-			fmt.Fprintf(os.Stderr, "usage: rex exclusive <command> [args...]\n\nRun an application exclusively, stopping the rex server temporarily.\n")
+			fmt.Fprintf(os.Stderr, "usage: rex exclusive <command> [args...]\n\nRun an application exclusively, disabling rex input handling and switching to tty1.\n")
 		}
 		fs.Parse(args)
 		if fs.NArg() < 1 {
@@ -165,13 +167,13 @@ func startOrAttach() error {
 }
 
 func runExclusive(args []string) error {
-	rexPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get rex path: %w", err)
+	if err := sendDisableMessage(true); err != nil {
+		slog.Warn("failed to send disable message", "err", err)
 	}
 
-	slog.Info("killing rex server")
-	exec.Command("pkill", "-f", rexPath+" server").Run()
+	if err := exec.Command("chvt", "1").Run(); err != nil {
+		slog.Warn("failed to switch to tty1", "err", err)
+	}
 
 	slog.Info("starting exclusive app", "args", args)
 	cmd := exec.Command(args[0], args[1:]...)
@@ -182,11 +184,32 @@ func runExclusive(args []string) error {
 		slog.Error("exclusive app exited with error", "err", err)
 	}
 
-	slog.Info("restarting rex server")
-	cmd = exec.Command(rexPath, "server")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to restart server: %w", err)
+	if err := exec.Command("chvt", "2").Run(); err != nil {
+		slog.Warn("failed to switch to tty2", "err", err)
+	}
+
+	if err := sendDisableMessage(false); err != nil {
+		slog.Warn("failed to send enable message", "err", err)
+	}
+
+	return nil
+}
+
+func sendDisableMessage(disable bool) error {
+	conn, err := net.Dial("unix", server.ControlSocketPath())
+	if err != nil {
+		return fmt.Errorf("failed to connect to control socket: %w", err)
+	}
+	defer conn.Close()
+
+	msg := map[string]interface{}{
+		"type":    "disable",
+		"disable": disable,
+	}
+
+	encoder := json.NewEncoder(conn)
+	if err := encoder.Encode(msg); err != nil {
+		return fmt.Errorf("failed to send disable message: %w", err)
 	}
 
 	return nil
