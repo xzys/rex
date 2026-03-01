@@ -5,38 +5,16 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"gopkg.in/yaml.v3"
+	cfg "github.com/xrfr/t-rex/v2/config"
 )
 
-type App struct {
-	Name      string `yaml:"name"`
-	Icon      string `yaml:"icon"`
-	Color     string `yaml:"color"`
-	Command   string `yaml:"command"`
-	Exclusive bool   `yaml:"exclusive"`
-}
-
-type Layout struct {
-	Gap        int `yaml:"gap"`
-	MarginX    int `yaml:"margin_x"`
-	MarginY    int `yaml:"margin_y"`
-	SquareSize int `yaml:"square_size"`
-}
-
-type Config struct {
-	Layout   Layout   `yaml:"layout"`
-	Apps     []App    `yaml:"apps"`
-	SSHHosts []string `yaml:"ssh_hosts"`
-}
-
 type Menu struct {
-	config      Config
+	config      cfg.Config
 	cursor      int
 	width       int
 	height      int
@@ -45,59 +23,15 @@ type Menu struct {
 	sshHost     *string
 }
 
-// findConfigPath tries multiple paths and returns the first one that exists
-func findConfigPath(userPath string) (string, error) {
-	if userPath != "" {
-		if _, err := os.Stat(userPath); err == nil {
-			return userPath, nil
-		} else {
-			return "", err
-		}
-	}
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		defaultPath := filepath.Join(homeDir, ".config", "rex", "config.yaml")
-		if _, err := os.Stat(defaultPath); err == nil {
-			return defaultPath, nil
-		}
-	}
-
-	if _, err := os.Stat("config.yaml"); err == nil {
-		return "config.yaml", nil
-	}
-
-	return "", os.ErrNotExist
-}
-
-func LoadConfig(path string) (Config, error) {
-	configPath, err := findConfigPath(path)
-	if err != nil {
-		return Config{}, err
-	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return Config{}, err
-	}
-
-	var config Config
-	err = yaml.Unmarshal(data, &config)
-	if err != nil {
-		return Config{}, err
-	}
-
-	return config, nil
-}
-
-func NewMenu(configPath string, sshHost *string) (*Menu, error) {
-	config, err := LoadConfig(configPath)
+func NewMenu(sshHost *string) (*Menu, error) {
+	config, err := cfg.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 	return NewMenuWithConfig(config, sshHost), nil
 }
 
-func NewMenuWithConfig(config Config, sshHost *string) *Menu {
+func NewMenuWithConfig(config cfg.Config, sshHost *string) *Menu {
 	return &Menu{
 		config:      config,
 		cursor:      0,
@@ -297,7 +231,7 @@ func (m *Menu) View() string {
 	return content
 }
 
-func (m *Menu) SelectedApp() *App {
+func (m *Menu) SelectedApp() *cfg.App {
 	if m.cursor >= 0 && m.cursor < len(m.config.Apps) {
 		return &m.config.Apps[m.cursor]
 	}

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
+	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
@@ -117,12 +118,19 @@ func (o *GlobalOperator) openKeyboardPane() error {
 		return nil
 	}
 
-	slog.Info("opening keyboard pane")
+	mode := cfg.KeyboardModeChorded
+	if loaded, err := cfg.LoadConfig(); err == nil {
+		mode = cfg.NormalizeKeyboardMode(loaded.KeyboardMode)
+	} else {
+		slog.Warn("failed to load config, using default keyboard mode", "err", err)
+	}
+
+	slog.Info("opening keyboard pane", "mode", mode)
 	// Create the split pane
 	if err := execute("tmux", "split-window",
 		"-l", "9", // set pane size to 10 lines tall
 		"-t", "0", // target pane 0
-		binaryName, "keyboard", // command to run
+		binaryName, "keyboard", "--mode", mode, // command to run
 	); err != nil {
 		return fmt.Errorf("failed to open keyboard pane: %w", err)
 	}

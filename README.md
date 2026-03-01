@@ -6,16 +6,24 @@ REX is a client-server keyboard input system designed for the R36S handheld gami
 
 ```
 rex server                    # Start the daemon
-rex keyboard [--mode MODE]    # Start keyboard (mode: chord or simple)
-rex menu [--config PATH]      # Start menu
+rex keyboard [--mode MODE]    # Start keyboard (mode: simple, chorded, chorded-simultaneous)
+rex menu [--ssh]              # Start menu
+rex settings                  # Open settings UI
 rex exclusive <path>          # Run app with exclusive SDL access (kills/restarts server)
 ```
 
-Config file search order for menu: `--config PATH` → `~/.config/rex/config.yaml` → `$PWD/config.yaml`
+Config file search order: `REX_CONFIG_PATH` → `~/.config/rex/config.yaml` → `$PWD/config.yaml`
+
+Override config path per command:
+
+```bash
+REX_CONFIG_PATH=/tmp/rex-config.yaml rex settings
+```
 
 ### Menu Config
 
 ```yaml
+keyboard_mode: chorded        # simple | chorded | chorded-simultaneous
 layout:
   gap: 4           # spacing between items
   margin_x: 4      # horizontal margin

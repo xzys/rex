@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"syscall"
 
+	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/keyboard"
 	"github.com/xrfr/t-rex/v2/menu"
 	"github.com/xrfr/t-rex/v2/server"
+	"github.com/xrfr/t-rex/v2/settings"
 	_ "github.com/xrfr/t-rex/v2/utils"
 )
 
@@ -25,6 +27,7 @@ func usage() {
        rex server
        rex keyboard [options]
        rex menu [options]
+       rex settings
        rex exclusive <command> [args...]
 
 Use 'rex <command> --help' for more information about a command.
@@ -61,11 +64,10 @@ func main() {
 	case "menu":
 		fs := flag.NewFlagSet("menu", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }
-		configPath := fs.String("config", "", "path to config file (default: ~/.config/rex/config.yaml, $PWD/config.yaml)")
 		sshMode := fs.Bool("ssh", false, "select SSH host to open app in")
 		fs.Parse(args)
 
-		config, configErr := menu.LoadConfig(*configPath)
+		config, configErr := cfg.LoadConfig()
 		if configErr != nil {
 			err = configErr
 			break
@@ -96,6 +98,11 @@ func main() {
 
 		m := menu.NewMenuWithConfig(config, sshHost)
 		err = m.Run()
+	case "settings":
+		fs := flag.NewFlagSet("settings", flag.ExitOnError)
+		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex settings\n\nOpen settings UI.\n") }
+		fs.Parse(args)
+		err = settings.Run()
 	case "exclusive":
 		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
 		fs.Usage = func() {
