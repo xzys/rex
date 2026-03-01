@@ -41,7 +41,7 @@ func (s *SSHSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc":
+		case "ctrl+c", "q", "esc", "b":
 			return s, tea.Quit
 		case "up", "k":
 			if s.cursor > 0 {
@@ -63,129 +63,112 @@ func (s *SSHSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *SSHSelect) View() string {
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("4")).
-		Padding(0, 1)
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
+	normalStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("4"))
+	barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("7")).
-		Padding(0, 1)
-
-	selectedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("0")).
-		Background(lipgloss.Color("4")).
-		Padding(0, 1)
-
-	var b strings.Builder
-
-	var tableContent strings.Builder
-	if len(s.hosts) == 0 {
-		tableContent.WriteString("No SSH hosts found")
-	} else {
-		colWidths := s.calculateColumnWidths()
-
-		header := s.formatCell("Name", colWidths[0]) +
-			s.formatCell("User", colWidths[1]) +
-			s.formatCell("Host", colWidths[2]) +
-			s.formatCell("Port", colWidths[3]) +
-			s.formatCell("Identity", colWidths[4])
-		tableContent.WriteString(headerStyle.Render(header))
-		tableContent.WriteString("\n")
-
-		totalWidth := colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4]
-		separatorWidth := totalWidth
-		if separatorWidth < 1 {
-			separatorWidth = 1
-		}
-		tableContent.WriteString(strings.Repeat("─", separatorWidth))
-		tableContent.WriteString("\n")
-
-		totalWidth = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4]
-		emptyRow := strings.Repeat(" ", totalWidth)
-
-		contentPadding := 4
-		borderLines := 2
-		borderPadding := 2
-		headerLines := 2
-		controlsLines := 2
-		safetyMargin := 1
-		overhead := contentPadding + borderLines + borderPadding + headerLines + controlsLines + safetyMargin
-
-		availableRows := s.height - overhead
-		if availableRows < 1 {
-			availableRows = 1
-		}
-
-		for i := 0; i < availableRows; i++ {
-			if i < len(s.hosts) {
-				host := s.hosts[i]
-				name := host.Name
-				if name == "" {
-					name = "-"
-				}
-				user := host.User
-				if user == "" {
-					user = "-"
-				}
-				hostAddr := host.Host
-				if hostAddr == "" {
-					hostAddr = "-"
-				}
-				port := host.Port
-				if port == "" {
-					port = "22"
-				}
-				identityFile := host.IdentityFile
-				if identityFile == "" {
-					identityFile = "-"
-				}
-
-				row := s.formatCell(name, colWidths[0]) +
-					s.formatCell(user, colWidths[1]) +
-					s.formatCell(hostAddr, colWidths[2]) +
-					s.formatCell(port, colWidths[3]) +
-					s.formatCell(identityFile, colWidths[4])
-
-				if i == s.cursor {
-					tableContent.WriteString(selectedStyle.Render(row))
-				} else {
-					tableContent.WriteString(normalStyle.Render(row))
-				}
-			} else {
-				tableContent.WriteString(normalStyle.Render(emptyRow))
-			}
-			tableContent.WriteString("\n")
-		}
-
-		barStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")).
-			Padding(0, 1)
-
-		barText := "↑/↓ navigate • enter select • esc cancel"
-		tableContent.WriteString("\n")
-		tableContent.WriteString(barStyle.Render(barText))
+	viewWidth := s.width
+	if viewWidth < 40 {
+		viewWidth = 40
+	}
+	viewHeight := s.height
+	if viewHeight < 8 {
+		viewHeight = 8
 	}
 
-	tableStyle := lipgloss.NewStyle().
+	borderLines := 2
+	horizontalPadding := 4 // Padding(1, 2)
+	verticalPadding := 2   // Padding(1, 2)
+
+	innerWidth := viewWidth - borderLines - horizontalPadding
+	if innerWidth < 20 {
+		innerWidth = 20
+	}
+	innerHeight := viewHeight - borderLines - verticalPadding
+	if innerHeight < 4 {
+		innerHeight = 4
+	}
+
+	colWidths := s.calculateColumnWidths(innerWidth)
+	header := s.formatCell("Name", colWidths[0]) +
+		s.formatCell("User", colWidths[1]) +
+		s.formatCell("Host", colWidths[2]) +
+		s.formatCell("Port", colWidths[3]) +
+		s.formatCell("Identity", colWidths[4])
+	totalWidth := colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4]
+	if totalWidth < 1 {
+		totalWidth = 1
+	}
+	separator := strings.Repeat("─", totalWidth)
+	emptyRow := strings.Repeat(" ", totalWidth)
+
+	headerLines := 2
+	gapBeforeHelp := 1
+	helpLines := 1
+	availableRows := innerHeight - headerLines - gapBeforeHelp - helpLines
+	if availableRows < 1 {
+		availableRows = 1
+	}
+
+	var content strings.Builder
+	content.WriteString(headerStyle.Render(header))
+	content.WriteString("\n")
+	content.WriteString(separator)
+	content.WriteString("\n")
+
+	for i := 0; i < availableRows; i++ {
+		if i < len(s.hosts) {
+			host := s.hosts[i]
+			name := host.Name
+			if name == "" {
+				name = "-"
+			}
+			user := host.User
+			if user == "" {
+				user = "-"
+			}
+			hostAddr := host.Host
+			if hostAddr == "" {
+				hostAddr = "-"
+			}
+			port := host.Port
+			if port == "" {
+				port = "22"
+			}
+			identityFile := host.IdentityFile
+			if identityFile == "" {
+				identityFile = "-"
+			}
+
+			row := s.formatCell(name, colWidths[0]) +
+				s.formatCell(user, colWidths[1]) +
+				s.formatCell(hostAddr, colWidths[2]) +
+				s.formatCell(port, colWidths[3]) +
+				s.formatCell(identityFile, colWidths[4])
+
+			if i == s.cursor {
+				content.WriteString(selectedStyle.Render(row))
+			} else {
+				content.WriteString(normalStyle.Render(row))
+			}
+		} else {
+			content.WriteString(normalStyle.Render(emptyRow))
+		}
+		content.WriteString("\n")
+	}
+
+	content.WriteString("\n")
+	content.WriteString(barStyle.Render("↑/↓ navigate • enter select • esc cancel"))
+
+	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("4")).
-		Padding(1, 2)
-
-	table := tableStyle.Render(tableContent.String())
-	b.WriteString(table)
-
-	content := lipgloss.NewStyle().
-		Padding(2, 4).
-		Render(b.String())
-
-	return content
+		Padding(1, 2).
+		Render(content.String())
 }
 
-func (s *SSHSelect) calculateColumnWidths() [5]int {
-	contentPadding := 4
-	borderPadding := 2
-	availableWidth := s.width - (contentPadding * 2) - (borderPadding * 2) - 2
+func (s *SSHSelect) calculateColumnWidths(availableWidth int) [5]int {
 
 	if availableWidth < 20 {
 		availableWidth = 20
