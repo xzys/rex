@@ -22,8 +22,31 @@ sync-r36s:
 	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 
+build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+brick tags)
+	docker build -f src/Dockerfile -t brick-rex-builder src/
+	docker run --rm --platform linux/amd64 \
+		-v go-mod-cache:/go/pkg/mod \
+		-v go-build-cache:/root/.cache/go-build \
+		-v $$(pwd)/src:/app \
+		-v $$(pwd)/bin:/output \
+		-w /app \
+		brick-rex-builder \
+		go build -tags "sdl brick" -o /output/rex-brick
+
+sync-brick: ## Deploy rex, termsp, tmux, fonts, and launch script to TrimUI Brick
+	@echo "Syncing to TrimUI Brick..."
+	ssh root@192.168.1.213 'mkdir -p /userdata/system/apps/terminal/fonts /userdata/system/apps/terminal/lib /userdata/roms/ports'
+	scp bin/rex-brick root@192.168.1.213:/userdata/system/apps/terminal/rex
+	scp bin/termsp root@192.168.1.213:/userdata/system/apps/terminal/termsp
+	scp bin/tmux root@192.168.1.213:/userdata/system/apps/terminal/tmux
+	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so root@192.168.1.213:/userdata/system/apps/terminal/lib/
+	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/terminal/lib/libvterm.so.0'
+	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/terminal/fonts/
+	scp ext/brick/Rex.sh root@192.168.1.213:/userdata/roms/tools/Rex.sh
+	ssh root@192.168.1.213 'chmod +x /userdata/system/apps/terminal/rex /userdata/system/apps/terminal/termsp /userdata/system/apps/terminal/tmux /userdata/roms/tools/Rex.sh'
+
 build-docker-ext-%: ## Build program from ext/
-	docker build -f ext/$*/Dockerfile -t r36s-$*-builder ext/$*
+	docker build -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
@@ -31,7 +54,7 @@ build-docker-ext-%: ## Build program from ext/
 		-v $$(pwd)/bin:/output \
 		-v $$(pwd)/ext/$*:/app \
 		-w /app \
-		r36s-$*-builder \
+		r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder \
 		/app/build.sh
 
 
