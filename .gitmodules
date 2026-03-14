@@ -1,0 +1,4 @@
+[submodule "ext/TermSP/TermSP"]
+	path = ext/TermSP/TermSP
+	url = https://github.com/Nevrdid/TermSP
+	branch = xz-trimui-brick-compatibility
