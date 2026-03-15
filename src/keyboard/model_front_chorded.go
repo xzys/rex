@@ -162,7 +162,7 @@ func getFrontChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modX, protocol.KeyDPadUp)] = protocol.SpecialKeyNumbers // Shift/Numbers? Plan says Shift/Numbers
 	chordMap[encodeChord(modX, protocol.KeyDPadLeft)] = protocol.SpecialKeySpace
 	chordMap[encodeChord(modX, protocol.KeyDPadDown)] = protocol.SpecialKeyEnter
-	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = protocol.SpecialKeyClose // Backspace/Close
+	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = protocol.SpecialKeyDelete // Backspace
 
 	// A (Right): H, J, K, L
 	modA := protocol.KeyA
@@ -244,16 +244,15 @@ func (m *KeyboardModelFrontChorded) HandleKey(key int, isKeyDown bool) *string {
 
 	// Modifier is already held, this is a trigger
 	trigger := key
+	result := m.getChord(trigger)
 
-	// Check for Opposite Hand rule?
-	// Left Hand: Up, Down, Left, Right
-	// Right Hand: A, B, X, Y
-	// If modifier is Left, Trigger must be Right (and vice versa)?
-	// The plan says "Trigger Press: User taps a key on the opposite side."
-	// But strictly enforcing it might be good.
+	// Clear modifier after successful chord so next key starts fresh
+	// (keyboard input device only sends key-down, no key-up to clear)
+	if result != nil {
+		m.modifier = frontModifierNone
+	}
 
-	// Actually, let's just check the map. If it's in the map, it's valid.
-	return m.getChord(trigger)
+	return result
 }
 
 func (m *KeyboardModelFrontChorded) getChord(triggerKey int) *string {

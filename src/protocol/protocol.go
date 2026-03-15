@@ -59,8 +59,9 @@ const (
 
 // requests
 const (
-	MessageTypeKeyInput = "key_input"
-	MessageTypeKeyPress = "key_press"
+	MessageTypeKeyInput    = "key_input"
+	MessageTypeKeyPress    = "key_press"
+	MessageTypePressString = "press_string"
 )
 
 type BaseMessage struct {
@@ -78,6 +79,12 @@ type KeyInputMessage struct {
 type PressKeyMessage struct {
 	BaseMessage
 	KeyPress string `json:"key_press"` // virtual key character to press
+}
+
+// response from keyboard client with a string to type (e.g. autocomplete)
+type PressStringMessage struct {
+	BaseMessage
+	Value string `json:"value"` // string to type character by character
 }
 
 // ParseMessage decodes a JSON message from the decoder
@@ -110,6 +117,12 @@ func ParseMessage(decoder *json.Decoder) (any, error) {
 		return msg, nil
 	case MessageTypeKeyPress:
 		var msg PressKeyMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, err
+		}
+		return msg, nil
+	case MessageTypePressString:
+		var msg PressStringMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return nil, err
 		}

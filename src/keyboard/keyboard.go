@@ -1,6 +1,7 @@
 package keyboard
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
+
+//go:embed words.txt
+var wordsFile embed.FS
 
 type Keyboard struct {
 	keyboard   [][]string
@@ -21,6 +25,12 @@ type Keyboard struct {
 	// connections kept for cleanup
 	inputConn  net.Conn
 	outputConn net.Conn
+	// autocomplete
+	dictionary  *Trie
+	currentWord string
+	suggestions [4]string
+	// display
+	compact bool
 }
 
 type RuntimeError error
@@ -33,17 +43,31 @@ func getKeyboardModel(mode string) KeyboardModel {
 		return NewKeyboardModelChorded(keyboardLayout, true)
 	case "simple":
 		return NewKeyboardModelSimple()
+	case "front-chorded":
+		return NewKeyboardModelFrontChorded(keyboardLayout)
 	default:
 		panic("invalid keyboard mode")
 	}
 }
 
-func NewKeyboard(keyboardMode string) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool) *Keyboard {
 	model := getKeyboardModel(keyboardMode)
+
+	var dictionary *Trie
+	if autocomplete {
+		f, err := wordsFile.Open("words.txt")
+		if err == nil {
+			defer f.Close()
+			dictionary = LoadTrie(f, dictWords)
+		}
+	}
+
 	return &Keyboard{
-		keyboard: keyboardLayout,
-		model:    model,
-		width:    0,
+		keyboard:   keyboardLayout,
+		model:      model,
+		width:      0,
+		dictionary: dictionary,
+		compact:    compact,
 	}
 }
 
@@ -131,21 +155,120 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handle key input and optionally provide a command to send key press to server
 func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
+	// Intercept shoulder buttons for autocomplete selection (only when suggestions exist)
+	if msg.IsKeyDown && k.hasSuggestions() {
+		if result := k.handleSuggestionSelect(msg.KeyInput); result != nil {
+			return k.sendString(*result)
+		}
+	}
+
 	// Process the key input through the model (both keydown and keyup)
 	keyToPress := k.model.HandleKey(msg.KeyInput, msg.IsKeyDown)
 	if keyToPress == nil {
-		// for ex. with modifier keys or keyup events
 		return nil
 	}
 
+	// Track typed characters for autocomplete
+	k.updateCurrentWord(*keyToPress)
+
+	return k.sendKeyPress(*keyToPress)
+}
+
+func (k *Keyboard) sendKeyPress(key string) tea.Cmd {
 	return func() tea.Msg {
 		message := protocol.PressKeyMessage{
 			BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyPress},
-			KeyPress:    *keyToPress,
+			KeyPress:    key,
 		}
 		if err := k.encoder.Encode(message); err != nil {
 			return RuntimeError(fmt.Errorf("failed to encode message: %w", err))
 		}
 		return nil
 	}
+}
+
+func (k *Keyboard) sendString(value string) tea.Cmd {
+	return func() tea.Msg {
+		message := protocol.PressStringMessage{
+			BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypePressString},
+			Value:       value,
+		}
+		if err := k.encoder.Encode(message); err != nil {
+			return RuntimeError(fmt.Errorf("failed to encode message: %w", err))
+		}
+		return nil
+	}
+}
+
+func (k *Keyboard) handleSuggestionSelect(key int) *string {
+	var idx int
+	switch key {
+	case protocol.KeyL1:
+		idx = 0
+	case protocol.KeyL2:
+		idx = 1
+	case protocol.KeyR1:
+		idx = 2
+	case protocol.KeyR2:
+		idx = 3
+	default:
+		return nil
+	}
+
+	if k.suggestions[idx] == "" {
+		return nil
+	}
+
+	remaining := k.suggestions[idx][len(k.currentWord):] + " "
+	slog.Info("autocomplete", "word", k.suggestions[idx], "remaining", remaining)
+
+	k.currentWord = ""
+	k.suggestions = [4]string{}
+
+	return &remaining
+}
+
+func (k *Keyboard) updateCurrentWord(typed string) {
+	if len(typed) != 1 {
+		return
+	}
+
+	ch := rune(typed[0])
+
+	switch ch {
+	case protocol.SpecialKeySpace, protocol.SpecialKeyEnter, protocol.SpecialKeyClose, protocol.SpecialKeyDelete:
+		k.currentWord = ""
+		k.suggestions = [4]string{}
+		return
+	}
+
+	if ch >= 'a' && ch <= 'z' {
+		k.currentWord += string(ch)
+	} else if ch == '\b' || ch == 127 {
+		if len(k.currentWord) > 0 {
+			k.currentWord = k.currentWord[:len(k.currentWord)-1]
+		}
+	} else {
+		k.currentWord = ""
+		k.suggestions = [4]string{}
+		return
+	}
+
+	k.updateSuggestions()
+}
+
+func (k *Keyboard) hasSuggestions() bool {
+	return k.suggestions != [4]string{}
+}
+
+func (k *Keyboard) updateSuggestions() {
+	k.suggestions = [4]string{}
+	if k.dictionary == nil || k.currentWord == "" {
+		return
+	}
+	results := k.dictionary.Search(k.currentWord, 4)
+	for i, w := range results {
+		k.suggestions[i] = w
+	}
+	slog.Debug("suggestions updated", "currentWord", k.currentWord, "suggestions", k.suggestions)
 }

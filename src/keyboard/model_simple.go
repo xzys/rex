@@ -68,5 +68,5 @@ func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, st
 	if i == m.selectedRow && j == m.selectedCol {
 		return "2", "2", key
 	}
-	return "0", "0", key
+	return "7", "0", key
 }

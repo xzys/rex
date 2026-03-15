@@ -170,6 +170,10 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 			if err := s.operator.HandleKeyPress(m.KeyPress); err != nil {
 				return fmt.Errorf("failed to press key: %w", err)
 			}
+		case protocol.PressStringMessage:
+			if err := s.operator.HandlePressString(m.Value); err != nil {
+				return fmt.Errorf("failed to press string: %w", err)
+			}
 		}
 	}
 }

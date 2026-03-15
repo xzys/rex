@@ -501,12 +501,83 @@ func readPressKey(decoder *json.Decoder, outputConn net.Conn, timeout time.Durat
 		return "", false, err
 	}
 
-	pressMsg, ok := response.(protocol.PressKeyMessage)
-	if !ok {
+	switch msg := response.(type) {
+	case protocol.PressKeyMessage:
+		return msg.KeyPress, true, nil
+	case protocol.PressStringMessage:
+		return msg.Value, true, nil
+	default:
 		return "", false, fmt.Errorf("unexpected message type: %T", response)
 	}
+}
 
-	return pressMsg.KeyPress, true, nil
+// Front-chorded chord helper: press mod down, trigger down, trigger up, mod up
+func frontChordInputs(mod, trigger int) []inputEvent {
+	return []inputEvent{
+		keyDown(mod),
+		keyDown(trigger),
+		keyUp(trigger),
+		keyUp(mod),
+	}
+}
+
+func TestFrontChordedKeyboard(t *testing.T) {
+	// Enable autocomplete via config so the keyboard process loads the dictionary
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "config.yaml")
+	os.WriteFile(configPath, []byte("keyboard_autocomplete: true\n"), 0644)
+	t.Setenv("REX_CONFIG_PATH", configPath)
+
+	cases := []keyboardCase{
+		{
+			name: "type_t_produces_t",
+			inputs: frontChordInputs(protocol.KeyDPadRight, protocol.KeyY),
+			expected: []string{"t"},
+		},
+		{
+			name: "type_th_produces_t_h",
+			inputs: append(
+				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY), // t
+				frontChordInputs(protocol.KeyA, protocol.KeyDPadUp)..., // h
+			),
+			expected: []string{"t", "h"},
+		},
+		{
+			name: "autocomplete_th_L1_selects_the",
+			inputs: append(append(
+				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY), // t
+				frontChordInputs(protocol.KeyA, protocol.KeyDPadUp)..., // h
+			), keyDown(protocol.KeyL1)), // L1 selects first suggestion
+			expected: []string{"t", "h", "e "},
+		},
+		{
+			name: "autocomplete_th_L2_selects_second",
+			inputs: append(append(
+				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY),
+				frontChordInputs(protocol.KeyA, protocol.KeyDPadUp)...,
+			), keyDown(protocol.KeyL2)),
+			// "that" is second suggestion (rank 6 in words.txt) → remaining = "at "
+			expected: []string{"t", "h", "at "},
+		},
+		{
+			name: "no_autocomplete_after_space",
+			inputs: append(append(append(
+				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY), // t
+				frontChordInputs(protocol.KeyX, protocol.KeyDPadLeft)..., // space
+			),
+				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY)..., // t again
+			), keyDown(protocol.KeyL1)), // L1 selects first suggestion for "t"
+			// After space, new word "t" → suggestions restart → "the" → remaining "he "
+			expected: []string{"t", " ", "t", "he "},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			runKeyboardCase(t, "front-chorded", tc)
+		})
+	}
 }
 
 func keyDown(key int) inputEvent {
