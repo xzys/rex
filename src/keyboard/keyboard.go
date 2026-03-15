@@ -158,7 +158,7 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 	// Intercept shoulder buttons for autocomplete selection (only when suggestions exist)
 	if msg.IsKeyDown && k.hasSuggestions() {
 		if result := k.handleSuggestionSelect(msg.KeyInput); result != nil {
-			return k.sendKeyPress(*result)
+			return k.sendString(*result)
 		}
 	}
 
@@ -179,6 +179,19 @@ func (k *Keyboard) sendKeyPress(key string) tea.Cmd {
 		message := protocol.PressKeyMessage{
 			BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyPress},
 			KeyPress:    key,
+		}
+		if err := k.encoder.Encode(message); err != nil {
+			return RuntimeError(fmt.Errorf("failed to encode message: %w", err))
+		}
+		return nil
+	}
+}
+
+func (k *Keyboard) sendString(value string) tea.Cmd {
+	return func() tea.Msg {
+		message := protocol.PressStringMessage{
+			BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypePressString},
+			Value:       value,
 		}
 		if err := k.encoder.Encode(message); err != nil {
 			return RuntimeError(fmt.Errorf("failed to encode message: %w", err))

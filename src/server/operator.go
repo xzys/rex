@@ -110,6 +110,16 @@ func (o *GlobalOperator) HandleKeyPress(key string) error {
 	return execute("tmux", "send-keys", "-t", "0", tmuxKey)
 }
 
+// executes a string as a sequence of key presses (e.g. autocomplete)
+func (o *GlobalOperator) HandlePressString(value string) error {
+	for _, ch := range value {
+		if err := o.HandleKeyPress(string(ch)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // creates a horizontal split at the bottom running the keyboard command
 func (o *GlobalOperator) openKeyboardPane() error {
 	// Check if process is already running

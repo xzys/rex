@@ -501,12 +501,14 @@ func readPressKey(decoder *json.Decoder, outputConn net.Conn, timeout time.Durat
 		return "", false, err
 	}
 
-	pressMsg, ok := response.(protocol.PressKeyMessage)
-	if !ok {
+	switch msg := response.(type) {
+	case protocol.PressKeyMessage:
+		return msg.KeyPress, true, nil
+	case protocol.PressStringMessage:
+		return msg.Value, true, nil
+	default:
 		return "", false, fmt.Errorf("unexpected message type: %T", response)
 	}
-
-	return pressMsg.KeyPress, true, nil
 }
 
 // Front-chorded chord helper: press mod down, trigger down, trigger up, mod up
@@ -520,6 +522,12 @@ func frontChordInputs(mod, trigger int) []inputEvent {
 }
 
 func TestFrontChordedKeyboard(t *testing.T) {
+	// Enable autocomplete via config so the keyboard process loads the dictionary
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "config.yaml")
+	os.WriteFile(configPath, []byte("keyboard_autocomplete: true\n"), 0644)
+	t.Setenv("REX_CONFIG_PATH", configPath)
+
 	cases := []keyboardCase{
 		{
 			name: "type_t_produces_t",
