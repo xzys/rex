@@ -35,4 +35,4 @@ apps:
       command: rex menu --ssh
       exclusive: false
 ssh_hosts: []
-keyboard_mode: chorded-simultaneous
+keyboard_mode: front-chorded
