@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 type Keyboard struct {
-	keyboard [][]string
-	model    KeyboardModel
-	decoder  *json.Decoder
-	encoder  *json.Encoder
-	width    int
+	keyboard   [][]string
+	model      KeyboardModel
+	decoder    *json.Decoder
+	decoderMu  sync.Mutex
+	encoder    *json.Encoder
+	width      int
 	// connections kept for cleanup
 	inputConn  net.Conn
 	outputConn net.Conn
@@ -94,6 +96,8 @@ func (k *Keyboard) Init() tea.Cmd {
 }
 
 func (k *Keyboard) ReadSocket() tea.Msg {
+	k.decoderMu.Lock()
+	defer k.decoderMu.Unlock()
 	msg, err := protocol.ParseMessage(k.decoder)
 	if err != nil {
 		return RuntimeError(fmt.Errorf("failed to parse message: %w", err))
