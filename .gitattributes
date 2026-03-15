@@ -2,3 +2,4 @@
 *.deb filter=lfs diff=lfs merge=lfs -text
 *.stl filter=lfs diff=lfs merge=lfs -text
 *.f3d filter=lfs diff=lfs merge=lfs -text
+src/keyboard/words.txt filter=lfs diff=lfs merge=lfs -text
