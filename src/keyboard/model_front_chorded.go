@@ -162,7 +162,7 @@ func getFrontChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modX, protocol.KeyDPadUp)] = protocol.SpecialKeyNumbers // Shift/Numbers? Plan says Shift/Numbers
 	chordMap[encodeChord(modX, protocol.KeyDPadLeft)] = protocol.SpecialKeySpace
 	chordMap[encodeChord(modX, protocol.KeyDPadDown)] = protocol.SpecialKeyEnter
-	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = protocol.SpecialKeyClose // Backspace/Close
+	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = protocol.SpecialKeyDelete // Backspace
 
 	// A (Right): H, J, K, L
 	modA := protocol.KeyA

@@ -80,7 +80,7 @@ func main() {
 		if dw <= 0 {
 			dw = cfg.DefaultDictWords
 		}
-		err = keyboard.NewKeyboard(mode, dw).Run()
+		err = keyboard.NewKeyboard(mode, dw, config.KeyboardCompact, config.KeyboardAutocomplete).Run()
 	case "menu":
 		fs := flag.NewFlagSet("menu", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }

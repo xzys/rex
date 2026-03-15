@@ -1,7 +1,7 @@
 package keyboard
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -27,9 +27,11 @@ func (k *Keyboard) View() string {
 		var keys []string
 		for j, key := range row {
 			fg, bg, key := k.model.RenderKey(i, j, key)
+			border := lipgloss.NormalBorder()
+			showBottom := !k.compact
 			style := lipgloss.NewStyle().
 				Padding(0, 1).
-				Border(lipgloss.NormalBorder()).
+				Border(border, true, true, showBottom, true).
 				BorderForeground(lipgloss.Color(bg)).
 				Foreground(lipgloss.Color(fg))
 
@@ -42,37 +44,27 @@ func (k *Keyboard) View() string {
 
 	// Render suggestion bar for autocomplete
 	var suggestionBar string
-	{
-		labels := [4]string{"L1", "L2", "R1", "R2"}
-		var slots []string
-		for i, s := range k.suggestions {
+	if k.dictionary != nil {
+		var words []string
+		for _, s := range k.suggestions {
 			if s != "" {
-				slot := lipgloss.NewStyle().
-					Padding(0, 1).
-					Border(lipgloss.NormalBorder()).
-					BorderForeground(lipgloss.Color("4")).
-					Foreground(lipgloss.Color("7")).
-					Render(fmt.Sprintf("[%s] %s", labels[i], s))
-				slots = append(slots, slot)
+				words = append(words, s)
 			}
 		}
-		if len(slots) > 0 {
-			suggestionBar = lipgloss.JoinHorizontal(lipgloss.Bottom, slots...)
-		}
+		text := strings.Join(words, " | ")
+		suggestionBar = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("7")).
+			Render(text)
 	}
 
 	allRows := rows
-	if suggestionBar != "" {
+	if k.dictionary != nil {
 		allRows = append([]string{suggestionBar}, rows...)
 	}
 
-	keys := lipgloss.JoinVertical(lipgloss.Left, allRows...)
+	keys := lipgloss.JoinVertical(lipgloss.Center, allRows...)
 	return lipgloss.NewStyle().
 		Width(k.width).
 		Align(lipgloss.Center).
-		Render(
-			lipgloss.NewStyle().
-				Padding(0, 1).
-				Render(keys),
-		)
+		Render(keys)
 }

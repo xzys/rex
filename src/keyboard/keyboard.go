@@ -29,6 +29,8 @@ type Keyboard struct {
 	dictionary  *Trie
 	currentWord string
 	suggestions [4]string
+	// display
+	compact bool
 }
 
 type RuntimeError error
@@ -48,7 +50,7 @@ func getKeyboardModel(mode string) KeyboardModel {
 	}
 }
 
-func NewKeyboard(keyboardMode string, dictWords int) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool) *Keyboard {
 	model := getKeyboardModel(keyboardMode)
 
 	var dictionary *Trie
@@ -63,6 +65,7 @@ func NewKeyboard(keyboardMode string, dictWords int) *Keyboard {
 		model:      model,
 		width:      0,
 		dictionary: dictionary,
+		compact:    compact,
 	}
 }
 
@@ -252,4 +255,5 @@ func (k *Keyboard) updateSuggestions() {
 	for i, w := range results {
 		k.suggestions[i] = w
 	}
+	slog.Debug("suggestions updated", "currentWord", k.currentWord, "suggestions", k.suggestions)
 }

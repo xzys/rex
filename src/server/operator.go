@@ -119,16 +119,23 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	}
 
 	mode := cfg.KeyboardModeChorded
+	compact := false
 	if loaded, err := cfg.LoadConfig(); err == nil {
 		mode = cfg.NormalizeKeyboardMode(loaded.KeyboardMode)
+		compact = loaded.KeyboardCompact
 	} else {
 		slog.Warn("failed to load config, using default keyboard mode", "err", err)
 	}
 
-	slog.Info("opening keyboard pane", "mode", mode)
+	paneHeight := "12" // 3 rows × 3 lines + suggestion bar + padding
+	if compact {
+		paneHeight = "8" // 3 rows × 2 lines + suggestion bar + padding
+	}
+
+	slog.Info("opening keyboard pane", "mode", mode, "compact", compact)
 	// Create the split pane
 	if err := execute("tmux", "split-window",
-		"-l", "9", // set pane size to 10 lines tall
+		"-l", paneHeight,
 		"-t", "0", // target pane 0
 		binaryName, "keyboard", "--mode", mode, // command to run
 	); err != nil {
