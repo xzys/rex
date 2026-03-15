@@ -87,10 +87,6 @@ func main() {
 				err = fmt.Errorf("failed to get SSH hosts: %w", hostErr)
 				break
 			}
-			if len(hosts) == 0 {
-				err = fmt.Errorf("no SSH hosts found")
-				break
-			}
 			selector := menu.NewSSHSelect(hosts)
 			selected, selectErr := selector.Run()
 			if selectErr != nil {

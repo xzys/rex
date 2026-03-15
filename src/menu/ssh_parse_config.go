@@ -2,6 +2,7 @@ package menu
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,9 @@ func parseSSHConfig() ([]SSHHost, error) {
 	configPath := filepath.Join(homeDir, ".ssh", "config")
 	file, err := os.Open(configPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	defer file.Close()
