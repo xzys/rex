@@ -11,6 +11,8 @@ const (
 	KeyboardModeSimple              = "simple"
 	KeyboardModeChorded             = "chorded"
 	KeyboardModeChordedSimultaneous = "chorded-simultaneous"
+	KeyboardModeFrontChorded        = "front-chorded"
+	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
 )
 
@@ -34,6 +36,7 @@ type Config struct {
 	Apps         []App    `yaml:"apps"`
 	SSHHosts     []string `yaml:"ssh_hosts"`
 	KeyboardMode string   `yaml:"keyboard_mode"`
+	DictWords    int      `yaml:"dict_words,omitempty"`
 }
 
 func LoadConfig() (Config, error) {
@@ -114,7 +117,7 @@ func resolveConfigPathForSave() (string, error) {
 
 func NormalizeKeyboardMode(mode string) string {
 	switch mode {
-	case KeyboardModeSimple, KeyboardModeChorded, KeyboardModeChordedSimultaneous:
+	case KeyboardModeSimple, KeyboardModeChorded, KeyboardModeChordedSimultaneous, KeyboardModeFrontChorded:
 		return mode
 	default:
 		return KeyboardModeChorded
@@ -126,5 +129,6 @@ func KeyboardModes() []string {
 		KeyboardModeSimple,
 		KeyboardModeChorded,
 		KeyboardModeChordedSimultaneous,
+		KeyboardModeFrontChorded,
 	}
 }

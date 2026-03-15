@@ -44,7 +44,7 @@ func TestTrieSearch(t *testing.T) {
 
 func TestLoadTrie(t *testing.T) {
 	input := "the\nthey\nthere\nthen\nthis\n"
-	trie := LoadTrie(strings.NewReader(input))
+	trie := LoadTrie(strings.NewReader(input), 0)
 
 	got := trie.Search("th", 4)
 	expected := []string{"the", "they", "there", "then"}

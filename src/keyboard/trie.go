@@ -92,12 +92,15 @@ func (t *Trie) Search(prefix string, limit int) []string {
 }
 
 // LoadTrie reads a frequency-sorted word list (one word per line, most frequent first)
-// and returns a populated Trie.
-func LoadTrie(r io.Reader) *Trie {
+// and returns a populated Trie. maxWords limits how many words to load (0 = all).
+func LoadTrie(r io.Reader, maxWords int) *Trie {
 	trie := NewTrie()
 	scanner := bufio.NewScanner(r)
 	rank := 0
 	for scanner.Scan() {
+		if maxWords > 0 && rank >= maxWords {
+			break
+		}
 		word := strings.TrimSpace(scanner.Text())
 		if word == "" {
 			continue

@@ -41,14 +41,19 @@ func getKeyboardModel(mode string) KeyboardModel {
 			panic(fmt.Sprintf("failed to open words.txt: %v", err))
 		}
 		defer f.Close()
-		dictionary := LoadTrie(f)
+		dictionary := LoadTrie(f, maxDictWords)
 		return NewKeyboardModelFrontChorded(keyboardLayout, dictionary)
 	default:
 		panic("invalid keyboard mode")
 	}
 }
 
-func NewKeyboard(keyboardMode string) *Keyboard {
+var maxDictWords = 50000
+
+func NewKeyboard(keyboardMode string, dictWords int) *Keyboard {
+	if dictWords > 0 {
+		maxDictWords = dictWords
+	}
 	model := getKeyboardModel(keyboardMode)
 	return &Keyboard{
 		keyboard: keyboardLayout,

@@ -58,9 +58,22 @@ func main() {
 	case "keyboard":
 		fs := flag.NewFlagSet("keyboard", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex keyboard [options]\n\n"); fs.PrintDefaults() }
-		keyboardMode := fs.String("mode", "chorded", "keyboard mode (simple, chorded, chorded-simultaneous, front-chorded)")
+		keyboardMode := fs.String("mode", "", "keyboard mode (overrides config)")
 		fs.Parse(args)
-		err = keyboard.NewKeyboard(*keyboardMode).Run()
+
+		config, _ := cfg.LoadConfig()
+		mode := config.KeyboardMode
+		if *keyboardMode != "" {
+			mode = *keyboardMode
+		}
+		if mode == "" {
+			mode = cfg.KeyboardModeChorded
+		}
+		dw := config.DictWords
+		if dw <= 0 {
+			dw = cfg.DefaultDictWords
+		}
+		err = keyboard.NewKeyboard(mode, dw).Run()
 	case "menu":
 		fs := flag.NewFlagSet("menu", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }
