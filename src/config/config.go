@@ -36,9 +36,10 @@ type Config struct {
 	Layout       Layout   `yaml:"layout"`
 	Apps         []App    `yaml:"apps"`
 	SSHHosts     []string `yaml:"ssh_hosts"`
-	KeyboardMode    string `yaml:"keyboard_mode"`
-	KeyboardCompact bool   `yaml:"keyboard_compact,omitempty"`
-	DictWords       int    `yaml:"dict_words,omitempty"`
+	KeyboardMode         string `yaml:"keyboard_mode"`
+	KeyboardCompact      bool   `yaml:"keyboard_compact,omitempty"`
+	KeyboardAutocomplete bool   `yaml:"keyboard_autocomplete,omitempty"`
+	DictWords            int    `yaml:"dict_words,omitempty"`
 }
 
 func LoadConfig() (Config, error) {

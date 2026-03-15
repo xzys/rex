@@ -50,14 +50,16 @@ func getKeyboardModel(mode string) KeyboardModel {
 	}
 }
 
-func NewKeyboard(keyboardMode string, dictWords int, compact bool) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool) *Keyboard {
 	model := getKeyboardModel(keyboardMode)
 
 	var dictionary *Trie
-	f, err := wordsFile.Open("words.txt")
-	if err == nil {
-		defer f.Close()
-		dictionary = LoadTrie(f, dictWords)
+	if autocomplete {
+		f, err := wordsFile.Open("words.txt")
+		if err == nil {
+			defer f.Close()
+			dictionary = LoadTrie(f, dictWords)
+		}
 	}
 
 	return &Keyboard{
