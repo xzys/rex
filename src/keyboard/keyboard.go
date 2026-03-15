@@ -33,6 +33,8 @@ func getKeyboardModel(mode string) KeyboardModel {
 		return NewKeyboardModelChorded(keyboardLayout, true)
 	case "simple":
 		return NewKeyboardModelSimple()
+	case "front-chorded":
+		return NewKeyboardModelFrontChorded(keyboardLayout)
 	default:
 		panic("invalid keyboard mode")
 	}
