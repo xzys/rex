@@ -211,9 +211,14 @@ func (s *Server) handleControlConnection(conn net.Conn) {
 		if err != nil {
 			return
 		}
-		if m, ok := msg.(DisableMessage); ok {
+		switch m := msg.(type) {
+		case DisableMessage:
 			s.disabled.Store(m.Disable)
 			slog.Info("disabled state changed", "disabled", m.Disable)
+		case InjectInputMessage:
+			if err := s.operator.HandleInput(InputEvent{Key: m.Key, IsDown: m.IsDown}); err != nil {
+				slog.Error("inject input error", "err", err)
+			}
 		}
 	}
 }

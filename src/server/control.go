@@ -18,11 +18,20 @@ func ControlSocketPath() string {
 	return defaultControlSocketPath
 }
 
-const MessageTypeDisable = "disable"
+const (
+	MessageTypeDisable     = "disable"
+	MessageTypeInjectInput = "inject_input"
+)
 
 type DisableMessage struct {
 	Type    string `json:"type"`
 	Disable bool   `json:"disable"`
+}
+
+type InjectInputMessage struct {
+	Type   string `json:"type"`
+	Key    int    `json:"key"`
+	IsDown bool   `json:"is_down"`
 }
 
 func ParseControlMessage(decoder *json.Decoder) (any, error) {
@@ -44,6 +53,12 @@ func ParseControlMessage(decoder *json.Decoder) (any, error) {
 	switch msgType {
 	case MessageTypeDisable:
 		var msg DisableMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, err
+		}
+		return msg, nil
+	case MessageTypeInjectInput:
+		var msg InjectInputMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return nil, err
 		}
