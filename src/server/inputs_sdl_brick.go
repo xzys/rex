@@ -60,7 +60,8 @@ var brickButtonMap = map[uint8]int{
 
 // lastHatKey tracks the currently-held d-pad direction so we can
 // synthesize a key-up event when the hat returns to HAT_CENTERED.
-var lastHatKey int
+// -1 means no key held (can't use 0 since protocol.KeyDPadUp == 0).
+var lastHatKey = -1
 
 func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error) {
 	var err error
@@ -119,11 +120,11 @@ func handleBrickHat(event *sdl.JoyHatEvent, inputHandler func(InputEvent) error)
 	case sdl.HAT_RIGHT:
 		key = protocol.KeyDPadRight
 	case sdl.HAT_CENTERED:
-		if lastHatKey != 0 {
+		if lastHatKey != -1 {
 			if err := inputHandler(InputEvent{Key: lastHatKey, IsDown: false}); err != nil {
 				return err
 			}
-			lastHatKey = 0
+			lastHatKey = -1
 		}
 		return nil
 	default:
@@ -131,8 +132,8 @@ func handleBrickHat(event *sdl.JoyHatEvent, inputHandler func(InputEvent) error)
 		return nil
 	}
 
-	// send key-up for previous direction if it changed
-	if lastHatKey != 0 && lastHatKey != key {
+	// send key-up for previous direction (changed or repeated without HAT_CENTERED)
+	if lastHatKey != -1 {
 		if err := inputHandler(InputEvent{Key: lastHatKey, IsDown: false}); err != nil {
 			return err
 		}
