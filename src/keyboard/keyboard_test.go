@@ -579,3 +579,41 @@ func keyDown(key int) inputEvent {
 func keyUp(key int) inputEvent {
 	return inputEvent{key: key, isKeyDown: false}
 }
+
+// TestRapidInputNoPanic sends many chords with no delay between messages to
+// reproduce the concurrent json.Decoder access bug (json decoder out of sync).
+// The keyboard process must survive and produce correct output for every chord.
+func TestRapidInputNoPanic(t *testing.T) {
+	encoder, decoder, outputConn, cleanup := setupKeyboard(t, "chorded")
+	defer cleanup()
+
+	// 30 rapid R2+A chords sent with no inter-message delay
+	const n = 30
+	go func() {
+		for i := 0; i < n; i++ {
+			for _, msg := range []protocol.KeyInputMessage{
+				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyR2, IsKeyDown: true},
+				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyA, IsKeyDown: true},
+				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyA, IsKeyDown: false},
+				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyR2, IsKeyDown: false},
+			} {
+				if err := encoder.Encode(msg); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	for i := 0; i < n; i++ {
+		got, ok, err := readPressKey(decoder, outputConn, 5*time.Second)
+		if err != nil {
+			t.Fatalf("chord %d: read key press: %v", i, err)
+		}
+		if !ok {
+			t.Fatalf("chord %d: expected key press 'l', got none (keyboard may have panicked)", i)
+		}
+		if got != "l" {
+			t.Fatalf("chord %d: expected 'l', got %q", i, got)
+		}
+	}
+}

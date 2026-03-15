@@ -21,7 +21,7 @@ var keyboardOffsets = []int{0, 2, 7}
 
 // implement tea.Model interface View
 
-func (k Keyboard) View() string {
+func (k *Keyboard) View() string {
 	var rows []string
 	for i, row := range k.keyboard {
 		var keys []string

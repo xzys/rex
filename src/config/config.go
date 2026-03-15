@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -48,7 +49,7 @@ func LoadConfig() (Config, error) {
 }
 
 func SaveConfig(config Config) error {
-	configPath, err := resolveConfigPathForSave()
+	configPath, err := resolveConfigPath()
 	if err != nil {
 		return err
 	}
@@ -58,6 +59,9 @@ func SaveConfig(config Config) error {
 func loadConfigFromPath(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Config{}, nil
+		}
 		return Config{}, err
 	}
 
@@ -85,34 +89,30 @@ func saveConfigToPath(path string, config Config) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// resolveConfigPath returns the config file path to use. It checks (in order):
+// the REX_CONFIG_PATH env var, ~/.config/rex/config.yaml, and ./config.yaml.
+// If none exist, it returns the default ~/.config/rex/config.yaml path — the
+// file may not exist yet, and callers handle that case.
 func resolveConfigPath() (string, error) {
 	if envPath := os.Getenv(configPathEnvVar); envPath != "" {
-		if _, err := os.Stat(envPath); err == nil {
-			return envPath, nil
-		} else {
-			return "", err
-		}
+		return envPath, nil
 	}
 
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		defaultPath := filepath.Join(homeDir, ".config", "rex", "config.yaml")
-		if _, err := os.Stat(defaultPath); err == nil {
-			return defaultPath, nil
-		}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	defaultPath := filepath.Join(homeDir, ".config", "rex", "config.yaml")
+
+	if _, err := os.Stat(defaultPath); err == nil {
+		return defaultPath, nil
 	}
 
 	if _, err := os.Stat("config.yaml"); err == nil {
 		return "config.yaml", nil
 	}
 
-	return "", os.ErrNotExist
-}
-
-func resolveConfigPathForSave() (string, error) {
-	if envPath := os.Getenv(configPathEnvVar); envPath != "" {
-		return envPath, nil
-	}
-	return resolveConfigPath()
+	return defaultPath, nil
 }
 
 func NormalizeKeyboardMode(mode string) string {

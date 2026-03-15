@@ -1,5 +1,5 @@
-//go:build sdl
-// +build sdl
+//go:build sdl && !brick
+// +build sdl,!brick
 
 package server
 

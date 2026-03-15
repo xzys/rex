@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	cfg "github.com/xrfr/t-rex/v2/config"
@@ -35,6 +36,12 @@ Use 'rex <command> --help' for more information about a command.
 }
 
 func main() {
+	// Ensure tools deployed alongside rex (tmux, etc.) are in PATH
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		os.Setenv("PATH", execDir+":"+os.Getenv("PATH"))
+	}
+
 	if len(os.Args) < 2 {
 		if err := startOrAttach(); err != nil {
 			slog.Error("error", "err", err)
