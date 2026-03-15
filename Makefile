@@ -43,7 +43,9 @@ sync-brick: ## Deploy rex, termsp, tmux, fonts, and launch script to TrimUI Bric
 	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/terminal/lib/libvterm.so.0'
 	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/terminal/fonts/
 	scp ext/brick/Rex.sh root@192.168.1.213:/userdata/roms/tools/Rex.sh
-	scp config/dot/tmux.conf root@192.168.1.213:/root/.tmux.conf
+	scp config/dot/tmux.conf root@192.168.1.213:/userdata/system/.tmux.conf
+	scp config.yaml.brick.example root@192.168.1.213:/userdata/system/apps/terminal/config.yaml.brick.example
+	ssh root@192.168.1.213 'mkdir -p /userdata/system/.config/rex && [ -f /userdata/system/.config/rex/config.yaml ] || cp /userdata/system/apps/terminal/config.yaml.brick.example /userdata/system/.config/rex/config.yaml'
 	ssh root@192.168.1.213 'chmod +x /userdata/system/apps/terminal/rex /userdata/system/apps/terminal/termsp /userdata/system/apps/terminal/tmux /userdata/roms/tools/Rex.sh'
 
 build-docker-ext-%: ## Build program from ext/

@@ -157,6 +157,17 @@ func (m *Menu) View() string {
 		Align(lipgloss.Center, lipgloss.Center).
 		Border(lipgloss.NormalBorder())
 
+	if len(m.config.Apps) == 0 {
+		msg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Render("no apps configured\n~/.config/rex/config.yaml")
+		return lipgloss.NewStyle().
+			Width(m.width).
+			Height(m.height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(msg)
+	}
+
 	var rows []string
 	var currentRow []string
 

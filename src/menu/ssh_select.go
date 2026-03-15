@@ -40,6 +40,9 @@ func (s *SSHSelect) Init() tea.Cmd {
 func (s *SSHSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if len(s.hosts) == 0 {
+			return s, tea.Quit
+		}
 		switch msg.String() {
 		case "ctrl+c", "q", "esc", "b":
 			return s, tea.Quit
@@ -63,6 +66,17 @@ func (s *SSHSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *SSHSelect) View() string {
+	if len(s.hosts) == 0 {
+		msg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Render("no SSH hosts configured\n~/.ssh/config")
+		return lipgloss.NewStyle().
+			Width(s.width).
+			Height(s.height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(msg)
+	}
+
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
 	normalStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
 	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("4"))
