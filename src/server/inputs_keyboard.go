@@ -6,6 +6,7 @@ package server
 import (
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/eiannone/keyboard"
 	"github.com/xrfr/t-rex/v2/protocol"
@@ -42,6 +43,10 @@ func runKeyboardInputLoop(handler func(InputEvent) error) {
 
 	err = func() error {
 		slog.Info("listening for keyboard input (press Ctrl+C to stop)")
+		var lastKey int = -1
+		var lastTime time.Time
+		const debounce = 50 * time.Millisecond
+
 		for {
 			char, key, err := keyboard.GetKey()
 			slog.Debug("got key", "char", char, "key", key)
@@ -54,11 +59,22 @@ func runKeyboardInputLoop(handler func(InputEvent) error) {
 				return nil
 			}
 
-			if mappedKey := handleKeyPress(char, key); mappedKey != -1 {
-				event := InputEvent{Key: mappedKey, IsDown: true}
-				if err := handler(event); err != nil {
-					return err
-				}
+			mappedKey := handleKeyPress(char, key)
+			if mappedKey == -1 {
+				continue
+			}
+
+			// Debounce: ignore repeated same key within threshold (OS key repeat)
+			now := time.Now()
+			if mappedKey == lastKey && now.Sub(lastTime) < debounce {
+				continue
+			}
+			lastKey = mappedKey
+			lastTime = now
+
+			event := InputEvent{Key: mappedKey, IsDown: true}
+			if err := handler(event); err != nil {
+				return err
 			}
 		}
 	}()
@@ -77,6 +93,16 @@ func handleKeyPress(char rune, key keyboard.Key) int {
 	}
 
 	switch char {
+	// WASD for D-Pad (in addition to arrow keys above)
+	case 'w':
+		return protocol.KeyDPadUp
+	case 'a':
+		return protocol.KeyDPadLeft
+	case 's':
+		return protocol.KeyDPadDown
+	case 'd':
+		return protocol.KeyDPadRight
+	// Right-hand face buttons
 	case 'm':
 		return protocol.KeyY
 	case ',':
@@ -85,6 +111,7 @@ func handleKeyPress(char rune, key keyboard.Key) int {
 		return protocol.KeyB
 	case '/':
 		return protocol.KeyA
+	// Shoulder buttons
 	case 'z':
 		return protocol.KeyL1
 	case 'x':
@@ -93,8 +120,6 @@ func handleKeyPress(char rune, key keyboard.Key) int {
 		return protocol.KeyL2
 	case 'v':
 		return protocol.KeyR2
-	case 's':
-		return protocol.KeySelect
 	default:
 		return -1
 	}

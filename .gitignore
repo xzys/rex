@@ -2,3 +2,4 @@ bin
 !config/bin
 rex-local
 .env
+.DS_Store

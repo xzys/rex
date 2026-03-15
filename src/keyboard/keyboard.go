@@ -1,6 +1,7 @@
 package keyboard
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
+
+//go:embed words.txt
+var wordsFile embed.FS
 
 type Keyboard struct {
 	keyboard [][]string
@@ -31,6 +35,14 @@ func getKeyboardModel(mode string) KeyboardModel {
 		return NewKeyboardModelChorded(keyboardLayout, true)
 	case "simple":
 		return NewKeyboardModelSimple()
+	case "front-chorded":
+		f, err := wordsFile.Open("words.txt")
+		if err != nil {
+			panic(fmt.Sprintf("failed to open words.txt: %v", err))
+		}
+		defer f.Close()
+		dictionary := LoadTrie(f)
+		return NewKeyboardModelFrontChorded(keyboardLayout, dictionary)
 	default:
 		panic("invalid keyboard mode")
 	}

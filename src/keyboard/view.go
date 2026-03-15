@@ -1,6 +1,8 @@
 package keyboard
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -38,7 +40,34 @@ func (k Keyboard) View() string {
 		rows = append(rows, rowStr)
 	}
 
-	keys := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	// Render suggestion bar if the model supports autocomplete
+	var suggestionBar string
+	if fc, ok := k.model.(*KeyboardModelFrontChorded); ok {
+		suggestions := fc.Suggestions()
+		labels := [4]string{"L1", "L2", "R1", "R2"}
+		var slots []string
+		for i, s := range suggestions {
+			if s != "" {
+				slot := lipgloss.NewStyle().
+					Padding(0, 1).
+					Border(lipgloss.NormalBorder()).
+					BorderForeground(lipgloss.Color("4")).
+					Foreground(lipgloss.Color("7")).
+					Render(fmt.Sprintf("[%s] %s", labels[i], s))
+				slots = append(slots, slot)
+			}
+		}
+		if len(slots) > 0 {
+			suggestionBar = lipgloss.JoinHorizontal(lipgloss.Bottom, slots...)
+		}
+	}
+
+	allRows := rows
+	if suggestionBar != "" {
+		allRows = append([]string{suggestionBar}, rows...)
+	}
+
+	keys := lipgloss.JoinVertical(lipgloss.Left, allRows...)
 	return lipgloss.NewStyle().
 		Width(k.width).
 		Align(lipgloss.Center).
