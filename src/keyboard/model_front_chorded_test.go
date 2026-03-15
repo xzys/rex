@@ -13,7 +13,7 @@ func TestFrontChordedModel(t *testing.T) {
 		{"a", "s", "d", "f", "g", "h", "j", "k", "l"},
 		{"z", "x", "c", "v", "b", "n", "m"},
 	}
-	model := NewKeyboardModelFrontChorded(layout, nil)
+	model := NewKeyboardModelFrontChorded(layout)
 
 	tests := []struct {
 		name     string
@@ -100,7 +100,7 @@ func TestFrontChordedModel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Reset model state between tests if needed, or create new model
-			model = NewKeyboardModelFrontChorded(layout, nil)
+			model = NewKeyboardModelFrontChorded(layout)
 			
 			var result *string
 			for _, op := range tc.ops {
@@ -129,7 +129,7 @@ func TestFrontChordedModel_RenderKey(t *testing.T) {
 	layout := [][]string{
 		{"q", "w", "e", "r"},
 	}
-	model := NewKeyboardModelFrontChorded(layout, nil)
+	model := NewKeyboardModelFrontChorded(layout)
 
 	// Hold modifier KeyDPadUp (Left Mod Up)
 	model.HandleKey(protocol.KeyDPadUp, true)
@@ -156,144 +156,6 @@ func TestFrontChordedModel_RenderKey(t *testing.T) {
 	if fg != "4" || bg != "4" {
 		t.Errorf("expected highlight for 'w' with mod Up (trigger X), got fg=%s bg=%s", fg, bg)
 	}
-}
-
-func TestFrontChordedModel_Autocomplete(t *testing.T) {
-	layout := [][]string{
-		{"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
-		{"a", "s", "d", "f", "g", "h", "j", "k", "l"},
-		{"z", "x", "c", "v", "b", "n", "m"},
-	}
-
-	// Build a small test dictionary
-	dict := NewTrie()
-	words := []string{"the", "they", "there", "then", "this", "think", "to", "that"}
-	for i, w := range words {
-		dict.Insert(w, i)
-	}
-
-	// Helper: type a chord and release both keys
-	typeChord := func(model *KeyboardModelFrontChorded, mod, trigger int) *string {
-		model.HandleKey(mod, true)
-		result := model.HandleKey(trigger, true)
-		model.HandleKey(trigger, false)
-		model.HandleKey(mod, false)
-		return result
-	}
-
-	t.Run("suggestions appear after typing", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, dict)
-
-		// Type 't' (DPad Right + Y = 't')
-		typeChord(model, protocol.KeyDPadRight, protocol.KeyY)
-
-		suggestions := model.Suggestions()
-		if suggestions[0] != "the" {
-			t.Errorf("expected first suggestion 'the', got %q", suggestions[0])
-		}
-		if model.CurrentWord() != "t" {
-			t.Errorf("expected currentWord 't', got %q", model.CurrentWord())
-		}
-	})
-
-	t.Run("suggestions narrow with more typing", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, dict)
-
-		// Type 'th' -> t then h
-		typeChord(model, protocol.KeyDPadRight, protocol.KeyY)  // t
-		typeChord(model, protocol.KeyA, protocol.KeyDPadUp)     // h
-
-		suggestions := model.Suggestions()
-		if suggestions[0] != "the" {
-			t.Errorf("expected first suggestion 'the', got %q", suggestions[0])
-		}
-		if model.CurrentWord() != "th" {
-			t.Errorf("expected currentWord 'th', got %q", model.CurrentWord())
-		}
-	})
-
-	t.Run("L1 selects first suggestion", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, dict)
-
-		// Type 'th'
-		typeChord(model, protocol.KeyDPadRight, protocol.KeyY) // t
-		typeChord(model, protocol.KeyA, protocol.KeyDPadUp)    // h
-
-		// Press L1 to select first suggestion ("the")
-		result := model.HandleKey(protocol.KeyL1, true)
-		if result == nil {
-			t.Fatal("expected non-nil result from L1")
-		}
-		// Should return remaining chars + space: "e "
-		if *result != "e " {
-			t.Errorf("expected 'e ', got %q", *result)
-		}
-		// currentWord and suggestions should be cleared
-		if model.CurrentWord() != "" {
-			t.Errorf("expected empty currentWord, got %q", model.CurrentWord())
-		}
-		if model.Suggestions() != [4]string{} {
-			t.Errorf("expected empty suggestions, got %v", model.Suggestions())
-		}
-	})
-
-	t.Run("R1 selects third suggestion", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, dict)
-
-		// Type 'th'
-		typeChord(model, protocol.KeyDPadRight, protocol.KeyY) // t
-		typeChord(model, protocol.KeyA, protocol.KeyDPadUp)    // h
-
-		suggestions := model.Suggestions()
-		if suggestions[2] == "" {
-			t.Fatal("expected non-empty third suggestion")
-		}
-		expectedWord := suggestions[2]
-
-		result := model.HandleKey(protocol.KeyR1, true)
-		if result == nil {
-			t.Fatal("expected non-nil result from R1")
-		}
-		expectedRemaining := expectedWord[2:] + " " // skip "th"
-		if *result != expectedRemaining {
-			t.Errorf("expected %q, got %q", expectedRemaining, *result)
-		}
-	})
-
-	t.Run("space clears currentWord", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, dict)
-
-		// Type 't'
-		typeChord(model, protocol.KeyDPadRight, protocol.KeyY)
-		if model.CurrentWord() != "t" {
-			t.Fatalf("expected 't', got %q", model.CurrentWord())
-		}
-
-		// Type space (X + DPadLeft)
-		typeChord(model, protocol.KeyX, protocol.KeyDPadLeft)
-		if model.CurrentWord() != "" {
-			t.Errorf("expected empty currentWord after space, got %q", model.CurrentWord())
-		}
-	})
-
-	t.Run("no suggestions without dictionary", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, nil)
-
-		typeChord(model, protocol.KeyDPadRight, protocol.KeyY) // t
-		if model.Suggestions() != [4]string{} {
-			t.Errorf("expected no suggestions without dictionary")
-		}
-	})
-
-	t.Run("shoulder button with no suggestion returns nil", func(t *testing.T) {
-		model := NewKeyboardModelFrontChorded(layout, dict)
-
-		// Press L1 without typing anything
-		result := model.HandleKey(protocol.KeyL1, true)
-		if result != nil {
-			t.Errorf("expected nil, got %q", *result)
-		}
-	})
 }
 
 func ptrString(s string) *string {

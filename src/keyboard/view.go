@@ -40,13 +40,12 @@ func (k Keyboard) View() string {
 		rows = append(rows, rowStr)
 	}
 
-	// Render suggestion bar if the model supports autocomplete
+	// Render suggestion bar for autocomplete
 	var suggestionBar string
-	if fc, ok := k.model.(*KeyboardModelFrontChorded); ok {
-		suggestions := fc.Suggestions()
+	{
 		labels := [4]string{"L1", "L2", "R1", "R2"}
 		var slots []string
-		for i, s := range suggestions {
+		for i, s := range k.suggestions {
 			if s != "" {
 				slot := lipgloss.NewStyle().
 					Padding(0, 1).

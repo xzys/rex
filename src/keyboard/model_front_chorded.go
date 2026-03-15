@@ -15,11 +15,6 @@ type KeyboardModelFrontChorded struct {
 	chordMap       map[int]rune
 	chordAltMap    map[int]rune
 	chordActiveMap []map[int]string
-
-	// Autocomplete state
-	currentWord string
-	suggestions [4]string
-	dictionary  *Trie
 }
 
 const frontModifierNone = -1
@@ -28,7 +23,7 @@ func packKey(row, col int) int {
 	return (row << 8) | col
 }
 
-func NewKeyboardModelFrontChorded(keyboardLayout [][]string, dictionary *Trie) *KeyboardModelFrontChorded {
+func NewKeyboardModelFrontChorded(keyboardLayout [][]string) *KeyboardModelFrontChorded {
 	// Modifiers are the 8 front keys
 	modifiers := []int{
 		protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight,
@@ -111,7 +106,6 @@ func NewKeyboardModelFrontChorded(keyboardLayout [][]string, dictionary *Trie) *
 		chordMap:       chordMap,
 		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
-		dictionary:     dictionary,
 	}
 }
 
@@ -240,11 +234,6 @@ func (m *KeyboardModelFrontChorded) HandleKey(key int, isKeyDown bool) *string {
 		return nil
 	}
 
-	// Shoulder buttons: select autocomplete suggestion
-	if key == protocol.KeyL1 || key == protocol.KeyL2 || key == protocol.KeyR1 || key == protocol.KeyR2 {
-		return m.handleSuggestionSelect(key)
-	}
-
 	// Key Down
 	if m.modifier == frontModifierNone {
 		// First key pressed becomes modifier
@@ -261,88 +250,9 @@ func (m *KeyboardModelFrontChorded) HandleKey(key int, isKeyDown bool) *string {
 	// (keyboard input device only sends key-down, no key-up to clear)
 	if result != nil {
 		m.modifier = frontModifierNone
-		m.updateCurrentWord(*result)
 	}
 
 	return result
-}
-
-func (m *KeyboardModelFrontChorded) handleSuggestionSelect(key int) *string {
-	var idx int
-	switch key {
-	case protocol.KeyL1:
-		idx = 0
-	case protocol.KeyL2:
-		idx = 1
-	case protocol.KeyR1:
-		idx = 2
-	case protocol.KeyR2:
-		idx = 3
-	}
-
-	if m.suggestions[idx] == "" {
-		return nil
-	}
-
-	// Compute the remaining characters to send + trailing space
-	remaining := m.suggestions[idx][len(m.currentWord):] + " "
-	slog.Info("autocomplete", "word", m.suggestions[idx], "remaining", remaining)
-
-	m.currentWord = ""
-	m.suggestions = [4]string{}
-
-	return &remaining
-}
-
-func (m *KeyboardModelFrontChorded) updateCurrentWord(typed string) {
-	if len(typed) != 1 {
-		return
-	}
-
-	ch := rune(typed[0])
-
-	switch ch {
-	case protocol.SpecialKeySpace, protocol.SpecialKeyEnter, protocol.SpecialKeyClose, protocol.SpecialKeyDelete:
-		m.currentWord = ""
-		m.suggestions = [4]string{}
-		return
-	}
-
-	if ch >= 'a' && ch <= 'z' {
-		m.currentWord += string(ch)
-	} else if ch == '\b' || ch == 127 { // backspace
-		if len(m.currentWord) > 0 {
-			m.currentWord = m.currentWord[:len(m.currentWord)-1]
-		}
-	} else {
-		// punctuation etc. — treat as word boundary
-		m.currentWord = ""
-		m.suggestions = [4]string{}
-		return
-	}
-
-	m.updateSuggestions()
-}
-
-func (m *KeyboardModelFrontChorded) updateSuggestions() {
-	m.suggestions = [4]string{}
-	if m.dictionary == nil || m.currentWord == "" {
-		return
-	}
-	results := m.dictionary.Search(m.currentWord, 4)
-	for i, w := range results {
-		m.suggestions[i] = w
-	}
-}
-
-// Suggestions returns the current autocomplete suggestions.
-func (m *KeyboardModelFrontChorded) Suggestions() [4]string {
-	return m.suggestions
-}
-
-// CurrentWord returns the current word being typed.
-func (m *KeyboardModelFrontChorded) CurrentWord() string {
-	return m.currentWord
 }
 
 func (m *KeyboardModelFrontChorded) getChord(triggerKey int) *string {
