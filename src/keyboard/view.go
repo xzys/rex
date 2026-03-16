@@ -22,6 +22,10 @@ var keyboardOffsets = []int{0, 2, 7}
 // implement tea.Model interface View
 
 func (k *Keyboard) View() string {
+	if vr, ok := k.model.(VoiceRenderer); ok {
+		return vr.RenderView(k.width)
+	}
+
 	var rows []string
 	for i, row := range k.keyboard {
 		var keys []string
