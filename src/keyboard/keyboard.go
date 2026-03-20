@@ -33,11 +33,13 @@ type Keyboard struct {
 	suggestions [4]string
 	// display
 	compact bool
+	// voice companion mode
+	sttMode string // "sherpa" or "companion"
 }
 
 type RuntimeError error
 
-func getKeyboardModel(mode string) KeyboardModel {
+func (k *Keyboard) getKeyboardModel(mode string) KeyboardModel {
 	switch mode {
 	case "chorded":
 		return NewKeyboardModelChorded(keyboardLayout, false)
@@ -48,14 +50,35 @@ func getKeyboardModel(mode string) KeyboardModel {
 	case "front-chorded":
 		return NewKeyboardModelFrontChorded(keyboardLayout)
 	case "voice":
-		return NewVoiceModel(defaultSTTProvider())
+		return k.createVoiceModel()
 	default:
 		panic("invalid keyboard mode")
 	}
 }
 
-func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool) *Keyboard {
-	model := getKeyboardModel(keyboardMode)
+func (k *Keyboard) createVoiceModel() *VoiceModel {
+	if k.sttMode == "companion" {
+		provider := NewCompanionSTTProvider(func(action string) error {
+			if k.encoder == nil {
+				return fmt.Errorf("not connected to server")
+			}
+			msg := protocol.VoiceCommandMessage{
+				BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeVoiceCommand},
+				Action:      action,
+			}
+			return k.encoder.Encode(msg)
+		})
+		return NewVoiceModel(provider)
+	}
+	return NewVoiceModel(defaultSTTProvider())
+}
+
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string) *Keyboard {
+	k := &Keyboard{
+		keyboard: keyboardLayout,
+		sttMode:  sttMode,
+	}
+	model := k.getKeyboardModel(keyboardMode)
 
 	var dictionary *Trie
 	if autocomplete {
@@ -66,13 +89,10 @@ func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete 
 		}
 	}
 
-	return &Keyboard{
-		keyboard:   keyboardLayout,
-		model:      model,
-		width:      0,
-		dictionary: dictionary,
-		compact:    compact,
-	}
+	k.model = model
+	k.dictionary = dictionary
+	k.compact = compact
+	return k
 }
 
 func (k *Keyboard) Run() error {
@@ -156,16 +176,33 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Process the input and send response, then read next message
 		return k, tea.Sequence(k.handleDeviceInput(msg), k.ReadSocket)
+	case protocol.VoiceTextMessage:
+		// Server received final transcription from iOS companion app.
+		// Deliver to CompanionSTTProvider so Transcribe() unblocks.
+		if vm, ok := k.model.(*VoiceModel); ok {
+			if companion, ok := vm.STTProvider().(*CompanionSTTProvider); ok {
+				select {
+				case companion.FinalCh <- msg.Text:
+				default:
+					slog.Warn("companion finalCh full, dropping")
+				}
+			}
+		}
+		return k, k.ReadSocket
 	case STTResultMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
 			vm.HandleMsg(msg)
 			cmd := vm.DrainCmd()
 			if msg.Err == nil && strings.TrimSpace(msg.Text) != "" {
-				sendCmd := k.sendString(msg.Text)
-				if cmd != nil {
-					return k, tea.Batch(cmd, sendCmd)
+				// In companion mode, the server already injected text via smart replace.
+				// Don't send PressStringMessage to avoid double injection.
+				if k.sttMode != "companion" {
+					sendCmd := k.sendString(msg.Text)
+					if cmd != nil {
+						return k, tea.Batch(cmd, sendCmd)
+					}
+					return k, sendCmd
 				}
-				return k, sendCmd
 			}
 			if cmd != nil {
 				return k, cmd
@@ -197,7 +234,7 @@ func (k *Keyboard) toggleVoiceMode() {
 	} else {
 		// Switch to voice mode
 		k.priorModel = k.model
-		k.model = NewVoiceModel(defaultSTTProvider())
+		k.model = k.createVoiceModel()
 		slog.Info("voice mode on")
 	}
 }

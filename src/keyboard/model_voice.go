@@ -46,6 +46,11 @@ func NewVoiceModel(provider STTProvider) *VoiceModel {
 	}
 }
 
+// STTProvider returns the STT provider used by this voice model.
+func (m *VoiceModel) STTProvider() STTProvider {
+	return m.stt
+}
+
 // DrainCmd returns and clears any pending tea.Cmd queued by HandleKey or HandleMsg.
 func (m *VoiceModel) DrainCmd() tea.Cmd {
 	cmd := m.pendingCmd
@@ -103,6 +108,10 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 			if m.state == stateIdle {
 				m.state = stateRecording
 				slog.Info("voice: recording started")
+				// Notify companion app to start recording (no-op for sherpa/stub)
+				if starter, ok := m.stt.(interface{ NotifyStart() }); ok {
+					starter.NotifyStart()
+				}
 			}
 		} else {
 			if m.state == stateRecording {

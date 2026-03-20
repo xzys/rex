@@ -16,6 +16,9 @@ const (
 	KeyboardModeVoice               = "voice"
 	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
+
+	STTModeSherpa    = "sherpa"    // on-device STT via sherpa-onnx (TrimUI Brick)
+	STTModeCompanion = "companion" // iOS companion app STT (R36S)
 )
 
 type App struct {
@@ -41,6 +44,7 @@ type Config struct {
 	KeyboardCompact      bool   `yaml:"keyboard_compact,omitempty"`
 	KeyboardAutocomplete bool   `yaml:"keyboard_autocomplete,omitempty"`
 	DictWords            int    `yaml:"dict_words,omitempty"`
+	STTMode              string `yaml:"stt_mode,omitempty"` // "sherpa" (default) or "companion"
 }
 
 func LoadConfig() (Config, error) {
@@ -116,6 +120,15 @@ func resolveConfigPath() (string, error) {
 	}
 
 	return defaultPath, nil
+}
+
+func NormalizeSTTMode(mode string) string {
+	switch mode {
+	case STTModeSherpa, STTModeCompanion:
+		return mode
+	default:
+		return STTModeSherpa
+	}
 }
 
 func NormalizeKeyboardMode(mode string) string {
