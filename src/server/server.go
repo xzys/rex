@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/xrfr/t-rex/v2/protocol"
 )
@@ -33,6 +35,7 @@ type Server struct {
 	inputDevice InputDevice
 	operator    *GlobalOperator
 	disabled    atomic.Bool
+	voiceWS     *VoiceWebSocket
 }
 
 func NewServer() *Server {
@@ -43,6 +46,13 @@ func NewServer() *Server {
 		"ncmpcpp": NewNcmpcppOperator(),
 		"menu":    NewMenuOperator(),
 	})
+
+	// Create voice WebSocket server for companion app.
+	// tmuxInject sends keys to tmux pane 0 via the operator.
+	server.voiceWS = NewVoiceWebSocket(func(keys string) error {
+		return server.operator.HandleKeyPress(keys)
+	})
+
 	return server
 }
 
@@ -102,6 +112,13 @@ func (s *Server) Run() error {
 	defer os.Remove(ControlSocketPath())
 
 	slog.Info("server listening", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath(), "control", ControlSocketPath())
+
+	// Start voice WebSocket server for companion app
+	if err := s.voiceWS.Start(VoiceWSPort); err != nil {
+		slog.Error("failed to start voice websocket server", "err", err)
+		// Non-fatal — server works without companion app
+	}
+	defer s.voiceWS.Stop()
 
 	go s.handleControlConnections(controlListener)
 
@@ -174,7 +191,58 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 			if err := s.operator.HandlePressString(m.Value); err != nil {
 				return fmt.Errorf("failed to press string: %w", err)
 			}
+		case protocol.VoiceCommandMessage:
+			s.handleVoiceCommand(m.Action)
 		}
+	}
+}
+
+func (s *Server) handleVoiceCommand(action string) {
+	switch action {
+	case "start":
+		if err := s.voiceWS.SendStart(); err != nil {
+			slog.Error("voice command start failed", "err", err)
+			return
+		}
+		slog.Info("voice: sent start to companion")
+	case "stop":
+		if err := s.voiceWS.SendStop(); err != nil {
+			slog.Error("voice command stop failed", "err", err)
+			return
+		}
+		slog.Info("voice: sent stop to companion, waiting for final")
+
+		// Wait for final in a goroutine so we don't block the message loop
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			text, err := s.voiceWS.WaitForFinal(ctx)
+			if err != nil {
+				slog.Error("voice: wait for final failed", "err", err)
+				// Send error back to keyboard
+				s.sendVoiceText("", true)
+				return
+			}
+			slog.Info("voice: received final transcription", "text", text)
+			s.sendVoiceText(text, true)
+		}()
+	default:
+		slog.Warn("unknown voice command action", "action", action)
+	}
+}
+
+func (s *Server) sendVoiceText(text string, final bool) {
+	if s.encoder == nil {
+		return
+	}
+	msg := protocol.VoiceTextMessage{
+		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeVoiceText},
+		Text:        text,
+		Final:       final,
+	}
+	if err := s.encoder.Encode(msg); err != nil {
+		slog.Error("failed to send voice text to keyboard", "err", err)
 	}
 }
 
