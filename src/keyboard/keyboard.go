@@ -48,7 +48,7 @@ func getKeyboardModel(mode string) KeyboardModel {
 	case "front-chorded":
 		return NewKeyboardModelFrontChorded(keyboardLayout)
 	case "voice":
-		return NewVoiceModel(&StubSTTProvider{})
+		return NewVoiceModel(defaultSTTProvider())
 	default:
 		panic("invalid keyboard mode")
 	}
@@ -197,7 +197,7 @@ func (k *Keyboard) toggleVoiceMode() {
 	} else {
 		// Switch to voice mode
 		k.priorModel = k.model
-		k.model = NewVoiceModel(&StubSTTProvider{})
+		k.model = NewVoiceModel(defaultSTTProvider())
 		slog.Info("voice mode on")
 	}
 }
