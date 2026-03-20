@@ -59,9 +59,11 @@ const (
 
 // requests
 const (
-	MessageTypeKeyInput    = "key_input"
-	MessageTypeKeyPress    = "key_press"
-	MessageTypePressString = "press_string"
+	MessageTypeKeyInput     = "key_input"
+	MessageTypeKeyPress     = "key_press"
+	MessageTypePressString  = "press_string"
+	MessageTypeVoiceCommand = "voice_command" // keyboard → server: start/stop recording
+	MessageTypeVoiceText    = "voice_text"    // server → keyboard: transcription result
 )
 
 type BaseMessage struct {
@@ -85,6 +87,19 @@ type PressKeyMessage struct {
 type PressStringMessage struct {
 	BaseMessage
 	Value string `json:"value"` // string to type character by character
+}
+
+// sent from keyboard to server to control companion app recording
+type VoiceCommandMessage struct {
+	BaseMessage
+	Action string `json:"action"` // "start" or "stop"
+}
+
+// sent from server to keyboard when companion app transcription completes
+type VoiceTextMessage struct {
+	BaseMessage
+	Text  string `json:"text"`
+	Final bool   `json:"final"`
 }
 
 // ParseMessage decodes a JSON message from the decoder
@@ -123,6 +138,18 @@ func ParseMessage(decoder *json.Decoder) (any, error) {
 		return msg, nil
 	case MessageTypePressString:
 		var msg PressStringMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, err
+		}
+		return msg, nil
+	case MessageTypeVoiceCommand:
+		var msg VoiceCommandMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			return nil, err
+		}
+		return msg, nil
+	case MessageTypeVoiceText:
+		var msg VoiceTextMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			return nil, err
 		}
