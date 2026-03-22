@@ -23,3 +23,7 @@ See `Makefile` for all build targets.
 - `src/keyboard/` - Keyboard models and UI
 - `src/protocol/` - Socket protocol and key constants
 - `src/menu/` - Start menu
+
+## Important Notes
+
+- Always resize the browser viewport to ≤1800px width before taking screenshots with `chrome_devtools_take_screenshot`. Images exceeding 2000px in any dimension will fail.
