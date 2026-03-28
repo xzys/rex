@@ -32,7 +32,7 @@ build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+bric
 		-v $$(pwd)/bin:/output \
 		-w /app \
 		brick-rex-builder \
-		go build -tags "sdl brick" -o /output/rex-brick
+		go build -tags "sdl brick sherpa" -o /output/rex-brick
 
 sync-brick: ## Deploy rex, termsp, tmux, fonts, and launch script to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."

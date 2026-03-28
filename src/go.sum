@@ -18,6 +18,14 @@ github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 h1:XBBHcIb256gUJ
 github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203/go.mod h1:E1jcSv8FaEny+OP/5k9UxZVw9YFWGj7eI4KR/iOBqCg=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6baUTXGLOoWe4PQhGxaX0KpnayAqC48p4=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
+github.com/k2-fsa/sherpa-onnx-go v1.12.29 h1:KIo8abW4JbMtQbBJMYs3JYzzpzxLhLclgC8QdtSGT5Y=
+github.com/k2-fsa/sherpa-onnx-go v1.12.29/go.mod h1:B/ynRbVa5gpYoZYeYgY3zPi4MTfKk95UZueZDSIhbjk=
+github.com/k2-fsa/sherpa-onnx-go-linux v1.12.29 h1:B0ZXi0BYLgbPyTPayPWwFo0Zxp8d8TUZcMb81JkHs+k=
+github.com/k2-fsa/sherpa-onnx-go-linux v1.12.29/go.mod h1:NXEH2rsBgTdqY59YpPq6CtSBlBAXy/8a9FmpLERU97I=
+github.com/k2-fsa/sherpa-onnx-go-macos v1.12.29 h1:geO3InVQQ5zcvJsr2pqiHhnYM7BNdlVH3rkLZzOc9UI=
+github.com/k2-fsa/sherpa-onnx-go-macos v1.12.29/go.mod h1:ZOhUAXC62Unj0ZNfu6zxSFKcW96aXf7P3BsqiUyOBbE=
+github.com/k2-fsa/sherpa-onnx-go-windows v1.12.29 h1:3NoDUddg6sefA3rC+UsHZv+kNJrlXJiOprR+xv4C1+s=
+github.com/k2-fsa/sherpa-onnx-go-windows v1.12.29/go.mod h1:5AX7TU8+P/gInjglY1ijtWUM2b8iyR0QX4yEngzMe64=
 github.com/lmittmann/tint v1.1.2 h1:2CQzrL6rslrsyjqLDwD11bZ5OpLBPU+g3G/r5LSfS8w=
 github.com/lmittmann/tint v1.1.2/go.mod h1:HIS3gSy7qNwGCj+5oRjAutErFBl4BzdQP6cJZ0NfMwE=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=

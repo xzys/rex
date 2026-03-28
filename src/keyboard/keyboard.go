@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os/exec"
+	"strings"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +20,7 @@ var wordsFile embed.FS
 type Keyboard struct {
 	keyboard   [][]string
 	model      KeyboardModel
+	priorModel KeyboardModel // saved when switching to voice mode
 	decoder    *json.Decoder
 	decoderMu  sync.Mutex
 	encoder    *json.Encoder
@@ -30,7 +33,8 @@ type Keyboard struct {
 	currentWord string
 	suggestions [4]string
 	// display
-	compact bool
+	compact    bool
+	paneHeight int
 }
 
 type RuntimeError error
@@ -62,12 +66,18 @@ func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete 
 		}
 	}
 
+	paneHeight := 12
+	if compact {
+		paneHeight = 8
+	}
+
 	return &Keyboard{
 		keyboard:   keyboardLayout,
 		model:      model,
 		width:      0,
 		dictionary: dictionary,
 		compact:    compact,
+		paneHeight: paneHeight,
 	}
 }
 
@@ -147,10 +157,69 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case protocol.KeyInputMessage:
 		// Process the input and send response, then read next message
 		return k, tea.Sequence(k.handleDeviceInput(msg), k.ReadSocket)
+	case STTResultMsg:
+		if vm, ok := k.model.(*VoiceModel); ok {
+			vm.HandleMsg(msg)
+			cmd := vm.DrainCmd()
+			if msg.Err == nil && strings.TrimSpace(msg.Text) != "" {
+				sendCmd := k.sendString(strings.TrimSpace(msg.Text) + ". ")
+				if cmd != nil {
+					return k, tea.Batch(cmd, sendCmd)
+				}
+				return k, sendCmd
+			}
+			if cmd != nil {
+				return k, cmd
+			}
+		}
+		return k, nil
+	case DeleteTickMsg:
+		if vm, ok := k.model.(*VoiceModel); ok {
+			if vm.deleting {
+				vm.HandleMsg(msg)
+				cmd := vm.DrainCmd()
+				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+				if cmd != nil {
+					return k, tea.Batch(cmd, delCmd)
+				}
+				return k, delCmd
+			}
+		}
+		return k, nil
+	case STTInitDoneMsg, SpinnerTickMsg, ErrorTimeoutMsg:
+		if vm, ok := k.model.(*VoiceModel); ok {
+			vm.HandleMsg(msg)
+			if cmd := vm.DrainCmd(); cmd != nil {
+				return k, cmd
+			}
+		}
+		return k, nil
 	}
 
 	// For any other message type (including first message from Init), read from socket
 	return k, k.ReadSocket
+}
+
+func (k *Keyboard) toggleVoiceMode() {
+	if _, isVoice := k.model.(*VoiceModel); isVoice {
+		// Switch back to prior model
+		if k.priorModel != nil {
+			k.model = k.priorModel
+			k.priorModel = nil
+			resizeKeyboardPane(k.paneHeight)
+			slog.Info("voice mode off")
+		}
+	} else {
+		// Switch to voice mode
+		k.priorModel = k.model
+		k.model = NewVoiceModel(defaultSTTProvider())
+		resizeKeyboardPane(1)
+		slog.Info("voice mode on")
+	}
+}
+
+func resizeKeyboardPane(height int) {
+	exec.Command("tmux", "resize-pane", "-t", "1", "-y", fmt.Sprintf("%d", height)).Run()
 }
 
 // handle key input and optionally provide a command to send key press to server
@@ -164,7 +233,36 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 
 	// Process the key input through the model (both keydown and keyup)
 	keyToPress := k.model.HandleKey(msg.KeyInput, msg.IsKeyDown)
+
+	// Voice model: intercept X to exit, B for delete, otherwise drain queued commands
+	if vm, ok := k.model.(*VoiceModel); ok {
+		if msg.IsKeyDown && msg.KeyInput == protocol.KeyX {
+			k.toggleVoiceMode()
+			return nil
+		}
+		if msg.KeyInput == protocol.KeyB {
+			// HandleKey was already called above — it sets deleting state and queues ticks
+			cmd := vm.DrainCmd()
+			if msg.IsKeyDown {
+				// Send immediate first delete + any queued tick cmd
+				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+				if cmd != nil {
+					return tea.Batch(cmd, delCmd)
+				}
+				return delCmd
+			}
+			return cmd
+		}
+		return vm.DrainCmd()
+	}
+
 	if keyToPress == nil {
+		return nil
+	}
+
+	// Intercept MIC key to toggle voice mode
+	if len(*keyToPress) == 1 && rune((*keyToPress)[0]) == protocol.SpecialKeyMic {
+		k.toggleVoiceMode()
 		return nil
 	}
 

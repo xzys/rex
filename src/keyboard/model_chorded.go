@@ -94,7 +94,7 @@ var specialKeyMap = map[string]rune{
 	"SFT": protocol.SpecialKeyShift,
 	"DEL": protocol.SpecialKeyDelete,
 	"123": protocol.SpecialKeyNumbers,
-	"BCK": protocol.SpecialKeyClose,
+	"MIC": protocol.SpecialKeyMic,
 	"ENT": protocol.SpecialKeyEnter,
 }
 
@@ -138,7 +138,7 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modifierL2, protocol.KeyY)] = protocol.SpecialKeyDelete
 	chordMap[encodeChord(modifierL2, protocol.KeyX)] = protocol.SpecialKeyEnter
 	chordMap[encodeChord(modifierL2, protocol.KeyB)] = protocol.SpecialKeyNumbers
-	chordMap[encodeChord(modifierL2, protocol.KeyA)] = protocol.SpecialKeyClose
+	chordMap[encodeChord(modifierL2, protocol.KeyA)] = protocol.SpecialKeyMic
 
 	// numbers mode
 	chordAltMap := make(map[int]rune)
@@ -157,7 +157,7 @@ func getChordMaps() (map[int]rune, map[int]rune) {
 	chordAltMap[encodeChord(modifierL2, protocol.KeyY)] = protocol.SpecialKeyDelete
 	chordAltMap[encodeChord(modifierL2, protocol.KeyX)] = protocol.SpecialKeyEnter
 	chordAltMap[encodeChord(modifierL2, protocol.KeyB)] = protocol.SpecialKeyNumbers
-	chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = protocol.SpecialKeyClose
+	chordAltMap[encodeChord(modifierL2, protocol.KeyA)] = protocol.SpecialKeyMic
 
 	// unmapped chords
 	/*

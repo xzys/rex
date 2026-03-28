@@ -13,7 +13,7 @@ import (
 
 // Common keyboard layout
 var keyboardLayout = [][]string{
-	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "BCK"},
+	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "MIC"},
 	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
 	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
 }
@@ -22,6 +22,10 @@ var keyboardOffsets = []int{0, 2, 7}
 // implement tea.Model interface View
 
 func (k *Keyboard) View() string {
+	if vr, ok := k.model.(VoiceRenderer); ok {
+		return vr.RenderView(k.width)
+	}
+
 	var rows []string
 	for i, row := range k.keyboard {
 		var keys []string
