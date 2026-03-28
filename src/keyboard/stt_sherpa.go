@@ -15,6 +15,7 @@ import (
 const defaultSTTModelDir = "/userdata/system/apps/terminal/stt"
 
 type SherpaOnnxProvider struct {
+	modelDir   string
 	recognizer *sherpa.OfflineRecognizer
 }
 
@@ -29,6 +30,17 @@ func NewSherpaOnnxProvider(modelDir string) (*SherpaOnnxProvider, error) {
 		return nil, fmt.Errorf("tokens not found: %s", tokensPath)
 	}
 
+	return &SherpaOnnxProvider{modelDir: modelDir}, nil
+}
+
+func (p *SherpaOnnxProvider) Initialize() error {
+	if p.recognizer != nil {
+		return nil
+	}
+
+	modelPath := filepath.Join(p.modelDir, "model.int8.onnx")
+	tokensPath := filepath.Join(p.modelDir, "tokens.txt")
+
 	config := sherpa.OfflineRecognizerConfig{}
 	config.ModelConfig.NemoCTC.Model = modelPath
 	config.ModelConfig.Tokens = tokensPath
@@ -38,14 +50,18 @@ func NewSherpaOnnxProvider(modelDir string) (*SherpaOnnxProvider, error) {
 	slog.Info("loading sherpa-onnx recognizer", "model", modelPath)
 	r := sherpa.NewOfflineRecognizer(&config)
 	if r == nil {
-		return nil, fmt.Errorf("failed to create recognizer")
+		return fmt.Errorf("failed to create recognizer")
 	}
+	p.recognizer = r
 	slog.Info("sherpa-onnx recognizer loaded")
-
-	return &SherpaOnnxProvider{recognizer: r}, nil
+	return nil
 }
 
 func (p *SherpaOnnxProvider) Transcribe(audio []byte, sampleRate int) (string, error) {
+	if p.recognizer == nil {
+		return "", fmt.Errorf("recognizer not initialized")
+	}
+
 	if len(audio) < 2 {
 		return "", fmt.Errorf("audio too short")
 	}
@@ -53,7 +69,6 @@ func (p *SherpaOnnxProvider) Transcribe(audio []byte, sampleRate int) (string, e
 	stream := sherpa.NewOfflineStream(p.recognizer)
 	defer sherpa.DeleteOfflineStream(stream)
 
-	// Convert raw S16_LE bytes to []float32 (sherpa-onnx expects normalised float)
 	numSamples := len(audio) / 2
 	floats := make([]float32, numSamples)
 	for i := 0; i < numSamples; i++ {

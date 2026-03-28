@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -32,7 +33,8 @@ type Keyboard struct {
 	currentWord string
 	suggestions [4]string
 	// display
-	compact bool
+	compact    bool
+	paneHeight int
 }
 
 type RuntimeError error
@@ -64,12 +66,18 @@ func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete 
 		}
 	}
 
+	paneHeight := 12
+	if compact {
+		paneHeight = 8
+	}
+
 	return &Keyboard{
 		keyboard:   keyboardLayout,
 		model:      model,
 		width:      0,
 		dictionary: dictionary,
 		compact:    compact,
+		paneHeight: paneHeight,
 	}
 }
 
@@ -154,7 +162,7 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			vm.HandleMsg(msg)
 			cmd := vm.DrainCmd()
 			if msg.Err == nil && strings.TrimSpace(msg.Text) != "" {
-				sendCmd := k.sendString(msg.Text)
+				sendCmd := k.sendString(strings.TrimSpace(msg.Text) + ". ")
 				if cmd != nil {
 					return k, tea.Batch(cmd, sendCmd)
 				}
@@ -165,7 +173,7 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return k, nil
-	case SpinnerTickMsg, ErrorTimeoutMsg:
+	case STTInitDoneMsg, SpinnerTickMsg, ErrorTimeoutMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
 			vm.HandleMsg(msg)
 			if cmd := vm.DrainCmd(); cmd != nil {
@@ -185,14 +193,20 @@ func (k *Keyboard) toggleVoiceMode() {
 		if k.priorModel != nil {
 			k.model = k.priorModel
 			k.priorModel = nil
+			resizeKeyboardPane(k.paneHeight)
 			slog.Info("voice mode off")
 		}
 	} else {
 		// Switch to voice mode
 		k.priorModel = k.model
 		k.model = NewVoiceModel(defaultSTTProvider())
+		resizeKeyboardPane(1)
 		slog.Info("voice mode on")
 	}
+}
+
+func resizeKeyboardPane(height int) {
+	exec.Command("tmux", "resize-pane", "-t", "1", "-y", fmt.Sprintf("%d", height)).Run()
 }
 
 // handle key input and optionally provide a command to send key press to server

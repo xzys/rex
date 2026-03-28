@@ -14,18 +14,19 @@ import (
 type voiceState int
 
 const (
-	stateIdle voiceState = iota
+	stateInitializing voiceState = iota
+	stateIdle
 	stateRecording
 	stateProcessing
 	stateError
 )
 
 // Bubbletea message types for voice model
-type AudioLevelMsg struct{ Level float32 }
 type STTResultMsg struct {
 	Text string
 	Err  error
 }
+type STTInitDoneMsg struct{ Err error }
 type ErrorTimeoutMsg struct{}
 type SpinnerTickMsg struct{}
 
@@ -41,11 +42,21 @@ type VoiceModel struct {
 }
 
 func NewVoiceModel(provider STTProvider) *VoiceModel {
-	return &VoiceModel{
-		state: stateIdle,
+	m := &VoiceModel{
+		state: stateInitializing,
 		stt:   provider,
 		audio: NewAudioCapture(),
 	}
+	// Queue async initialization — keyboard.go will drain this
+	stt := m.stt
+	m.pendingCmd = tea.Batch(
+		func() tea.Msg {
+			err := stt.Initialize()
+			return STTInitDoneMsg{Err: err}
+		},
+		m.spinnerTick(),
+	)
+	return m
 }
 
 // DrainCmd returns and clears any pending tea.Cmd queued by HandleKey or HandleMsg.
@@ -55,9 +66,17 @@ func (m *VoiceModel) DrainCmd() tea.Cmd {
 	return cmd
 }
 
-// HandleMsg processes async bubbletea messages (STT results, spinner ticks, error timeouts).
+// HandleMsg processes async bubbletea messages.
 func (m *VoiceModel) HandleMsg(msg tea.Msg) {
 	switch msg := msg.(type) {
+	case STTInitDoneMsg:
+		if msg.Err != nil {
+			slog.Error("stt init failed", "err", msg.Err)
+			m.setError(msg.Err.Error())
+			return
+		}
+		m.state = stateIdle
+		slog.Info("stt initialized")
 	case STTResultMsg:
 		if msg.Err != nil {
 			slog.Error("stt error", "err", msg.Err)
@@ -68,10 +87,9 @@ func (m *VoiceModel) HandleMsg(msg tea.Msg) {
 			m.setError("no speech detected")
 			return
 		}
-		// Success — keyboard.go will send the text via sendString
 		m.state = stateIdle
 	case SpinnerTickMsg:
-		if m.state == stateProcessing {
+		if m.state == stateProcessing || m.state == stateInitializing {
 			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
 			m.pendingCmd = m.spinnerTick()
 		}
@@ -141,6 +159,9 @@ func (m *VoiceModel) RenderKey(i, j int, key string) (string, string, string) {
 func (m *VoiceModel) RenderView(width int) string {
 	var text string
 	switch m.state {
+	case stateInitializing:
+		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
+		text = fmt.Sprintf("INITIALIZING %s", frame)
 	case stateIdle:
 		text = "HOLD A TO RECORD"
 	case stateRecording:
@@ -154,8 +175,7 @@ func (m *VoiceModel) RenderView(width int) string {
 
 	style := lipgloss.NewStyle().
 		Width(width).
-		Align(lipgloss.Center).
-		Padding(1, 0)
+		Align(lipgloss.Center)
 
 	return style.Render(text)
 }
