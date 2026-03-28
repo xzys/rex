@@ -173,6 +173,19 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return k, nil
+	case DeleteTickMsg:
+		if vm, ok := k.model.(*VoiceModel); ok {
+			if vm.deleting {
+				vm.HandleMsg(msg)
+				cmd := vm.DrainCmd()
+				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+				if cmd != nil {
+					return k, tea.Batch(cmd, delCmd)
+				}
+				return k, delCmd
+			}
+		}
+		return k, nil
 	case STTInitDoneMsg, SpinnerTickMsg, ErrorTimeoutMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
 			vm.HandleMsg(msg)
@@ -221,11 +234,24 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 	// Process the key input through the model (both keydown and keyup)
 	keyToPress := k.model.HandleKey(msg.KeyInput, msg.IsKeyDown)
 
-	// Voice model: intercept B to exit, otherwise drain queued commands
+	// Voice model: intercept X to exit, B for delete, otherwise drain queued commands
 	if vm, ok := k.model.(*VoiceModel); ok {
-		if msg.IsKeyDown && msg.KeyInput == protocol.KeyB {
+		if msg.IsKeyDown && msg.KeyInput == protocol.KeyX {
 			k.toggleVoiceMode()
 			return nil
+		}
+		if msg.KeyInput == protocol.KeyB {
+			// HandleKey was already called above — it sets deleting state and queues ticks
+			cmd := vm.DrainCmd()
+			if msg.IsKeyDown {
+				// Send immediate first delete + any queued tick cmd
+				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+				if cmd != nil {
+					return tea.Batch(cmd, delCmd)
+				}
+				return delCmd
+			}
+			return cmd
 		}
 		return vm.DrainCmd()
 	}

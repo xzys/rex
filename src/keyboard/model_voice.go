@@ -21,6 +21,8 @@ const (
 	stateError
 )
 
+const deleteRepeatMs = 50
+
 // Bubbletea message types for voice model
 type STTResultMsg struct {
 	Text string
@@ -29,7 +31,7 @@ type STTResultMsg struct {
 type STTInitDoneMsg struct{ Err error }
 type ErrorTimeoutMsg struct{}
 type SpinnerTickMsg struct{}
-type VoiceExitMsg struct{}
+type DeleteTickMsg struct{}
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -40,6 +42,7 @@ type VoiceModel struct {
 	audio        *AudioCapture
 	errMsg       string
 	spinnerFrame int
+	deleting     bool
 }
 
 func NewVoiceModel(provider STTProvider) *VoiceModel {
@@ -90,9 +93,15 @@ func (m *VoiceModel) HandleMsg(msg tea.Msg) {
 		}
 		m.state = stateIdle
 	case SpinnerTickMsg:
-		if m.state == stateProcessing || m.state == stateInitializing {
+		if m.state == stateInitializing {
 			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
 			m.pendingCmd = m.spinnerTick()
+		}
+	case DeleteTickMsg:
+		// keyboard.go handles sending the actual delete key;
+		// we just queue the next tick if still held
+		if m.deleting {
+			m.pendingCmd = m.deleteTick()
 		}
 	case ErrorTimeoutMsg:
 		if m.state == stateError {
@@ -116,10 +125,16 @@ func (m *VoiceModel) spinnerTick() tea.Cmd {
 	})
 }
 
+func (m *VoiceModel) deleteTick() tea.Cmd {
+	return tea.Tick(deleteRepeatMs*time.Millisecond, func(time.Time) tea.Msg {
+		return DeleteTickMsg{}
+	})
+}
+
 // HandleKey implements KeyboardModel. Returns nil for all keys — output comes via STTResultMsg.
 func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 	switch key {
-	case protocol.KeyA:
+	case protocol.KeyY:
 		if isKeyDown {
 			if m.state == stateIdle {
 				if err := m.audio.Start(); err != nil {
@@ -138,14 +153,19 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 				slog.Info("voice: recording stopped, starting STT", "pcm_bytes", len(pcm))
 
 				stt := m.stt
-				m.pendingCmd = tea.Batch(
-					func() tea.Msg {
-						text, err := stt.Transcribe(pcm, 16000)
-						return STTResultMsg{Text: text, Err: err}
-					},
-					m.spinnerTick(),
-				)
+				m.pendingCmd = func() tea.Msg {
+					text, err := stt.Transcribe(pcm, 16000)
+					return STTResultMsg{Text: text, Err: err}
+				}
 			}
+		}
+	case protocol.KeyB:
+		if isKeyDown {
+			m.deleting = true
+			// First delete is immediate (keyboard.go sends it), then start repeat
+			m.pendingCmd = m.deleteTick()
+		} else {
+			m.deleting = false
 		}
 	}
 	return nil
@@ -167,29 +187,31 @@ func (m *VoiceModel) RenderView(width int) string {
 		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
 		status = fmt.Sprintf("INITIALIZING %s", frame)
 	case stateIdle:
-		status = "HOLD " + red.Render("A") + " TO RECORD"
+		status = "HOLD " + red.Render("Y") + " TO RECORD"
 	case stateRecording:
-		status = "RECORDING  ●"
+		status = "RECORDING"
 	case stateProcessing:
-		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
-		status = dim.Render(fmt.Sprintf("PROCESSING %s", frame))
+		status = dim.Render("PROCESSING")
 	case stateError:
 		status = red.Render(fmt.Sprintf("ERROR: %s", m.errMsg))
 	}
 
-	exit := dim.Render("B TO EXIT")
-	exitW := lipgloss.Width(exit)
+	left := dim.Render("B DELETE")
+	right := dim.Render("X EXIT")
 	statusW := lipgloss.Width(status)
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(right)
 
-	// True-center the status, rounding right
-	leftPad := (width - statusW + 1) / 2
-	rightGap := width - leftPad - statusW - exitW
-	if leftPad < 0 {
-		leftPad = 0
+	// Center status between left and right hints
+	centerPos := (width - statusW) / 2
+	leftGap := centerPos - leftW
+	if leftGap < 1 {
+		leftGap = 1
 	}
+	rightGap := width - centerPos - statusW - rightW
 	if rightGap < 1 {
 		rightGap = 1
 	}
 
-	return strings.Repeat(" ", leftPad) + status + strings.Repeat(" ", rightGap) + exit
+	return left + strings.Repeat(" ", leftGap) + status + strings.Repeat(" ", rightGap) + right
 }
