@@ -12,7 +12,7 @@ import (
 	sherpa "github.com/k2-fsa/sherpa-onnx-go/sherpa_onnx"
 )
 
-const defaultSTTModelDir = "/userdata/system/apps/terminal/stt"
+const defaultSTTModelDir = "/userdata/system/apps/rex/stt"
 
 type SherpaOnnxProvider struct {
 	modelDir   string

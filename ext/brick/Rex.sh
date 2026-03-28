@@ -1,5 +1,5 @@
 #!/bin/bash
-APP=/userdata/system/apps/terminal
+APP=/userdata/system/apps/rex
 
 /etc/init.d/S31emulationstation stop
 sleep 1
