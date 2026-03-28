@@ -221,8 +221,12 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 	// Process the key input through the model (both keydown and keyup)
 	keyToPress := k.model.HandleKey(msg.KeyInput, msg.IsKeyDown)
 
-	// Voice model queues commands internally via DrainCmd
+	// Voice model: intercept B to exit, otherwise drain queued commands
 	if vm, ok := k.model.(*VoiceModel); ok {
+		if msg.IsKeyDown && msg.KeyInput == protocol.KeyB {
+			k.toggleVoiceMode()
+			return nil
+		}
 		return vm.DrainCmd()
 	}
 

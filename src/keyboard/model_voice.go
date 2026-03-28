@@ -29,6 +29,7 @@ type STTResultMsg struct {
 type STTInitDoneMsg struct{ Err error }
 type ErrorTimeoutMsg struct{}
 type SpinnerTickMsg struct{}
+type VoiceExitMsg struct{}
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -157,25 +158,38 @@ func (m *VoiceModel) RenderKey(i, j int, key string) (string, string, string) {
 
 // RenderView implements VoiceRenderer.
 func (m *VoiceModel) RenderView(width int) string {
-	var text string
+	red := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+
+	var status string
 	switch m.state {
 	case stateInitializing:
 		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
-		text = fmt.Sprintf("INITIALIZING %s", frame)
+		status = fmt.Sprintf("INITIALIZING %s", frame)
 	case stateIdle:
-		text = "HOLD A TO RECORD"
+		status = "HOLD " + red.Render("A") + " TO RECORD"
 	case stateRecording:
-		text = "RECORDING  ●"
+		status = "RECORDING  ●"
 	case stateProcessing:
 		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
-		text = fmt.Sprintf("PROCESSING %s", frame)
+		status = dim.Render(fmt.Sprintf("PROCESSING %s", frame))
 	case stateError:
-		text = fmt.Sprintf("ERROR: %s", m.errMsg)
+		status = red.Render(fmt.Sprintf("ERROR: %s", m.errMsg))
 	}
 
-	style := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center)
+	exit := dim.Render("B TO EXIT")
+	exitW := lipgloss.Width(exit)
+	statusW := lipgloss.Width(status)
 
-	return style.Render(text)
+	// True-center the status, rounding right
+	leftPad := (width - statusW + 1) / 2
+	rightGap := width - leftPad - statusW - exitW
+	if leftPad < 0 {
+		leftPad = 0
+	}
+	if rightGap < 1 {
+		rightGap = 1
+	}
+
+	return strings.Repeat(" ", leftPad) + status + strings.Repeat(" ", rightGap) + exit
 }
