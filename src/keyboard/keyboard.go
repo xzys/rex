@@ -240,6 +240,9 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 			k.toggleVoiceMode()
 			return nil
 		}
+		if msg.IsKeyDown && msg.KeyInput == protocol.KeyA {
+			return k.sendKeyPress(string(protocol.SpecialKeyEnter))
+		}
 		if msg.KeyInput == protocol.KeyB {
 			// HandleKey was already called above — it sets deleting state and queues ticks
 			cmd := vm.DrainCmd()
