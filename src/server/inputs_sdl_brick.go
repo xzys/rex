@@ -39,16 +39,19 @@ func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 }
 
 // TrimUI Brick raw SDL joystick button layout:
-// b4=A, b5=B, b6=X, b7=Y
+// b4=A(east), b5=B(south), b6=X(north), b7=Y(west)
+// Physical labels use Nintendo layout (swapped vs Xbox):
+//   b4 (hw "A") → KeyB (east), b5 (hw "B") → KeyA (south)
+//   b6 (hw "X") → KeyY (north), b7 (hw "Y") → KeyX (west)
 // b8=L1, b9=R1, b10=L2, b11=R2
 // b12=Select, b13=Start, b14=Menu/Guide
 // D-pad: hat 0 (SDL_JOYHATMOTION)
 
 var brickButtonMap = map[uint8]int{
-	4:  protocol.KeyA,
-	5:  protocol.KeyB,
-	6:  protocol.KeyX,
-	7:  protocol.KeyY,
+	4:  protocol.KeyB,
+	5:  protocol.KeyA,
+	6:  protocol.KeyY,
+	7:  protocol.KeyX,
 	8:  protocol.KeyL1,
 	9:  protocol.KeyR1,
 	10: protocol.KeyL2,
