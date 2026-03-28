@@ -74,7 +74,7 @@ var chordTestCases = []chordTestCase{
 
 var simpleLayout = [][]string{
 	// Mirror the on-screen simple layout to drive navigation tests.
-	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "BCK"},
+	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "MIC"},
 	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
 	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
 }
@@ -83,7 +83,7 @@ var simpleSpecialKeyOutputs = map[string]string{
 	"SPC": string(protocol.SpecialKeySpace),
 	"ENT": string(protocol.SpecialKeyEnter),
 	"DEL": string(protocol.SpecialKeyDelete),
-	"BCK": string(protocol.SpecialKeyClose),
+	"MIC": string(protocol.SpecialKeyMic),
 	"SFT": string(protocol.SpecialKeyShift),
 	"123": string(protocol.SpecialKeyNumbers),
 }
@@ -103,7 +103,7 @@ var chordedSpecialCases = []chordTestCase{
 	{protocol.KeyL2, protocol.KeyDPadRight, string(protocol.SpecialKeySpace)},
 	{protocol.KeyL2, protocol.KeyX, string(protocol.SpecialKeyEnter)},
 	{protocol.KeyL2, protocol.KeyY, string(protocol.SpecialKeyDelete)},
-	{protocol.KeyL2, protocol.KeyA, string(protocol.SpecialKeyClose)},
+	{protocol.KeyL2, protocol.KeyA, string(protocol.SpecialKeyMic)},
 }
 
 // TestKeyboardModes verifies chorded (toggle and simultaneous) and simple layouts,

@@ -13,7 +13,6 @@ const (
 	KeyboardModeChorded             = "chorded"
 	KeyboardModeChordedSimultaneous = "chorded-simultaneous"
 	KeyboardModeFrontChorded        = "front-chorded"
-	KeyboardModeVoice               = "voice"
 	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
 )
@@ -120,7 +119,7 @@ func resolveConfigPath() (string, error) {
 
 func NormalizeKeyboardMode(mode string) string {
 	switch mode {
-	case KeyboardModeSimple, KeyboardModeChorded, KeyboardModeChordedSimultaneous, KeyboardModeFrontChorded, KeyboardModeVoice:
+	case KeyboardModeSimple, KeyboardModeChorded, KeyboardModeChordedSimultaneous, KeyboardModeFrontChorded:
 		return mode
 	default:
 		return KeyboardModeChorded
@@ -133,6 +132,5 @@ func KeyboardModes() []string {
 		KeyboardModeChorded,
 		KeyboardModeChordedSimultaneous,
 		KeyboardModeFrontChorded,
-		KeyboardModeVoice,
 	}
 }

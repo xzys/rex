@@ -13,7 +13,7 @@ import (
 
 // Common keyboard layout
 var keyboardLayout = [][]string{
-	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "BCK"},
+	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "MIC"},
 	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
 	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
 }

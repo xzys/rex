@@ -47,8 +47,6 @@ func getKeyboardModel(mode string) KeyboardModel {
 		return NewKeyboardModelSimple()
 	case "front-chorded":
 		return NewKeyboardModelFrontChorded(keyboardLayout)
-	case "voice":
-		return NewVoiceModel(defaultSTTProvider())
 	default:
 		panic("invalid keyboard mode")
 	}
@@ -149,11 +147,6 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// NOTE somehow returning read socket here causes an issue
 		return k, nil
 	case protocol.KeyInputMessage:
-		// Intercept Fn for voice mode toggle before passing to model
-		if msg.IsKeyDown && msg.KeyInput == protocol.KeyFn {
-			k.toggleVoiceMode()
-			return k, k.ReadSocket
-		}
 		// Process the input and send response, then read next message
 		return k, tea.Sequence(k.handleDeviceInput(msg), k.ReadSocket)
 	case STTResultMsg:
@@ -220,6 +213,12 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 	}
 
 	if keyToPress == nil {
+		return nil
+	}
+
+	// Intercept MIC key to toggle voice mode
+	if len(*keyToPress) == 1 && rune((*keyToPress)[0]) == protocol.SpecialKeyMic {
+		k.toggleVoiceMode()
 		return nil
 	}
 

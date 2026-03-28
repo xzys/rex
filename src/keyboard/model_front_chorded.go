@@ -178,7 +178,7 @@ func getFrontChordMaps() (map[int]rune, map[int]rune) {
 	// Assuming Comma/Dot are mapped to something or just not in the basic set?
 	// The plan says "Comma, Dot". I need to check if I have special keys for them or just chars.
 	// Usually they are just characters.
-	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = ','
+	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = protocol.SpecialKeyMic
 	chordMap[encodeChord(modB, protocol.KeyDPadRight)] = '.'
 
 	// Numbers Mode Mapping (Populate chordAltMap)

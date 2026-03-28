@@ -35,6 +35,7 @@ type VoiceModel struct {
 	state        voiceState
 	pendingCmd   tea.Cmd
 	stt          STTProvider
+	audio        *AudioCapture
 	errMsg       string
 	spinnerFrame int
 }
@@ -43,6 +44,7 @@ func NewVoiceModel(provider STTProvider) *VoiceModel {
 	return &VoiceModel{
 		state: stateIdle,
 		stt:   provider,
+		audio: NewAudioCapture(),
 	}
 }
 
@@ -101,19 +103,25 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 	case protocol.KeyA:
 		if isKeyDown {
 			if m.state == stateIdle {
+				if err := m.audio.Start(); err != nil {
+					slog.Error("failed to start recording", "err", err)
+					m.setError("mic failed")
+					return nil
+				}
 				m.state = stateRecording
 				slog.Info("voice: recording started")
 			}
 		} else {
 			if m.state == stateRecording {
+				pcm := m.audio.Stop()
 				m.state = stateProcessing
 				m.spinnerFrame = 0
-				slog.Info("voice: recording stopped, starting STT")
-				// Queue STT command — for Phase 1, audio bytes are nil (stub ignores them)
+				slog.Info("voice: recording stopped, starting STT", "pcm_bytes", len(pcm))
+
 				stt := m.stt
 				m.pendingCmd = tea.Batch(
 					func() tea.Msg {
-						text, err := stt.Transcribe(nil, 16000)
+						text, err := stt.Transcribe(pcm, 16000)
 						return STTResultMsg{Text: text, Err: err}
 					},
 					m.spinnerTick(),
