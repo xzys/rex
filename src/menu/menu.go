@@ -139,7 +139,8 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Menu) calculateItemsPerRow() {
 	layout := m.config.Layout
 	availableWidth := m.width - (layout.MarginX * 2)
-	itemWidth := layout.SquareSize + layout.Gap
+	borderWidth := 2 // left + right border chars
+	itemWidth := layout.SquareSize + borderWidth + layout.Gap
 	if itemWidth > 0 {
 		m.itemsPerRow = availableWidth / itemWidth
 		if m.itemsPerRow < 1 {
