@@ -16,7 +16,10 @@ func NewNcmpcppOperator() *NcmpcppOperator {
 	}
 }
 
-func (o *NcmpcppOperator) HandleKey(key int) (bool, error) {
+func (o *NcmpcppOperator) HandleInput(key int, isDown bool) (bool, error) {
+	if !isDown {
+		return false, nil
+	}
 	var err error
 	switch key {
 	case protocol.KeyDPadRight:

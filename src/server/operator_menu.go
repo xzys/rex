@@ -8,7 +8,10 @@ func NewMenuOperator() *MenuOperator {
 	return &MenuOperator{}
 }
 
-func (o *MenuOperator) HandleKey(key int) (bool, error) {
+func (o *MenuOperator) HandleInput(key int, isDown bool) (bool, error) {
+	if !isDown {
+		return false, nil
+	}
 	switch key {
 	case protocol.KeyA:
 		return true, execute("tmux", "send-keys", "-t", "0", "Enter")
