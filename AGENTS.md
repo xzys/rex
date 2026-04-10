@@ -1,25 +1,30 @@
-# Instructions
+# Rex
 
-## Documentation
+Chorded keyboard input system for retro handhelds (R36S, TrimUI Brick). Go + Bubble Tea.
 
-- `README.md` - Overview, usage, key bindings
-- `notes/architecture.md` - System design, components, data flow
-- `notes/testing.md` - Testing patterns and utilities
-- `notes/bugs/` - Known issues and investigations
+## Build
 
-## Building
-
-Build before testing:
-
-```bash
-make build-local
+```
+make build-local              # local dev (keyboard tag)
+make build-docker-r36s        # R36S (sdl tag)
+make build-docker-brick       # Brick (sdl+brick+sherpa tags)
 ```
 
-See `Makefile` for all build targets.
+See `Makefile` for all build/sync/install targets.
 
 ## Key Directories
 
-- `src/server/` - Input handling and operators
+- `src/server/` - Input handling, operators
 - `src/keyboard/` - Keyboard models and UI
-- `src/protocol/` - Socket protocol and key constants
+- `src/protocol/` - Socket protocol, key constants
 - `src/menu/` - Start menu
+- `ext/` - External deps (TermSP, fonts, brick scripts)
+
+## Docs (read when relevant, not upfront)
+
+- `notes/architecture.md` - System design, data flow
+- `notes/plans/` - Active implementation plans
+- `notes/features/` - Feature designs
+- `notes/bugs/` - Known issues
+- `notes/research/` - Device/tech research
+- `notes/testing.md` - Testing patterns
