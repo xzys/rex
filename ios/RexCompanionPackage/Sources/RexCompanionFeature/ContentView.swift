@@ -6,18 +6,27 @@ public struct ContentView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Toggle(manager.connectionState.rawValue, isOn: $manager.isEnabled)
-                .onChange(of: manager.isEnabled) {
-                    manager.enabledChanged()
-                }
+            HStack(spacing: 12) {
+                Toggle("", isOn: $manager.isEnabled)
+                    .labelsHidden()
+                    .onChange(of: manager.isEnabled) {
+                        manager.enabledChanged()
+                    }
+
+                Text(manager.connectionState.rawValue)
+                Spacer()
+            }
 
             HStack {
                 Text("IP Address")
+                Spacer()
                 TextField("192.168.1.100", text: $manager.ipAddress)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.decimalPad)
                     .autocorrectionDisabled()
                     .multilineTextAlignment(.trailing)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: ipFieldWidth)
                     .disabled(manager.isEnabled)
                     .onChange(of: manager.ipAddress) {
                         manager.ipChanged()
@@ -33,6 +42,11 @@ public struct ContentView: View {
                 manager.connect()
             }
         }
+    }
+
+    private var ipFieldWidth: CGFloat {
+        let characterCount = max(manager.ipAddress.count, 13)
+        return max(160, CGFloat(characterCount) * 18)
     }
 
     private func setupCallbacks() {
