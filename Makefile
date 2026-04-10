@@ -63,7 +63,11 @@ build-docker-ext-%: ## Build program from ext/
 		/app/build.sh
 
 
-install-system-files: install-dotfiles install-systemd ## Install all system files to r36s
+install-system-files: install-dotfiles install-systemd install-opt ## Install all system files to r36s
+
+install-opt:
+	@echo "Syncing opt scripts..."
+	rsync -r config/system/opt/ r36s:/opt/
 
 install-dotfiles:
 	@echo "Syncing dotfiles..."
@@ -77,6 +81,9 @@ install-systemd:
 	rsync -r config/systemd/ r36s:/tmp/systemd/
 	ssh r36s 'for f in /tmp/systemd/*.service; do \
 		sudo mv $$f /etc/systemd/system/; \
+	done && \
+	for d in /tmp/systemd/*.service.d; do \
+		[ -d "$$d" ] && sudo cp -r "$$d" /etc/systemd/system/; \
 	done && \
 	sudo systemctl daemon-reload; \
 	rm -rf /tmp/systemd'
