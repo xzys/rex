@@ -3,39 +3,50 @@ import SwiftUI
 public struct ContentView: View {
     @State private var manager = WebSocketManager()
     @State private var speech: SpeechManager?
+    @FocusState private var isIPFieldFocused: Bool
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                Toggle("", isOn: $manager.isEnabled)
-                    .labelsHidden()
-                    .onChange(of: manager.isEnabled) {
-                        manager.enabledChanged()
-                    }
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isIPFieldFocused = false
+                }
 
-                Text(manager.connectionState.rawValue)
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 12) {
+                    Toggle("", isOn: $manager.isEnabled)
+                        .labelsHidden()
+                        .onChange(of: manager.isEnabled) {
+                            manager.enabledChanged()
+                        }
+
+                    Text(manager.connectionState.rawValue)
+                    Spacer()
+                }
+
+                HStack {
+                    Text("IP Address")
+                    Spacer()
+                    TextField("192.168.1.100", text: $manager.ipAddress)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+                        .autocorrectionDisabled()
+                        .multilineTextAlignment(.trailing)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(width: ipFieldWidth)
+                        .focused($isIPFieldFocused)
+                        .disabled(manager.isEnabled)
+                        .onChange(of: manager.ipAddress) {
+                            manager.ipChanged()
+                        }
+                }
+
                 Spacer()
             }
-
-            HStack {
-                Text("IP Address")
-                Spacer()
-                TextField("192.168.1.100", text: $manager.ipAddress)
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.decimalPad)
-                    .autocorrectionDisabled()
-                    .multilineTextAlignment(.trailing)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(width: ipFieldWidth)
-                    .disabled(manager.isEnabled)
-                    .onChange(of: manager.ipAddress) {
-                        manager.ipChanged()
-                    }
-            }
-
-            Spacer()
+            .padding()
         }
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             setupCallbacks()
             if manager.isEnabled {
