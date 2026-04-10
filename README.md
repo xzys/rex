@@ -100,17 +100,22 @@ make install-system-files     # Install dotfiles and systemd services
 
 ## TODO
 
-- [ ] terminal intro, REX stylized text or something
-- [ ] wifi settings tui
-
-- [ ] rex help screen with controls shown over keyboard, tab for different apps
-- [ ] running pi on device
-- [ ] package to make it easy to install
-- [ ] run on stock firmware
-
-- [ ] test companion app on R36S
-- [ ] companion app bluetooth trigger to connect ws / send text
-
-- [ ] pi keymaps
-- [ ] pi kitten tts
-- [ ] pi markdown notes skill
+- portability
+  - [ ] run on stock firmware
+  - [ ] package to make it easy to install
+- usability
+  - [ ] rex help screen with controls shown over keyboard, tab for different apps
+  - [ ] wifi settings tui
+- input
+  - keyboard
+    - [ ] adjust keybinds for be efficient
+  - voice
+    - [ ] test companion app on R36S
+    - [ ] companion app bluetooth trigger to connect ws / send text
+- pi
+  - [X] running pi on device
+  - [ ] pi keymaps
+  - [ ] pi kitten tts
+  - [ ] pi markdown notes skill
+- publishing
+  - [ ] terminal intro, REX stylized text or something

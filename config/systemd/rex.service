@@ -1,21 +1,23 @@
 [Unit]
 Description=Rex
-After=multi-user.target getty@tty2.service
+After=systemd-user-sessions.service getty@tty2.service
 Conflicts=getty@tty2.service emulationstation.service
 
 [Service]
 Type=simple
 User=ark
 WorkingDirectory=/home/ark
-ExecStartPre=/usr/bin/setupcon
-ExecStartPre=/usr/bin/chvt 2
+Environment=TERM=linux
 ExecStart=/home/ark/bin/rex
-StandardInput=tty
+StandardInput=tty-force
 StandardOutput=tty
 StandardError=tty
 TTYPath=/dev/tty2
 TTYReset=yes
 TTYVHangup=yes
+TTYVTDisallocate=no
+ExecStartPost=+/usr/bin/chvt 2
+ExecStopPost=+/usr/bin/chvt 1
 Restart=always
 RestartSec=3
 
