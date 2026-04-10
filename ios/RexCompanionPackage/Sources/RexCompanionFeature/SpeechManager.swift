@@ -24,6 +24,7 @@ final class SpeechManager {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                print("[rex:speech] authorization: \(status)")
                 if status == .authorized {
                     self.isAuthorized = true
                 }
@@ -33,14 +34,19 @@ final class SpeechManager {
 
     func startRecording() {
         guard !isRecording else { return }
-        guard let speechRecognizer, speechRecognizer.isAvailable else { return }
+        guard let speechRecognizer, speechRecognizer.isAvailable else {
+            print("[rex:speech] recognizer unavailable")
+            return
+        }
 
+        print("[rex:speech] starting recording")
         // Set up audio session
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
+            print("[rex:speech] audio session error: \(error.localizedDescription)")
             return
         }
 
@@ -67,6 +73,7 @@ final class SpeechManager {
         do {
             try audioEngine.start()
         } catch {
+            print("[rex:speech] audio engine start failed: \(error.localizedDescription)")
             stopRecording()
             return
         }
@@ -77,12 +84,15 @@ final class SpeechManager {
                 if let result {
                     let text = result.bestTranscription.formattedString
                     if result.isFinal {
+                        print("[rex:speech] final: \(text)")
                         self.onFinalResult?(text)
                     } else {
+                        print("[rex:speech] partial: \(text)")
                         self.onPartialResult?(text)
                     }
                 }
-                if error != nil {
+                if let error {
+                    print("[rex:speech] recognition error: \(error.localizedDescription)")
                     self.stopRecording()
                 }
             }
@@ -92,6 +102,7 @@ final class SpeechManager {
     }
 
     func stopRecording() {
+        print("[rex:speech] stopping recording")
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine = nil

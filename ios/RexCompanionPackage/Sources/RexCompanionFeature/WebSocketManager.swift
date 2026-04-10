@@ -54,7 +54,9 @@ final class WebSocketManager {
 
         connectionState = .connecting
         let urlString = "ws://\(ipAddress):\(port)/"
+        print("[rex:ws] connecting to \(urlString)")
         guard let url = URL(string: urlString) else {
+            print("[rex:ws] invalid URL: \(urlString)")
             connectionState = .disconnected
             return
         }
@@ -71,9 +73,11 @@ final class WebSocketManager {
         task.sendPing { [weak self] error in
             Task { @MainActor in
                 guard let self else { return }
-                if error != nil {
+                if let error {
+                    print("[rex:ws] ping failed: \(error.localizedDescription)")
                     self.handleDisconnect()
                 } else {
+                    print("[rex:ws] connected")
                     self.connectionState = .connected
                 }
             }
@@ -81,6 +85,7 @@ final class WebSocketManager {
     }
 
     func disconnect() {
+        print("[rex:ws] disconnecting")
         reconnectTask?.cancel()
         reconnectTask = nil
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
@@ -101,7 +106,7 @@ final class WebSocketManager {
                 }
             }
         } catch {
-            // Encoding error
+            print("[rex:ws] encode error: \(error.localizedDescription)")
         }
     }
 
@@ -133,9 +138,11 @@ final class WebSocketManager {
     private func handleMessage(_ text: String) {
         guard let data = text.data(using: .utf8),
               let message = try? JSONDecoder().decode(VoiceMessage.self, from: data) else {
+            print("[rex:ws] failed to decode: \(text)")
             return
         }
 
+        print("[rex:ws] received: \(message.type)")
         switch message.type {
         case "start":
             onStart?()
@@ -147,6 +154,7 @@ final class WebSocketManager {
     }
 
     private func handleDisconnect() {
+        print("[rex:ws] disconnected, will reconnect")
         webSocketTask = nil
         connectionState = .disconnected
         scheduleReconnect()

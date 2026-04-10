@@ -48,6 +48,7 @@ public struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            print("[rex] launched ip=\(manager.ipAddress) enabled=\(manager.isEnabled)")
             setupCallbacks()
             if manager.isEnabled {
                 manager.connect()
