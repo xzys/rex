@@ -30,8 +30,13 @@ func NewCompanionSTTProvider(sendVoiceCmd func(action string) error) *CompanionS
 	}
 }
 
+// Initialize is a no-op for the companion provider.
+func (p *CompanionSTTProvider) Initialize() error {
+	return nil
+}
+
 // NotifyStart sends a start command to the server, which forwards it
-// to the iOS companion app. Called on A-button down.
+// to the iOS companion app.
 func (p *CompanionSTTProvider) NotifyStart() {
 	if err := p.SendVoiceCmd("start"); err != nil {
 		slog.Error("companion: failed to send start", "err", err)

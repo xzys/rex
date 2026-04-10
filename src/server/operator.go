@@ -15,6 +15,9 @@ type GlobalOperator struct {
 	server         *Server
 	operators      map[string]Operator
 	activeOperator *Operator
+	l1Down         bool
+	r1Down         bool
+	comboFired     bool
 }
 
 func NewGlobalOperator(server *Server, operators map[string]Operator) *GlobalOperator {
@@ -31,52 +34,80 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return nil
 	}
 
-	var err error
 	if o.keyboardActive {
 		if event.Key == protocol.KeySelect && event.IsDown {
 			return o.closeKeyboardPane()
 		}
 		// send key input message to keyboard
 		return o.server.SendKeyInputMessage(event)
-	} else {
-		if !event.IsDown {
+	}
+
+	// key-up: L1/R1 pane navigation + active operator
+	if !event.IsDown {
+		switch event.Key {
+		case protocol.KeyL1:
+			o.l1Down = false
+			if !o.r1Down && !o.comboFired {
+				return execute("tmux", "select-pane", "-t", ":.-")
+			}
+			o.comboFired = false
+			return nil
+		case protocol.KeyR1:
+			o.r1Down = false
+			if !o.l1Down && !o.comboFired {
+				return execute("tmux", "select-pane", "-t", ":.+")
+			}
+			o.comboFired = false
 			return nil
 		}
-		// sync active operator with current window
-		o.updateActiveOperator()
-		// try active operator first
 		if o.activeOperator != nil {
-			handled, err := (*o.activeOperator).HandleKey(event.Key)
-			if err != nil {
-				return err
-			}
-			if handled {
-				return nil
-			}
+			_, err := (*o.activeOperator).HandleInput(event.Key, event.IsDown)
+			return err
 		}
-		// fall back to global keys
-		switch event.Key {
-		case protocol.KeyR1:
-			err = o.nextWindow()
-		case protocol.KeyL1:
-			err = o.prevWindow()
-		case protocol.KeySelect:
-			err = o.openKeyboardPane()
-		case protocol.KeyL2:
-			err = o.newWindow()
-		case protocol.KeyStart:
-			err = o.openMenu()
-		case protocol.KeyDPadUp:
-			err = execute("tmux", "send-keys", "-t", "0", "Up")
-		case protocol.KeyDPadDown:
-			err = execute("tmux", "send-keys", "-t", "0", "Down")
-		case protocol.KeyDPadLeft:
-			err = execute("tmux", "send-keys", "-t", "0", "Left")
-		case protocol.KeyDPadRight:
-			err = execute("tmux", "send-keys", "-t", "0", "Right")
+		return nil
+	}
+
+	// key-down: L1/R1 window navigation, then active operator, then global fallback
+	switch event.Key {
+	case protocol.KeyL1:
+		o.l1Down = true
+		if o.r1Down {
+			o.comboFired = true
+			return o.prevWindow()
+		}
+		return nil
+	case protocol.KeyR1:
+		o.r1Down = true
+		if o.l1Down {
+			o.comboFired = true
+			return o.nextWindow()
+		}
+		return nil
+	}
+
+	o.updateActiveOperator()
+	if o.activeOperator != nil {
+		handled, err := (*o.activeOperator).HandleInput(event.Key, event.IsDown)
+		if err != nil || handled {
+			return err
 		}
 	}
-	return err
+
+	switch event.Key {
+	case protocol.KeySelect:
+		return o.openKeyboardPane()
+	case protocol.KeyStart:
+		return o.openMenu()
+	case protocol.KeyDPadUp:
+		return execute("tmux", "send-keys", "-t", "0", "Up")
+	case protocol.KeyDPadDown:
+		return execute("tmux", "send-keys", "-t", "0", "Down")
+	case protocol.KeyDPadLeft:
+		return execute("tmux", "send-keys", "-t", "0", "Left")
+	case protocol.KeyDPadRight:
+		return execute("tmux", "send-keys", "-t", "0", "Right")
+	}
+	return nil
 }
 
 func (o *GlobalOperator) SetKeyboardActive(active bool) {
@@ -207,6 +238,3 @@ func (o *GlobalOperator) prevWindow() error {
 	return tryExecute("tmux", []string{"no previous window"}, "previous-window")
 }
 
-func (o *GlobalOperator) newWindow() error {
-	return execute("tmux", "new-window")
-}

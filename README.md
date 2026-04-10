@@ -100,10 +100,17 @@ make install-system-files     # Install dotfiles and systemd services
 
 ## TODO
 
-### Features
+- [ ] terminal intro, REX stylized text or something
+- [ ] wifi settings tui
 
-- [ ] bubbletea app to connect to SSH -- the name of the pane
+- [ ] rex help screen with controls shown over keyboard, tab for different apps
+- [ ] running pi on device
+- [ ] package to make it easy to install
+- [ ] run on stock firmware
 
-### Bug Reports
+- [ ] test companion app on R36S
+- [ ] companion app bluetooth trigger to connect ws / send text
 
-- [ ] [JSON decoder out of sync - data changing underfoot?](notes/bugs/json_decode_bug.md)
+- [ ] pi keymaps
+- [ ] pi kitten tts
+- [ ] pi markdown notes skill

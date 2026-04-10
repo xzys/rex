@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -32,7 +33,8 @@ type Keyboard struct {
 	currentWord string
 	suggestions [4]string
 	// display
-	compact bool
+	compact    bool
+	paneHeight int
 	// voice companion mode
 	sttMode string // "sherpa" or "companion"
 }
@@ -74,24 +76,27 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 }
 
 func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string) *Keyboard {
-	k := &Keyboard{
-		keyboard: keyboardLayout,
-		sttMode:  sttMode,
+	paneHeight := 12
+	if compact {
+		paneHeight = 8
 	}
-	model := k.getKeyboardModel(keyboardMode)
 
-	var dictionary *Trie
+	k := &Keyboard{
+		keyboard:   keyboardLayout,
+		compact:    compact,
+		paneHeight: paneHeight,
+		sttMode:    sttMode,
+	}
+	k.model = k.getKeyboardModel(keyboardMode)
+
 	if autocomplete {
 		f, err := wordsFile.Open("words.txt")
 		if err == nil {
 			defer f.Close()
-			dictionary = LoadTrie(f, dictWords)
+			k.dictionary = LoadTrie(f, dictWords)
 		}
 	}
 
-	k.model = model
-	k.dictionary = dictionary
-	k.compact = compact
 	return k
 }
 
@@ -197,7 +202,7 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// In companion mode, the server already injected text via smart replace.
 				// Don't send PressStringMessage to avoid double injection.
 				if k.sttMode != "companion" {
-					sendCmd := k.sendString(msg.Text)
+					sendCmd := k.sendString(strings.TrimSpace(msg.Text) + ". ")
 					if cmd != nil {
 						return k, tea.Batch(cmd, sendCmd)
 					}
@@ -209,7 +214,20 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return k, nil
-	case SpinnerTickMsg, ErrorTimeoutMsg:
+	case DeleteTickMsg:
+		if vm, ok := k.model.(*VoiceModel); ok {
+			if vm.deleting {
+				vm.HandleMsg(msg)
+				cmd := vm.DrainCmd()
+				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+				if cmd != nil {
+					return k, tea.Batch(cmd, delCmd)
+				}
+				return k, delCmd
+			}
+		}
+		return k, nil
+	case STTInitDoneMsg, SpinnerTickMsg, ErrorTimeoutMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
 			vm.HandleMsg(msg)
 			if cmd := vm.DrainCmd(); cmd != nil {
@@ -229,14 +247,20 @@ func (k *Keyboard) toggleVoiceMode() {
 		if k.priorModel != nil {
 			k.model = k.priorModel
 			k.priorModel = nil
+			resizeKeyboardPane(k.paneHeight)
 			slog.Info("voice mode off")
 		}
 	} else {
 		// Switch to voice mode
 		k.priorModel = k.model
 		k.model = k.createVoiceModel()
+		resizeKeyboardPane(1)
 		slog.Info("voice mode on")
 	}
+}
+
+func resizeKeyboardPane(height int) {
+	exec.Command("tmux", "resize-pane", "-t", "1", "-y", fmt.Sprintf("%d", height)).Run()
 }
 
 // handle key input and optionally provide a command to send key press to server
@@ -251,12 +275,38 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 	// Process the key input through the model (both keydown and keyup)
 	keyToPress := k.model.HandleKey(msg.KeyInput, msg.IsKeyDown)
 
-	// Voice model queues commands internally via DrainCmd
+	// Voice model: intercept X to exit, B for delete, otherwise drain queued commands
 	if vm, ok := k.model.(*VoiceModel); ok {
+		if msg.IsKeyDown && msg.KeyInput == protocol.KeyX {
+			k.toggleVoiceMode()
+			return nil
+		}
+		if msg.IsKeyDown && msg.KeyInput == protocol.KeyA {
+			return k.sendKeyPress(string(protocol.SpecialKeyEnter))
+		}
+		if msg.KeyInput == protocol.KeyB {
+			// HandleKey was already called above — it sets deleting state and queues ticks
+			cmd := vm.DrainCmd()
+			if msg.IsKeyDown {
+				// Send immediate first delete + any queued tick cmd
+				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+				if cmd != nil {
+					return tea.Batch(cmd, delCmd)
+				}
+				return delCmd
+			}
+			return cmd
+		}
 		return vm.DrainCmd()
 	}
 
 	if keyToPress == nil {
+		return nil
+	}
+
+	// Intercept MIC key to toggle voice mode
+	if len(*keyToPress) == 1 && rune((*keyToPress)[0]) == protocol.SpecialKeyMic {
+		k.toggleVoiceMode()
 		return nil
 	}
 

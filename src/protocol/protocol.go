@@ -54,6 +54,7 @@ const (
 	SpecialKeyDelete  = '\x02' // Control-B
 	SpecialKeyNumbers = '\x03' // Control-C
 	SpecialKeyClose   = '\x04' // Control-D
+	SpecialKeyMic     = '\x05' // Control-E — enters voice mode
 	SpecialKeyEnter   = '\n'
 )
 

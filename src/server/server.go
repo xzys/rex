@@ -26,7 +26,7 @@ var (
 )
 
 type Operator interface {
-	HandleKey(key int) (bool, error)
+	HandleInput(key int, isDown bool) (bool, error)
 }
 
 type Server struct {
@@ -45,6 +45,7 @@ func NewServer() *Server {
 	server.operator = NewGlobalOperator(server, map[string]Operator{
 		"ncmpcpp": NewNcmpcppOperator(),
 		"menu":    NewMenuOperator(),
+		"tmux":    NewSSHTmuxOperator(),
 	})
 
 	// Create voice WebSocket server for companion app.

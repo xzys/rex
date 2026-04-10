@@ -3,7 +3,7 @@
 # Use stop-rex.sh to stop rex and unfreeze ES.
 # Designed to be called via SSH: ssh root@brick '/path/to/start-rex.sh'
 
-APP=/userdata/system/apps/terminal
+APP=/userdata/system/apps/rex
 
 # Freeze ES instead of stopping it — avoids disrupting audio/dbus
 ES_PID=$(pidof emulationstation)

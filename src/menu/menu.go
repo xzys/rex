@@ -56,6 +56,14 @@ func (m *Menu) Run() error {
 			slog.Warn("failed to rename window", "name", app.Name, "err", err)
 		}
 
+		if app.Command == "__tmux__" && m.sshHost != nil {
+			return m.runSSHTmux()
+		}
+
+		if app.Command == "__new_window__" {
+			return exec.Command("tmux", "new-window").Run()
+		}
+
 		if m.sshHost != nil {
 			return m.runSSH(app.Command)
 		}
@@ -80,6 +88,34 @@ func (m *Menu) Run() error {
 	return nil
 }
 
+const sshControlSocket = "/tmp/rex-ssh-ctl"
+const sshInfoFile = "/tmp/rex-ssh-info"
+
+func (m *Menu) runSSHTmux() error {
+	// Write socket path + host so SSHTmuxOperator can fire commands via ControlMaster
+	info := sshControlSocket + " " + *m.sshHost
+	if err := os.WriteFile(sshInfoFile, []byte(info), 0600); err != nil {
+		return fmt.Errorf("failed to write ssh info: %w", err)
+	}
+	defer os.Remove(sshInfoFile)
+
+	script := `tmux set status off` +
+		` && tmux resize-pane -Z` +
+		` && tmux attach` +
+		` ; tmux set status on`
+
+	cmd := exec.Command("ssh",
+		"-M", "-S", sshControlSocket,
+		"-o", "ConnectTimeout=10",
+		"-t", *m.sshHost,
+		script,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
 func (m *Menu) runSSH(command string) error {
 	commandStr := `'` + command + `'`
 	cmd := exec.Command("ssh", "-v", "-o", "ConnectTimeout=10", "-t", *m.sshHost, "sh", "-ic", commandStr)
@@ -93,6 +129,15 @@ func (m *Menu) runExclusive(args []string) error {
 	rexPath, _ := os.Executable()
 	rexArgs := append([]string{rexPath, "exclusive"}, args...)
 	return syscall.Exec(rexPath, rexArgs, os.Environ())
+}
+
+func (m *Menu) effectiveApps() []cfg.App {
+	if m.sshHost != nil {
+		tmuxApp := cfg.App{Name: "tmux", Icon: "▪", Color: "3", Command: "__tmux__"}
+		return append([]cfg.App{tmuxApp}, m.config.Apps...)
+	}
+	shellApp := cfg.App{Name: "shell", Icon: "$", Color: "8", Command: "__new_window__"}
+	return append([]cfg.App{shellApp}, m.config.Apps...)
 }
 
 func (m *Menu) Init() tea.Cmd {
@@ -110,7 +155,7 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "right", "l":
-			if m.cursor < len(m.config.Apps)-1 {
+			if m.cursor < len(m.effectiveApps())-1 {
 				m.cursor++
 			}
 		case "up", "k":
@@ -118,11 +163,11 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor -= m.itemsPerRow
 			}
 		case "down", "j":
-			if m.cursor+m.itemsPerRow < len(m.config.Apps) {
+			if m.cursor+m.itemsPerRow < len(m.effectiveApps()) {
 				m.cursor += m.itemsPerRow
 			}
 		case "enter":
-			if m.cursor < len(m.config.Apps) {
+			if m.cursor < len(m.effectiveApps()) {
 				m.selected = true
 				return m, tea.Quit
 			}
@@ -139,7 +184,8 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Menu) calculateItemsPerRow() {
 	layout := m.config.Layout
 	availableWidth := m.width - (layout.MarginX * 2)
-	itemWidth := layout.SquareSize + layout.Gap
+	borderWidth := 2 // left + right border chars
+	itemWidth := layout.SquareSize + borderWidth + layout.Gap
 	if itemWidth > 0 {
 		m.itemsPerRow = availableWidth / itemWidth
 		if m.itemsPerRow < 1 {
@@ -157,7 +203,9 @@ func (m *Menu) View() string {
 		Align(lipgloss.Center, lipgloss.Center).
 		Border(lipgloss.NormalBorder())
 
-	if len(m.config.Apps) == 0 {
+	apps := m.effectiveApps()
+
+	if len(apps) == 0 {
 		msg := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
 			Render("no apps configured\n~/.config/rex/config.yaml")
@@ -171,7 +219,7 @@ func (m *Menu) View() string {
 	var rows []string
 	var currentRow []string
 
-	for i, app := range m.config.Apps {
+	for i, app := range apps {
 		style := baseStyle.
 			BorderForeground(lipgloss.Color(app.Color)).
 			Foreground(lipgloss.Color(app.Color)).
@@ -243,8 +291,9 @@ func (m *Menu) View() string {
 }
 
 func (m *Menu) SelectedApp() *cfg.App {
-	if m.cursor >= 0 && m.cursor < len(m.config.Apps) {
-		return &m.config.Apps[m.cursor]
+	apps := m.effectiveApps()
+	if m.cursor >= 0 && m.cursor < len(apps) {
+		return &apps[m.cursor]
 	}
 	return nil
 }

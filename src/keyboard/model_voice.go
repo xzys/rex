@@ -14,20 +14,24 @@ import (
 type voiceState int
 
 const (
-	stateIdle voiceState = iota
+	stateInitializing voiceState = iota
+	stateIdle
 	stateRecording
 	stateProcessing
 	stateError
 )
 
+const deleteRepeatMs = 50
+
 // Bubbletea message types for voice model
-type AudioLevelMsg struct{ Level float32 }
 type STTResultMsg struct {
 	Text string
 	Err  error
 }
+type STTInitDoneMsg struct{ Err error }
 type ErrorTimeoutMsg struct{}
 type SpinnerTickMsg struct{}
+type DeleteTickMsg struct{}
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -35,15 +39,28 @@ type VoiceModel struct {
 	state        voiceState
 	pendingCmd   tea.Cmd
 	stt          STTProvider
+	audio        *AudioCapture
 	errMsg       string
 	spinnerFrame int
+	deleting     bool
 }
 
 func NewVoiceModel(provider STTProvider) *VoiceModel {
-	return &VoiceModel{
-		state: stateIdle,
+	m := &VoiceModel{
+		state: stateInitializing,
 		stt:   provider,
+		audio: NewAudioCapture(),
 	}
+	// Queue async initialization — keyboard.go will drain this
+	stt := m.stt
+	m.pendingCmd = tea.Batch(
+		func() tea.Msg {
+			err := stt.Initialize()
+			return STTInitDoneMsg{Err: err}
+		},
+		m.spinnerTick(),
+	)
+	return m
 }
 
 // STTProvider returns the STT provider used by this voice model.
@@ -58,9 +75,17 @@ func (m *VoiceModel) DrainCmd() tea.Cmd {
 	return cmd
 }
 
-// HandleMsg processes async bubbletea messages (STT results, spinner ticks, error timeouts).
+// HandleMsg processes async bubbletea messages.
 func (m *VoiceModel) HandleMsg(msg tea.Msg) {
 	switch msg := msg.(type) {
+	case STTInitDoneMsg:
+		if msg.Err != nil {
+			slog.Error("stt init failed", "err", msg.Err)
+			m.setError(msg.Err.Error())
+			return
+		}
+		m.state = stateIdle
+		slog.Info("stt initialized")
 	case STTResultMsg:
 		if msg.Err != nil {
 			slog.Error("stt error", "err", msg.Err)
@@ -71,12 +96,17 @@ func (m *VoiceModel) HandleMsg(msg tea.Msg) {
 			m.setError("no speech detected")
 			return
 		}
-		// Success — keyboard.go will send the text via sendString
 		m.state = stateIdle
 	case SpinnerTickMsg:
-		if m.state == stateProcessing {
+		if m.state == stateInitializing {
 			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
 			m.pendingCmd = m.spinnerTick()
+		}
+	case DeleteTickMsg:
+		// keyboard.go handles sending the actual delete key;
+		// we just queue the next tick if still held
+		if m.deleting {
+			m.pendingCmd = m.deleteTick()
 		}
 	case ErrorTimeoutMsg:
 		if m.state == stateError {
@@ -100,12 +130,23 @@ func (m *VoiceModel) spinnerTick() tea.Cmd {
 	})
 }
 
+func (m *VoiceModel) deleteTick() tea.Cmd {
+	return tea.Tick(deleteRepeatMs*time.Millisecond, func(time.Time) tea.Msg {
+		return DeleteTickMsg{}
+	})
+}
+
 // HandleKey implements KeyboardModel. Returns nil for all keys — output comes via STTResultMsg.
 func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 	switch key {
-	case protocol.KeyA:
+	case protocol.KeyY:
 		if isKeyDown {
 			if m.state == stateIdle {
+				if err := m.audio.Start(); err != nil {
+					slog.Error("failed to start recording", "err", err)
+					m.setError("mic failed")
+					return nil
+				}
 				m.state = stateRecording
 				slog.Info("voice: recording started")
 				// Notify companion app to start recording (no-op for sherpa/stub)
@@ -115,19 +156,25 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 			}
 		} else {
 			if m.state == stateRecording {
+				pcm := m.audio.Stop()
 				m.state = stateProcessing
 				m.spinnerFrame = 0
-				slog.Info("voice: recording stopped, starting STT")
-				// Queue STT command — for Phase 1, audio bytes are nil (stub ignores them)
+				slog.Info("voice: recording stopped, starting STT", "pcm_bytes", len(pcm))
+
 				stt := m.stt
-				m.pendingCmd = tea.Batch(
-					func() tea.Msg {
-						text, err := stt.Transcribe(nil, 16000)
-						return STTResultMsg{Text: text, Err: err}
-					},
-					m.spinnerTick(),
-				)
+				m.pendingCmd = func() tea.Msg {
+					text, err := stt.Transcribe(pcm, 16000)
+					return STTResultMsg{Text: text, Err: err}
+				}
 			}
+		}
+	case protocol.KeyB:
+		if isKeyDown {
+			m.deleting = true
+			// First delete is immediate (keyboard.go sends it), then start repeat
+			m.pendingCmd = m.deleteTick()
+		} else {
+			m.deleting = false
 		}
 	}
 	return nil
@@ -140,23 +187,40 @@ func (m *VoiceModel) RenderKey(i, j int, key string) (string, string, string) {
 
 // RenderView implements VoiceRenderer.
 func (m *VoiceModel) RenderView(width int) string {
-	var text string
+	red := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+
+	var status string
 	switch m.state {
-	case stateIdle:
-		text = "HOLD A TO RECORD"
-	case stateRecording:
-		text = "RECORDING  ●"
-	case stateProcessing:
+	case stateInitializing:
 		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
-		text = fmt.Sprintf("PROCESSING %s", frame)
+		status = fmt.Sprintf("INITIALIZING %s", frame)
+	case stateIdle:
+		status = "HOLD " + red.Render("Y") + " TO RECORD"
+	case stateRecording:
+		status = "RECORDING"
+	case stateProcessing:
+		status = dim.Render("PROCESSING")
 	case stateError:
-		text = fmt.Sprintf("ERROR: %s", m.errMsg)
+		status = red.Render(fmt.Sprintf("ERROR: %s", m.errMsg))
 	}
 
-	style := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center).
-		Padding(1, 0)
+	left := dim.Render("B DELETE")
+	right := dim.Render("X EXIT")
+	statusW := lipgloss.Width(status)
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(right)
 
-	return style.Render(text)
+	// Center status between left and right hints
+	centerPos := (width - statusW) / 2
+	leftGap := centerPos - leftW
+	if leftGap < 1 {
+		leftGap = 1
+	}
+	rightGap := width - centerPos - statusW - rightW
+	if rightGap < 1 {
+		rightGap = 1
+	}
+
+	return left + strings.Repeat(" ", leftGap) + status + strings.Repeat(" ", rightGap) + right
 }

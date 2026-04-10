@@ -19,8 +19,7 @@ build-docker-r36s: ## Build for R36S using Docker
 
 sync-r36s:
 	@echo "Syncing rex binary and scripts to r36s..."
-	rsync bin/rex config/bin/* r36s:bin/
-	ssh r36s 'chmod +x ~/bin/*'
+	rsync bin/rex r36s:bin/
 	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 
@@ -37,19 +36,19 @@ build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+bric
 
 sync-brick: ## Deploy rex, termsp, tmux, fonts, and launch script to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."
-	ssh root@192.168.1.213 'mkdir -p /userdata/system/apps/terminal/fonts /userdata/system/apps/terminal/lib /userdata/roms/ports'
-	scp bin/rex-brick root@192.168.1.213:/userdata/system/apps/terminal/rex
-	scp bin/termsp root@192.168.1.213:/userdata/system/apps/terminal/termsp
-	scp bin/tmux root@192.168.1.213:/userdata/system/apps/terminal/tmux
-	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so root@192.168.1.213:/userdata/system/apps/terminal/lib/
-	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/terminal/lib/libvterm.so.0'
-	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/terminal/fonts/
+	ssh root@192.168.1.213 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports'
+	scp bin/rex-brick root@192.168.1.213:/userdata/system/apps/rex/rex
+	scp bin/termsp root@192.168.1.213:/userdata/system/apps/rex/termsp
+	scp bin/tmux root@192.168.1.213:/userdata/system/apps/rex/tmux
+	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so root@192.168.1.213:/userdata/system/apps/rex/lib/
+	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
+	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/rex/fonts/
 	scp ext/brick/Rex.sh root@192.168.1.213:/userdata/roms/tools/Rex.sh
-	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh root@192.168.1.213:/userdata/system/apps/terminal/
+	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh root@192.168.1.213:/userdata/system/apps/rex/
 	scp config/dot/tmux.conf root@192.168.1.213:/userdata/system/.tmux.conf
-	scp config.yaml.brick.example root@192.168.1.213:/userdata/system/apps/terminal/config.yaml.brick.example
-	ssh root@192.168.1.213 'mkdir -p /userdata/system/.config/rex && [ -f /userdata/system/.config/rex/config.yaml ] || cp /userdata/system/apps/terminal/config.yaml.brick.example /userdata/system/.config/rex/config.yaml'
-	ssh root@192.168.1.213 'chmod +x /userdata/system/apps/terminal/rex /userdata/system/apps/terminal/termsp /userdata/system/apps/terminal/tmux /userdata/roms/tools/Rex.sh /userdata/system/apps/terminal/start-rex.sh /userdata/system/apps/terminal/stop-rex.sh'
+	scp config.yaml.brick.example root@192.168.1.213:/userdata/system/apps/rex/config.yaml.brick.example
+	ssh root@192.168.1.213 'mkdir -p /userdata/system/.config/rex && [ -f /userdata/system/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/system/.config/rex/config.yaml'
+	ssh root@192.168.1.213 'chmod +x /userdata/system/apps/rex/rex /userdata/system/apps/rex/termsp /userdata/system/apps/rex/tmux /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh'
 
 build-docker-ext-%: ## Build program from ext/
 	docker build -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
@@ -64,7 +63,11 @@ build-docker-ext-%: ## Build program from ext/
 		/app/build.sh
 
 
-install-system-files: install-dotfiles install-systemd ## Install all system files to r36s
+install-system-files: install-dotfiles install-systemd install-opt ## Install all system files to r36s
+
+install-opt:
+	@echo "Syncing opt scripts..."
+	rsync -r config/system/opt/ r36s:/opt/
 
 install-dotfiles:
 	@echo "Syncing dotfiles..."
@@ -78,6 +81,9 @@ install-systemd:
 	rsync -r config/systemd/ r36s:/tmp/systemd/
 	ssh r36s 'for f in /tmp/systemd/*.service; do \
 		sudo mv $$f /etc/systemd/system/; \
+	done && \
+	for d in /tmp/systemd/*.service.d; do \
+		[ -d "$$d" ] && sudo cp -r "$$d" /etc/systemd/system/; \
 	done && \
 	sudo systemctl daemon-reload; \
 	rm -rf /tmp/systemd'
