@@ -14,7 +14,7 @@ struct VoiceMessage: Codable {
 
 @Observable
 @MainActor
-final class WebSocketManager {
+final class ConnectionManager {
     var connectionState: ConnectionState = .disconnected
     var isEnabled: Bool = false
     var ipAddress: String = "192.168.1.100"

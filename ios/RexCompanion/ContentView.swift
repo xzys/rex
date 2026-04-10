@@ -1,11 +1,11 @@
 import SwiftUI
 
-public struct ContentView: View {
-    @State private var manager = WebSocketManager()
+struct ContentView: View {
+    @State private var manager = ConnectionManager()
     @State private var speech: SpeechManager?
     @FocusState private var isIPFieldFocused: Bool
 
-    public var body: some View {
+    var body: some View {
         ZStack {
             Color.clear
                 .contentShape(Rectangle())
@@ -87,5 +87,4 @@ public struct ContentView: View {
         speech = sm
     }
 
-    public init() {}
 }

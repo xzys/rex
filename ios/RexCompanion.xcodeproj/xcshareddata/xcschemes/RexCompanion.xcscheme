@@ -30,9 +30,6 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:RexCompanion.xctestplan">
-         </TestPlanReference>
-         <TestPlanReference
             reference = "container:RexCompanion/RexCompanion.xctestplan"
             default = "YES">
          </TestPlanReference>
