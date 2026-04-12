@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 
+private let log = Log(category: "connection")
+
 enum ConnectionState: String {
     case disconnected = "Disconnected"
     case connecting = "Connecting..."
@@ -17,7 +19,7 @@ struct VoiceMessage: Codable {
 final class ConnectionManager {
     var connectionState: ConnectionState = .disconnected
     var isEnabled: Bool = false
-    var ipAddress: String = "192.168.1.100"
+    var ipAddress: String = "192.168.68.104"
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var reconnectTask: Task<Void, Never>?
@@ -33,6 +35,14 @@ final class ConnectionManager {
             ipAddress = savedIP
         }
         isEnabled = UserDefaults.standard.bool(forKey: "ws_enabled")
+
+        #if DEBUG
+        // Override for local testing
+        ipAddress = "192.168.68.104"
+        isEnabled = true
+        UserDefaults.standard.set(ipAddress, forKey: "ws_ip")
+        UserDefaults.standard.set(isEnabled, forKey: "ws_enabled")
+        #endif
     }
 
     func enabledChanged() {
@@ -54,9 +64,9 @@ final class ConnectionManager {
 
         connectionState = .connecting
         let urlString = "ws://\(ipAddress):\(port)/"
-        print("[rex:ws] connecting to \(urlString)")
+        log.info("connecting to \(urlString)")
         guard let url = URL(string: urlString) else {
-            print("[rex:ws] invalid URL: \(urlString)")
+            log.error("invalid URL: \(urlString)")
             connectionState = .disconnected
             return
         }
@@ -74,10 +84,10 @@ final class ConnectionManager {
             Task { @MainActor in
                 guard let self else { return }
                 if let error {
-                    print("[rex:ws] ping failed: \(error.localizedDescription)")
+                    log.error("ping failed: \(error.localizedDescription)")
                     self.handleDisconnect()
                 } else {
-                    print("[rex:ws] connected")
+                    log.info("connected")
                     self.connectionState = .connected
                 }
             }
@@ -85,7 +95,7 @@ final class ConnectionManager {
     }
 
     func disconnect() {
-        print("[rex:ws] disconnecting")
+        log.info("disconnecting")
         reconnectTask?.cancel()
         reconnectTask = nil
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
@@ -106,7 +116,7 @@ final class ConnectionManager {
                 }
             }
         } catch {
-            print("[rex:ws] encode error: \(error.localizedDescription)")
+            log.error("encode error: \(error.localizedDescription)")
         }
     }
 
@@ -138,11 +148,11 @@ final class ConnectionManager {
     private func handleMessage(_ text: String) {
         guard let data = text.data(using: .utf8),
               let message = try? JSONDecoder().decode(VoiceMessage.self, from: data) else {
-            print("[rex:ws] failed to decode: \(text)")
+            log.error("failed to decode: \(text)")
             return
         }
 
-        print("[rex:ws] received: \(message.type)")
+        log.info("received: \(message.type)")
         switch message.type {
         case "start":
             onStart?()
@@ -154,7 +164,7 @@ final class ConnectionManager {
     }
 
     private func handleDisconnect() {
-        print("[rex:ws] disconnected, will reconnect")
+        log.info("disconnected, will reconnect")
         webSocketTask = nil
         connectionState = .disconnected
         scheduleReconnect()

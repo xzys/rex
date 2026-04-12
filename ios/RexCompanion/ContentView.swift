@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let log = Log(category: "app")
+
 struct ContentView: View {
     @State private var manager = ConnectionManager()
     @State private var speech: SpeechManager?
@@ -48,7 +50,7 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            print("[rex] launched ip=\(manager.ipAddress) enabled=\(manager.isEnabled)")
+            log.info("launched ip=\(manager.ipAddress) enabled=\(manager.isEnabled)")
             setupCallbacks()
             if manager.isEnabled {
                 manager.connect()

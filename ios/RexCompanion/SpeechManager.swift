@@ -3,6 +3,8 @@ import Speech
 import AVFoundation
 import Observation
 
+private let log = Log(category: "speech")
+
 @Observable
 @MainActor
 final class SpeechManager {
@@ -24,7 +26,7 @@ final class SpeechManager {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                print("[rex:speech] authorization: \(status)")
+                log.info("authorization: \(String(describing: status))")
                 if status == .authorized {
                     self.isAuthorized = true
                 }
@@ -35,18 +37,18 @@ final class SpeechManager {
     func startRecording() {
         guard !isRecording else { return }
         guard let speechRecognizer, speechRecognizer.isAvailable else {
-            print("[rex:speech] recognizer unavailable")
+            log.error("recognizer unavailable")
             return
         }
 
-        print("[rex:speech] starting recording")
+        log.info("starting recording")
         // Set up audio session
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            print("[rex:speech] audio session error: \(error.localizedDescription)")
+            log.error("audio session error: \(error.localizedDescription)")
             return
         }
 
@@ -73,7 +75,7 @@ final class SpeechManager {
         do {
             try audioEngine.start()
         } catch {
-            print("[rex:speech] audio engine start failed: \(error.localizedDescription)")
+            log.error("audio engine start failed: \(error.localizedDescription)")
             stopRecording()
             return
         }
@@ -84,15 +86,15 @@ final class SpeechManager {
                 if let result {
                     let text = result.bestTranscription.formattedString
                     if result.isFinal {
-                        print("[rex:speech] final: \(text)")
+                        log.info("final: \(text)")
                         self.onFinalResult?(text)
                     } else {
-                        print("[rex:speech] partial: \(text)")
+                        log.debug("partial: \(text)")
                         self.onPartialResult?(text)
                     }
                 }
                 if let error {
-                    print("[rex:speech] recognition error: \(error.localizedDescription)")
+                    log.error("recognition error: \(error.localizedDescription)")
                     self.stopRecording()
                 }
             }
@@ -102,7 +104,7 @@ final class SpeechManager {
     }
 
     func stopRecording() {
-        print("[rex:speech] stopping recording")
+        log.info("stopping recording")
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine = nil
