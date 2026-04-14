@@ -194,6 +194,24 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return k, k.ReadSocket
+	case protocol.CompanionStatusMessage:
+		// Server reports companion app connection state change.
+		// Deliver to CompanionSTTProvider so Initialize() can unblock.
+		if vm, ok := k.model.(*VoiceModel); ok {
+			if companion, ok := vm.STTProvider().(*CompanionSTTProvider); ok {
+				// Drain-and-resend to avoid blocking the Update loop.
+				select {
+				case companion.ConnectedCh <- msg.Connected:
+				default:
+					select {
+					case <-companion.ConnectedCh:
+					default:
+					}
+					companion.ConnectedCh <- msg.Connected
+				}
+			}
+		}
+		return k, k.ReadSocket
 	case STTResultMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
 			vm.HandleMsg(msg)

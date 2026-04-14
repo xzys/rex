@@ -36,6 +36,9 @@ type VoiceWebSocket struct {
 
 	// tmuxInject is called to send keys to tmux. Injected for testability.
 	tmuxInject func(keys string) error
+
+	// onClientChange is called when a companion client connects or disconnects.
+	onClientChange func(connected bool)
 }
 
 // NewVoiceWebSocket creates a new voice WebSocket server.
@@ -163,19 +166,28 @@ func (v *VoiceWebSocket) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	v.conn = conn
 	v.sentText = ""
+	onChange := v.onClientChange
 	v.mu.Unlock()
 
 	slog.Info("companion app connected", "remote", r.RemoteAddr)
+	if onChange != nil {
+		onChange(true)
+	}
 
 	defer func() {
 		v.mu.Lock()
-		if v.conn == conn {
+		wasActive := v.conn == conn
+		if wasActive {
 			v.conn = nil
 			v.sentText = ""
 		}
+		onChange := v.onClientChange
 		v.mu.Unlock()
 		conn.Close(websocket.StatusNormalClosure, "")
 		slog.Info("companion app disconnected", "remote", r.RemoteAddr)
+		if wasActive && onChange != nil {
+			onChange(false)
+		}
 	}()
 
 	// Read messages from iOS client

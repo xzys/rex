@@ -13,12 +13,16 @@ import (
 // final transcription to be delivered via FinalCh.
 type CompanionSTTProvider struct {
 	// SendVoiceCmd sends a VoiceCommandMessage to the server.
-	// action is "start" or "stop".
+	// action is "start", "stop", or "status".
 	SendVoiceCmd func(action string) error
 
 	// FinalCh receives the final transcription text from the server
 	// (delivered by keyboard.go when it receives a VoiceTextMessage).
 	FinalCh chan string
+
+	// ConnectedCh receives companion connection status from keyboard.go
+	// (delivered when it receives a CompanionStatusMessage).
+	ConnectedCh chan bool
 }
 
 // NewCompanionSTTProvider creates a new companion STT provider.
@@ -27,12 +31,23 @@ func NewCompanionSTTProvider(sendVoiceCmd func(action string) error) *CompanionS
 	return &CompanionSTTProvider{
 		SendVoiceCmd: sendVoiceCmd,
 		FinalCh:      make(chan string, 1),
+		ConnectedCh:  make(chan bool, 1),
 	}
 }
 
-// Initialize is a no-op for the companion provider.
+// Initialize blocks until the companion app is connected.
+// It sends a "status" query to the server and waits for a
+// CompanionStatusMessage with Connected=true.
 func (p *CompanionSTTProvider) Initialize() error {
-	return nil
+	if err := p.SendVoiceCmd("status"); err != nil {
+		return fmt.Errorf("companion: failed to query status: %w", err)
+	}
+	for {
+		connected := <-p.ConnectedCh
+		if connected {
+			return nil
+		}
+	}
 }
 
 // NotifyStart sends a start command to the server, which forwards it

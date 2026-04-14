@@ -53,6 +53,9 @@ func NewServer() *Server {
 	server.voiceWS = NewVoiceWebSocket(func(keys string) error {
 		return server.operator.HandleKeyPress(keys)
 	})
+	server.voiceWS.onClientChange = func(connected bool) {
+		server.sendCompanionStatus(connected)
+	}
 
 	return server
 }
@@ -228,8 +231,25 @@ func (s *Server) handleVoiceCommand(action string) {
 			slog.Info("voice: received final transcription", "text", text)
 			s.sendVoiceText(text, true)
 		}()
+	case "status":
+		connected := s.voiceWS.HasClient()
+		slog.Info("voice: status query", "connected", connected)
+		s.sendCompanionStatus(connected)
 	default:
 		slog.Warn("unknown voice command action", "action", action)
+	}
+}
+
+func (s *Server) sendCompanionStatus(connected bool) {
+	if s.encoder == nil {
+		return
+	}
+	msg := protocol.CompanionStatusMessage{
+		BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeCompanionStatus},
+		Connected:   connected,
+	}
+	if err := s.encoder.Encode(msg); err != nil {
+		slog.Error("failed to send companion status to keyboard", "err", err)
 	}
 }
 

@@ -39,17 +39,22 @@ type VoiceModel struct {
 	state        voiceState
 	pendingCmd   tea.Cmd
 	stt          STTProvider
-	audio        *AudioCapture
+	audio        *AudioCapture // nil in companion mode (iPhone captures audio)
 	errMsg       string
 	spinnerFrame int
 	deleting     bool
+	isCompanion  bool
 }
 
 func NewVoiceModel(provider STTProvider) *VoiceModel {
+	_, isCompanion := provider.(*CompanionSTTProvider)
 	m := &VoiceModel{
-		state: stateInitializing,
-		stt:   provider,
-		audio: NewAudioCapture(),
+		state:       stateInitializing,
+		stt:         provider,
+		isCompanion: isCompanion,
+	}
+	if !isCompanion {
+		m.audio = NewAudioCapture()
 	}
 	// Queue async initialization — keyboard.go will drain this
 	stt := m.stt
@@ -142,10 +147,12 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 	case protocol.KeyY:
 		if isKeyDown {
 			if m.state == stateIdle {
-				if err := m.audio.Start(); err != nil {
-					slog.Error("failed to start recording", "err", err)
-					m.setError("mic failed")
-					return nil
+				if m.audio != nil {
+					if err := m.audio.Start(); err != nil {
+						slog.Error("failed to start recording", "err", err)
+						m.setError("mic failed")
+						return nil
+					}
 				}
 				m.state = stateRecording
 				slog.Info("voice: recording started")
@@ -156,7 +163,10 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 			}
 		} else {
 			if m.state == stateRecording {
-				pcm := m.audio.Stop()
+				var pcm []byte
+				if m.audio != nil {
+					pcm = m.audio.Stop()
+				}
 				m.state = stateProcessing
 				m.spinnerFrame = 0
 				slog.Info("voice: recording stopped, starting STT", "pcm_bytes", len(pcm))
@@ -194,7 +204,11 @@ func (m *VoiceModel) RenderView(width int) string {
 	switch m.state {
 	case stateInitializing:
 		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
-		status = fmt.Sprintf("INITIALIZING %s", frame)
+		if m.isCompanion {
+			status = fmt.Sprintf("WAITING FOR CONNECTION... %s", frame)
+		} else {
+			status = fmt.Sprintf("INITIALIZING %s", frame)
+		}
 	case stateIdle:
 		status = "HOLD " + red.Render("Y") + " TO RECORD"
 	case stateRecording:
