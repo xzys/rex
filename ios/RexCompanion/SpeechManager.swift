@@ -9,11 +9,16 @@ private let log = Log(category: "speech")
 @MainActor
 final class SpeechManager {
     private var audioEngine: AVAudioEngine?
+    private var silencePlayer: AVAudioPlayerNode?
+    private var silenceBuffer: AVAudioPCMBuffer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var speechRecognizer: SFSpeechRecognizer?
+    private var lastPartial: String = ""
+
     private(set) var isRecording = false
     private(set) var isAuthorized = false
+    private(set) var isActive = false
 
     var onPartialResult: ((String) -> Void)?
     var onFinalResult: ((String) -> Void)?
@@ -34,6 +39,74 @@ final class SpeechManager {
         }
     }
 
+    // Activate the AVAudioSession and start a silent player. With
+    // UIBackgroundModes=audio in Info.plist, an app that is actively routing
+    // audio stays running when backgrounded. The silent output keeps the
+    // engine "in use" without lighting the mic indicator — the indicator only
+    // appears when we actually install an input tap during startRecording().
+    func activate() {
+        guard !isActive else { return }
+
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(
+                .playAndRecord,
+                mode: .measurement,
+                options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth]
+            )
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            log.error("audio session activate failed: \(error.localizedDescription)")
+            return
+        }
+
+        let engine = AVAudioEngine()
+        let player = AVAudioPlayerNode()
+        engine.attach(player)
+
+        let format = engine.mainMixerNode.outputFormat(forBus: 0)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+
+        // One second of silence, looped. Zero-initialized buffer = silence.
+        let frameCount = AVAudioFrameCount(format.sampleRate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            log.error("failed to allocate silence buffer")
+            return
+        }
+        buffer.frameLength = frameCount
+
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            log.error("engine start failed: \(error.localizedDescription)")
+            return
+        }
+
+        player.scheduleBuffer(buffer, at: nil, options: .loops)
+        player.play()
+
+        self.audioEngine = engine
+        self.silencePlayer = player
+        self.silenceBuffer = buffer
+        self.isActive = true
+        log.info("activated (silent keeper running)")
+    }
+
+    func deactivate() {
+        guard isActive else { return }
+        if isRecording { stopRecording() }
+
+        silencePlayer?.stop()
+        audioEngine?.stop()
+        silencePlayer = nil
+        silenceBuffer = nil
+        audioEngine = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        isActive = false
+        log.info("deactivated")
+    }
+
     func startRecording() {
         guard !isRecording else { return }
         guard let speechRecognizer, speechRecognizer.isAvailable else {
@@ -41,43 +114,30 @@ final class SpeechManager {
             return
         }
 
-        log.info("starting recording")
-        // Set up audio session
-        let audioSession = AVAudioSession.sharedInstance()
-        do {
-            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            log.error("audio session error: \(error.localizedDescription)")
+        // Ensure the shared engine is running. If activate() was never called
+        // (e.g. toggle was already on at launch and we raced), bring it up now.
+        if !isActive {
+            activate()
+        }
+        guard let engine = audioEngine else {
+            log.error("no audio engine after activate")
             return
         }
 
-        // Cancel any existing task
+        log.info("starting recording")
         recognitionTask?.cancel()
         recognitionTask = nil
+        lastPartial = ""
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
         recognitionRequest = request
 
-        let audioEngine = AVAudioEngine()
-        self.audioEngine = audioEngine
-
-        let inputNode = audioEngine.inputNode
+        let inputNode = engine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
             request.append(buffer)
-        }
-
-        audioEngine.prepare()
-        do {
-            try audioEngine.start()
-        } catch {
-            log.error("audio engine start failed: \(error.localizedDescription)")
-            stopRecording()
-            return
         }
 
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
@@ -87,15 +147,23 @@ final class SpeechManager {
                     let text = result.bestTranscription.formattedString
                     if result.isFinal {
                         log.info("final: \(text)")
-                        self.onFinalResult?(text)
+                        let emitted = text.isEmpty ? self.lastPartial : text
+                        self.onFinalResult?(emitted)
+                        self.lastPartial = ""
+                        self.recognitionTask = nil
                     } else {
                         log.debug("partial: \(text)")
+                        self.lastPartial = text
                         self.onPartialResult?(text)
                     }
                 }
                 if let error {
                     log.error("recognition error: \(error.localizedDescription)")
-                    self.stopRecording()
+                    if self.recognitionTask != nil {
+                        self.onFinalResult?(self.lastPartial)
+                        self.lastPartial = ""
+                        self.recognitionTask = nil
+                    }
                 }
             }
         }
@@ -105,16 +173,12 @@ final class SpeechManager {
 
     func stopRecording() {
         log.info("stopping recording")
-        audioEngine?.stop()
+        // Remove the input tap so the mic indicator goes off between presses,
+        // but leave the engine + silent player running so the app stays alive
+        // in the background.
         audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine = nil
-
         recognitionRequest?.endAudio()
         recognitionRequest = nil
-
-        recognitionTask?.cancel()
-        recognitionTask = nil
-
         isRecording = false
     }
 }

@@ -23,12 +23,8 @@ TARGETED_DEVICE_FAMILY = 1,2
 // ==========================================
 // Info PLIST
 // ==========================================
-GENERATE_INFOPLIST_FILE = YES
-INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationLandscapeRight UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationPortrait
-INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationLandscapeRight UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
-INFOPLIST_KEY_NSMicrophoneUsageDescription = Rex Companion needs microphone access for voice-to-text input
-INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = Rex Companion uses speech recognition to transcribe voice input
-INFOPLIST_KEY_NSLocalNetworkUsageDescription = Rex Companion connects to the rex server on your local network
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_FILE = RexCompanion/Info.plist
 
 // ==========================================
 // Entitlements

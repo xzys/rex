@@ -19,7 +19,7 @@ struct VoiceMessage: Codable {
 final class ConnectionManager {
     var connectionState: ConnectionState = .disconnected
     var isEnabled: Bool = false
-    var ipAddress: String = "192.168.68.104"
+    var ipAddress: String = ""
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var reconnectTask: Task<Void, Never>?
@@ -37,11 +37,24 @@ final class ConnectionManager {
         isEnabled = UserDefaults.standard.bool(forKey: "ws_enabled")
 
         #if DEBUG
-        // Override for local testing
-        ipAddress = "192.168.68.104"
-        isEnabled = true
-        UserDefaults.standard.set(ipAddress, forKey: "ws_ip")
-        UserDefaults.standard.set(isEnabled, forKey: "ws_enabled")
+        // Test hooks: environment overrides applied after persisted state so
+        // `xcodebuildmcp device build-and-run --env REX_IP=... REX_ENABLED=1` can
+        // drive the app without UI input. Not persisted to UserDefaults.
+        let env = ProcessInfo.processInfo.environment
+        if let ip = env["REX_IP"]?.trimmingCharacters(in: .whitespacesAndNewlines), !ip.isEmpty {
+            ipAddress = ip
+            log.info("REX_IP override: \(ip)")
+        }
+        if let raw = env["REX_ENABLED"] {
+            let v = raw.lowercased()
+            isEnabled = (v == "1" || v == "true" || v == "yes")
+            log.info("REX_ENABLED override: \(self.isEnabled)")
+        }
+        if env["REX_RESET"] != nil {
+            UserDefaults.standard.removeObject(forKey: "ws_ip")
+            UserDefaults.standard.removeObject(forKey: "ws_enabled")
+            log.info("REX_RESET: cleared persisted ws_ip/ws_enabled")
+        }
         #endif
     }
 
@@ -62,8 +75,15 @@ final class ConnectionManager {
         guard isEnabled else { return }
         disconnect()
 
+        let host = ipAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !host.isEmpty else {
+            log.error("connect requested with empty ip address")
+            connectionState = .disconnected
+            return
+        }
+
         connectionState = .connecting
-        let urlString = "ws://\(ipAddress):\(port)/"
+        let urlString = "ws://\(host):\(port)/"
         log.info("connecting to \(urlString)")
         guard let url = URL(string: urlString) else {
             log.error("invalid URL: \(urlString)")
@@ -138,7 +158,8 @@ final class ConnectionManager {
                     }
                     // Continue receiving
                     self.receiveMessage()
-                case .failure:
+                case .failure(let error):
+                    log.error("receive failed: \(error.localizedDescription)")
                     self.handleDisconnect()
                 }
             }

@@ -53,6 +53,13 @@ func (p *CompanionSTTProvider) Initialize() error {
 // NotifyStart sends a start command to the server, which forwards it
 // to the iOS companion app.
 func (p *CompanionSTTProvider) NotifyStart() {
+	// Drop any stale final from a previous session (e.g. an empty result
+	// delivered after a timeout) so the next Transcribe blocks on the real
+	// answer instead of returning yesterday's leftovers.
+	select {
+	case <-p.FinalCh:
+	default:
+	}
 	if err := p.SendVoiceCmd("start"); err != nil {
 		slog.Error("companion: failed to send start", "err", err)
 	}

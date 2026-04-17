@@ -198,6 +198,7 @@ func (m *VoiceModel) RenderKey(i, j int, key string) (string, string, string) {
 // RenderView implements VoiceRenderer.
 func (m *VoiceModel) RenderView(width int) string {
 	red := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	green := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	var status string
@@ -210,7 +211,7 @@ func (m *VoiceModel) RenderView(width int) string {
 			status = fmt.Sprintf("INITIALIZING %s", frame)
 		}
 	case stateIdle:
-		status = "HOLD " + red.Render("Y") + " TO RECORD"
+		status = "HOLD " + green.Render("Y") + " TO RECORD"
 	case stateRecording:
 		status = "RECORDING"
 	case stateProcessing:

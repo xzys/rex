@@ -119,8 +119,16 @@ func (o *GlobalOperator) HandleKeyPress(key string) error {
 	if len(key) == 0 {
 		return nil
 	}
-	char := rune(key[0])
 
+	// Multi-character inputs are tmux key names (e.g. "BSpace", "Space",
+	// "Enter", "Up") that callers have already translated — pass through
+	// verbatim. The single-character branch below handles in-band special
+	// codes from the keyboard protocol.
+	if len(key) > 1 {
+		return execute("tmux", "send-keys", "-t", "0", key)
+	}
+
+	char := rune(key[0])
 	var tmuxKey string
 	switch char {
 	case protocol.SpecialKeySpace:

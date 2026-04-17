@@ -19,11 +19,13 @@ struct ContentView: View {
                 HStack(spacing: 12) {
                     Toggle("", isOn: $manager.isEnabled)
                         .labelsHidden()
+                        .accessibilityIdentifier("enabledToggle")
                         .onChange(of: manager.isEnabled) {
                             manager.enabledChanged()
                         }
 
                     Text(manager.connectionState.rawValue)
+                        .accessibilityIdentifier("connectionStateLabel")
                     Spacer()
                 }
 
@@ -39,6 +41,7 @@ struct ContentView: View {
                         .frame(width: ipFieldWidth)
                         .focused($isIPFieldFocused)
                         .disabled(manager.isEnabled)
+                        .accessibilityIdentifier("ipAddressField")
                         .onChange(of: manager.ipAddress) {
                             manager.ipChanged()
                         }
@@ -53,9 +56,28 @@ struct ContentView: View {
             log.info("launched ip=\(manager.ipAddress) enabled=\(manager.isEnabled)")
             setupCallbacks()
             if manager.isEnabled {
+                ensureSpeechActive()
                 manager.connect()
             }
         }
+        .onChange(of: manager.isEnabled) {
+            // Keep the audio session / engine lifecycle aligned with the
+            // toggle. When enabled, an always-on silent playback keeps the app
+            // alive in background (UIBackgroundModes=audio). When disabled we
+            // release the session so the mic-in-use state clears.
+            if manager.isEnabled {
+                ensureSpeechActive()
+            } else {
+                speech?.deactivate()
+            }
+        }
+    }
+
+    private func ensureSpeechActive() {
+        if speech == nil {
+            initSpeech()
+        }
+        speech?.activate()
     }
 
     private var ipFieldWidth: CGFloat {
