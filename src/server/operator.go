@@ -34,6 +34,44 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return nil
 	}
 
+	// L1/R1 always drive pane/window navigation, regardless of whether a
+	// keyboard pane is active. The front-chorded and voice models don't use
+	// L1/R1 as modifiers (only the legacy chorded model does), so hoisting
+	// this above the keyboardActive check lets the user navigate panes while
+	// voice is recording or front-chorded is open.
+	switch event.Key {
+	case protocol.KeyL1:
+		if event.IsDown {
+			o.l1Down = true
+			if o.r1Down {
+				o.comboFired = true
+				return execute("tmux", "select-pane", "-t", ":.-")
+			}
+			return nil
+		}
+		o.l1Down = false
+		if !o.r1Down && !o.comboFired {
+			return o.prevWindow()
+		}
+		o.comboFired = false
+		return nil
+	case protocol.KeyR1:
+		if event.IsDown {
+			o.r1Down = true
+			if o.l1Down {
+				o.comboFired = true
+				return execute("tmux", "select-pane", "-t", ":.+")
+			}
+			return nil
+		}
+		o.r1Down = false
+		if !o.l1Down && !o.comboFired {
+			return o.nextWindow()
+		}
+		o.comboFired = false
+		return nil
+	}
+
 	if o.keyboardActive {
 		if event.Key == protocol.KeySelect && event.IsDown {
 			return o.closeKeyboardPane()
@@ -42,24 +80,8 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return o.server.SendKeyInputMessage(event)
 	}
 
-	// key-up: L1/R1 pane navigation + active operator
+	// key-up: active operator
 	if !event.IsDown {
-		switch event.Key {
-		case protocol.KeyL1:
-			o.l1Down = false
-			if !o.r1Down && !o.comboFired {
-				return execute("tmux", "select-pane", "-t", ":.-")
-			}
-			o.comboFired = false
-			return nil
-		case protocol.KeyR1:
-			o.r1Down = false
-			if !o.l1Down && !o.comboFired {
-				return execute("tmux", "select-pane", "-t", ":.+")
-			}
-			o.comboFired = false
-			return nil
-		}
 		if o.activeOperator != nil {
 			_, err := (*o.activeOperator).HandleInput(event.Key, event.IsDown)
 			return err
@@ -67,24 +89,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return nil
 	}
 
-	// key-down: L1/R1 window navigation, then active operator, then global fallback
-	switch event.Key {
-	case protocol.KeyL1:
-		o.l1Down = true
-		if o.r1Down {
-			o.comboFired = true
-			return o.prevWindow()
-		}
-		return nil
-	case protocol.KeyR1:
-		o.r1Down = true
-		if o.l1Down {
-			o.comboFired = true
-			return o.nextWindow()
-		}
-		return nil
-	}
-
+	// key-down: active operator, then global fallback
 	o.updateActiveOperator()
 	if o.activeOperator != nil {
 		handled, err := (*o.activeOperator).HandleInput(event.Key, event.IsDown)
