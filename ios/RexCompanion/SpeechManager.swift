@@ -14,6 +14,7 @@ final class SpeechManager {
     private var speechRecognizer: SFSpeechRecognizer?
     private var lastPartial: String = ""
     private var tapInstalled = false
+    private var stopTask: Task<Void, Never>?
 
     private(set) var isRecording = false
     private(set) var isAuthorized = false
@@ -59,6 +60,11 @@ final class SpeechManager {
             return
         }
 
+        // Force-instantiate the input node. AVAudioEngine's input/output nodes
+        // are lazy; calling start() with neither realized throws
+        // "required condition is false: inputNode != nullptr || outputNode != nullptr".
+        _ = audioEngine.inputNode
+
         audioEngine.prepare()
         do {
             try audioEngine.start()
@@ -74,6 +80,13 @@ final class SpeechManager {
     func deactivate() {
         guard isActive else { return }
         if isRecording { stopRecording() }
+        stopTask?.cancel()
+        stopTask = nil
+        removeInputTap()
+        recognitionRequest?.endAudio()
+        recognitionRequest = nil
+        recognitionTask?.cancel()
+        recognitionTask = nil
         if audioEngine.isRunning {
             audioEngine.stop()
         }
@@ -83,6 +96,15 @@ final class SpeechManager {
     }
 
     func startRecording() {
+        // Cancel any pending tail-stop from a prior session so a rapid
+        // re-press extends into a fresh recording instead of getting
+        // finalized mid-utterance.
+        stopTask?.cancel()
+        stopTask = nil
+        // If the tap is still installed from a tail window, remove it so the
+        // new recognition request receives audio (the tap closure captures
+        // the old request by reference).
+        if tapInstalled { removeInputTap() }
         guard !isRecording else { return }
         guard let speechRecognizer, speechRecognizer.isAvailable else {
             log.error("recognizer unavailable")
@@ -123,8 +145,8 @@ final class SpeechManager {
                     let text = result.bestTranscription.formattedString
                     if result.isFinal {
                         log.info("final: \(text)")
-                        let emitted = text.isEmpty ? self.lastPartial : text
-                        self.onFinalResult?(emitted)
+                        let base = text.isEmpty ? self.lastPartial : text
+                        self.emitFinal(base)
                         self.lastPartial = ""
                         self.recognitionTask = nil
                     } else {
@@ -136,7 +158,7 @@ final class SpeechManager {
                 if let error {
                     log.error("recognition error: \(error.localizedDescription)")
                     if self.recognitionTask != nil {
-                        self.onFinalResult?(self.lastPartial)
+                        self.emitFinal(self.lastPartial)
                         self.lastPartial = ""
                         self.recognitionTask = nil
                     }
@@ -148,11 +170,30 @@ final class SpeechManager {
     }
 
     func stopRecording() {
-        log.info("stopping recording")
+        guard isRecording else { return }
+        log.info("stopping recording (1s tail)")
+        isRecording = false
+        stopTask?.cancel()
+        stopTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.finalizeStop()
+        }
+    }
+
+    private func finalizeStop() {
+        guard stopTask != nil else { return }
+        log.info("finalizing stop")
         removeInputTap()
         recognitionRequest?.endAudio()
         recognitionRequest = nil
-        isRecording = false
+        stopTask = nil
+    }
+
+    private func emitFinal(_ text: String) {
+        guard let onFinalResult else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        onFinalResult(trimmed.isEmpty ? "" : trimmed + ". ")
     }
 
     private func installInputTap(for request: SFSpeechAudioBufferRecognitionRequest) {
@@ -205,13 +246,17 @@ final class SpeechManager {
                 log.info("interruption began")
                 // The system deactivates the session for us. Drop the tap and
                 // let the engine stop; don't call setActive(false) ourselves.
+                self.stopTask?.cancel()
+                self.stopTask = nil
                 self.removeInputTap()
                 if self.recognitionTask != nil {
-                    self.onFinalResult?(self.lastPartial)
+                    self.emitFinal(self.lastPartial)
                     self.lastPartial = ""
                     self.recognitionTask?.cancel()
                     self.recognitionTask = nil
                 }
+                self.recognitionRequest?.endAudio()
+                self.recognitionRequest = nil
                 self.isRecording = false
             case .ended:
                 log.info("interruption ended; reactivating")
