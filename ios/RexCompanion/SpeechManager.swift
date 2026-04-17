@@ -151,6 +151,14 @@ final class SpeechManager {
                         self.recognitionTask = nil
                     } else {
                         log.debug("partial: \(text)")
+                        // iOS 26 on-device recognizer resets bestTranscription
+                        // at utterance boundaries (a pause) without firing isFinal.
+                        // Detect the shrink and emit the prior utterance as a
+                        // final so rex commits it before the new one begins.
+                        if self.isUtteranceBoundary(prior: self.lastPartial, next: text) {
+                            log.info("utterance boundary; committing prior")
+                            self.emitFinal(self.lastPartial)
+                        }
                         self.lastPartial = text
                         self.onPartialResult?(text)
                     }
@@ -188,6 +196,17 @@ final class SpeechManager {
         recognitionRequest?.endAudio()
         recognitionRequest = nil
         stopTask = nil
+    }
+
+    private func isUtteranceBoundary(prior: String, next: String) -> Bool {
+        // The recognizer may slightly re-interpret earlier words as more context
+        // arrives (e.g. "Hey, thanks" → "OK, thanks") — that's a refinement,
+        // not a boundary. Treat as a boundary only when the new partial drops
+        // to substantially fewer words than the prior AND the prior already
+        // held a non-trivial phrase.
+        let priorWords = prior.split(whereSeparator: { $0.isWhitespace }).count
+        let newWords = next.split(whereSeparator: { $0.isWhitespace }).count
+        return priorWords >= 3 && newWords * 2 < priorWords
     }
 
     private func emitFinal(_ text: String) {

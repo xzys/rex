@@ -186,6 +186,26 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 		} else {
 			m.deleting = false
 		}
+	case protocol.KeyDPadUp:
+		if isKeyDown {
+			s := "Up"
+			return &s
+		}
+	case protocol.KeyDPadDown:
+		if isKeyDown {
+			s := "Down"
+			return &s
+		}
+	case protocol.KeyDPadLeft:
+		if isKeyDown {
+			s := "Left"
+			return &s
+		}
+	case protocol.KeyDPadRight:
+		if isKeyDown {
+			s := "Right"
+			return &s
+		}
 	}
 	return nil
 }

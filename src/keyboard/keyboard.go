@@ -315,6 +315,17 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 			}
 			return cmd
 		}
+		// If the voice model returned a key to press (e.g. DPad → arrow keys),
+		// forward it to the pane; server's HandleKeyPress passes multi-char
+		// tmux key names through verbatim.
+		if keyToPress != nil {
+			drainCmd := vm.DrainCmd()
+			pressCmd := k.sendKeyPress(*keyToPress)
+			if drainCmd != nil {
+				return tea.Batch(drainCmd, pressCmd)
+			}
+			return pressCmd
+		}
 		return vm.DrainCmd()
 	}
 
