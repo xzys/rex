@@ -96,7 +96,7 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error)
 
 		if err != nil {
 			slog.Error("failed to handle event", "err", err)
-			return
+			err = nil
 		}
 	}
 }

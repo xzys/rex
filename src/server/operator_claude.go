@@ -56,7 +56,7 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 		return true, nil
 	case protocol.KeyDPadDown:
 		if isDown {
-			return true, execute("tmux", "send-keys", "-t", "0", "-X", "page-down")
+			return true, tryExecute("tmux", []string{"not in a mode"}, "send-keys", "-t", "0", "-X", "page-down")
 		}
 		return true, nil
 	case protocol.KeyDPadLeft:
@@ -73,9 +73,7 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 	return false, nil
 }
 
-// startVoice synthesizes a rapid stream of Space keypresses into tmux pane 0.
-// Claude Code's /voice detects a held PTT via terminal key-repeat — SDL
-// joystick events don't auto-repeat, so we manufacture the repeat here.
+// Manufacture key-repeat for claude's /voice PTT — SDL joystick events don't auto-repeat.
 func (o *ClaudeOperator) startVoice() {
 	o.mu.Lock()
 	if o.voiceCancel != nil {
