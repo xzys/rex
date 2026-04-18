@@ -34,6 +34,11 @@ apps:
       color: "5"
       command: pi --no-tools
       exclusive: false
+    - name: claude
+      icon: C
+      color: "3"
+      command: claude
+      exclusive: false
     - name: ssh
       icon: ≈
       color: "6"

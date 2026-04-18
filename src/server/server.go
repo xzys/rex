@@ -46,6 +46,7 @@ func NewServer() *Server {
 		"ncmpcpp": NewNcmpcppOperator(),
 		"menu":    NewMenuOperator(),
 		"tmux":    NewSSHTmuxOperator(),
+		"claude":  NewClaudeOperator(),
 	})
 
 	// Create voice WebSocket server for companion app.
