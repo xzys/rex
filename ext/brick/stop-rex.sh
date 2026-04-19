@@ -15,7 +15,7 @@ fi
 
 pkill -f "rex server"
 pkill -f "rex keyboard"
-/userdata/system/apps/rex/tmux kill-session -t rex 2>/dev/null
+pkill -f "tmux .*-s rex" 2>/dev/null
 pkill -f "rex$"
 sleep 0.5
 
