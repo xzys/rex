@@ -74,7 +74,12 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, and claude-code insid
 		done; \
 		/userdata/system/apps/rex/debian-enter.sh "ldconfig"'
 	@echo "Installing apt packages + claude-code inside chroot..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 openssh-server nodejs npm && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version"'
+	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 openssh-server locales nodejs npm && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version"'
+	@echo "Generating en_US.UTF-8 locale in chroot..."
+	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "\
+		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
+		locale-gen en_US.UTF-8 >/dev/null && \
+		update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8"'
 	@echo "Configuring sshd in chroot (port 2222, pubkey auth)..."
 	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "\
 		mkdir -p /etc/ssh/sshd_config.d && \
