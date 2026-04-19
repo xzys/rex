@@ -43,11 +43,11 @@ sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and laun
 	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
 	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/rex/fonts/
 	scp ext/brick/Rex.sh root@192.168.1.213:/userdata/roms/tools/Rex.sh
-	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh root@192.168.1.213:/userdata/system/apps/rex/
+	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh root@192.168.1.213:/userdata/system/apps/rex/
 	scp config.yaml.brick.example root@192.168.1.213:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf root@192.168.1.213:/userdata/debian/root/.tmux.conf
 	ssh root@192.168.1.213 'mkdir -p /userdata/debian/root/.config/rex && [ -f /userdata/debian/root/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/root/.config/rex/config.yaml'
-	ssh root@192.168.1.213 'chmod +x /userdata/debian/root/bin/rex /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh'
+	ssh root@192.168.1.213 'chmod +x /userdata/debian/root/bin/rex /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
 
 bootstrap-debian: ## Build Debian arm64 rootfs tarball for Brick chroot (bin/brick-debian.tar.gz)
 	bash scripts/bootstrap-debian-brick.sh
@@ -74,7 +74,18 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, and claude-code insid
 		done; \
 		/userdata/system/apps/rex/debian-enter.sh "ldconfig"'
 	@echo "Installing apt packages + claude-code inside chroot..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 nodejs npm && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version"'
+	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 openssh-server nodejs npm && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version"'
+	@echo "Configuring sshd in chroot (port 2222, pubkey auth)..."
+	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "\
+		mkdir -p /etc/ssh/sshd_config.d && \
+		echo Port 2222 > /etc/ssh/sshd_config.d/rex.conf && \
+		echo PermitRootLogin prohibit-password >> /etc/ssh/sshd_config.d/rex.conf && \
+		mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
+		cp /userdata/system/.ssh/authorized_keys /root/.ssh/authorized_keys && \
+		chmod 600 /root/.ssh/authorized_keys"'
+	@echo "Done. To start sshd on boot, add this line to /userdata/system/custom.sh:"
+	@echo "  /userdata/system/apps/rex/debian-sshd.sh"
+	@echo "Connect with: ssh -p 2222 root@192.168.1.213"
 
 build-docker-ext-%: ## Build program from ext/
 	docker build -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
