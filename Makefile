@@ -73,8 +73,10 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, and claude-code insid
 			[ -f /userdata/system/apps/rex/lib/$$lib ] && cp -u /userdata/system/apps/rex/lib/$$lib /userdata/debian/usr/local/lib/ || echo "warn: $$lib not found on host, skipping"; \
 		done; \
 		/userdata/system/apps/rex/debian-enter.sh "ldconfig"'
+	@echo "Enabling bookworm-backports (for tmux 3.5a — extended-keys-format)..."
+	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "echo deb http://deb.debian.org/debian bookworm-backports main > /etc/apt/sources.list.d/backports.list"'
 	@echo "Installing apt packages + claude-code inside chroot..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 openssh-server locales nodejs npm && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version"'
+	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 openssh-server locales nodejs npm && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version && tmux -V"'
 	@echo "Generating en_US.UTF-8 locale in chroot..."
 	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "\
 		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
