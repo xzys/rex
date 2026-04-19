@@ -35,7 +35,7 @@ export TERM="${TERM:-xterm-256color}"
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 if [ "$#" -eq 0 ]; then
-    exec chroot "$DEBIAN" /bin/bash -l
+    exec chroot "$DEBIAN" /bin/bash -c 'cd "$HOME" && exec /bin/bash -l'
 else
-    exec chroot "$DEBIAN" /bin/bash -l -c "$*"
+    exec chroot "$DEBIAN" /bin/bash -l -c "cd \"\$HOME\" && $*"
 fi
