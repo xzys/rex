@@ -1,13 +1,20 @@
 #!/bin/sh
-# Enter the Debian chroot on /userdata/debian.
+# Enter the Debian chroot on /userdata/debian as user 'rex' (sudo NOPASSWD).
 # Safe to run repeatedly; bind mounts are idempotent.
 # Usage:
-#   debian-enter.sh                  # interactive login shell
-#   debian-enter.sh apt update       # run a command inside the chroot
+#   debian-enter.sh                  # interactive login shell as rex
+#   debian-enter.sh apt update       # run a command inside the chroot as rex
+#   debian-enter.sh --root [cmd...]  # enter/run as root (for bootstrap, admin)
 
 set -eu
 
 DEBIAN=/userdata/debian
+USER_NAME=rex
+
+if [ "${1:-}" = "--root" ]; then
+    USER_NAME=root
+    shift
+fi
 
 if [ ! -d "$DEBIAN" ]; then
     echo "error: $DEBIAN does not exist. Run 'make sync-debian' from your host first." >&2
@@ -30,12 +37,12 @@ is_mounted "$DEBIAN/userdata" || mount --bind /userdata "$DEBIAN/userdata"
 # Refresh DNS from the host each entry so WiFi changes propagate.
 cp /etc/resolv.conf "$DEBIAN/etc/resolv.conf" 2>/dev/null || true
 
-export HOME=/root
 export TERM="${TERM:-xterm-256color}"
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
+# `su -` (login shell) sets HOME, PATH, and cd's to the target user's home —
+# which also dodges the post-chroot invalid-CWD issue.
 if [ "$#" -eq 0 ]; then
-    exec chroot "$DEBIAN" /bin/bash -c 'cd "$HOME" && exec /bin/bash -l'
+    exec chroot "$DEBIAN" su - "$USER_NAME"
 else
-    exec chroot "$DEBIAN" /bin/bash -l -c "cd \"\$HOME\" && $*"
+    exec chroot "$DEBIAN" su - "$USER_NAME" -c "$*"
 fi

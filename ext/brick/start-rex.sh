@@ -2,7 +2,7 @@
 # Start Rex safely — freezes ES, launches termsp on Knulli with rex running
 # inside the Debian chroot as termsp's PTY child.
 # Use stop-rex.sh to stop rex and unfreeze ES.
-# Designed to be called via SSH: ssh root@brick '/path/to/start-rex.sh'
+# Designed to be called via SSH: ssh brick-root '/path/to/start-rex.sh'
 
 APP=/userdata/system/apps/rex
 

@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-parakeet
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -36,18 +36,35 @@ build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+bric
 
 sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and launch scripts to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."
-	ssh root@192.168.1.213 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports /userdata/debian/root/bin'
-	scp bin/rex-brick root@192.168.1.213:/userdata/debian/root/bin/rex
-	scp bin/termsp root@192.168.1.213:/userdata/system/apps/rex/termsp
-	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so root@192.168.1.213:/userdata/system/apps/rex/lib/
-	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
-	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/rex/fonts/
-	scp ext/brick/Rex.sh root@192.168.1.213:/userdata/roms/tools/Rex.sh
-	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh root@192.168.1.213:/userdata/system/apps/rex/
-	scp config.yaml.brick.example root@192.168.1.213:/userdata/system/apps/rex/config.yaml.brick.example
-	scp config/dot/tmux.conf root@192.168.1.213:/userdata/debian/root/.tmux.conf
-	ssh root@192.168.1.213 'mkdir -p /userdata/debian/root/.config/rex && [ -f /userdata/debian/root/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/root/.config/rex/config.yaml'
-	ssh root@192.168.1.213 'chmod +x /userdata/debian/root/bin/rex /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
+	ssh brick-root 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports /userdata/debian/home/rex/bin /userdata/debian/home/rex/.config/rex'
+	scp bin/rex-brick brick-root:/userdata/debian/home/rex/bin/rex
+	scp bin/termsp brick-root:/userdata/system/apps/rex/termsp
+	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so brick-root:/userdata/system/apps/rex/lib/
+	ssh brick-root 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
+	scp ext/fonts/*.ttf brick-root:/userdata/system/apps/rex/fonts/
+	scp ext/brick/Rex.sh brick-root:/userdata/roms/tools/Rex.sh
+	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh brick-root:/userdata/system/apps/rex/
+	scp config.yaml.brick.example brick-root:/userdata/system/apps/rex/config.yaml.brick.example
+	scp config/dot/tmux.conf brick-root:/userdata/debian/home/rex/.tmux.conf
+	ssh brick-root '[ -f /userdata/debian/home/rex/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/home/rex/.config/rex/config.yaml'
+	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/rex /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
+	@echo "Fixing ownership of /home/rex inside chroot (scp lands files as root)..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "id rex >/dev/null 2>&1 && chown -R rex:rex /home/rex || echo warn: rex user not yet created, run make setup-debian"'
+
+STT_PARAKEET_URL = https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8.tar.bz2
+STT_PARAKEET_DIR = bin/sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8
+
+$(STT_PARAKEET_DIR)/model.int8.onnx:
+	@echo "Downloading Parakeet-TDT-CTC 110M int8 (~120MB)..."
+	curl -L -o bin/parakeet.tar.bz2 $(STT_PARAKEET_URL)
+	tar xjf bin/parakeet.tar.bz2 -C bin/
+	rm bin/parakeet.tar.bz2
+
+install-stt-parakeet: $(STT_PARAKEET_DIR)/model.int8.onnx ## Install Parakeet-TDT-CTC 110M onto Brick (stt_mode: parakeet)
+	@echo "Installing Parakeet model to /userdata/system/apps/rex/stt-parakeet/..."
+	ssh brick-root 'mkdir -p /userdata/system/apps/rex/stt-parakeet'
+	scp $(STT_PARAKEET_DIR)/model.int8.onnx $(STT_PARAKEET_DIR)/tokens.txt brick-root:/userdata/system/apps/rex/stt-parakeet/
+	@echo "Done. Set stt_mode: parakeet in ~/.config/rex/config.yaml on the device (as rex)."
 
 bootstrap-debian: ## Build Debian arm64 rootfs tarball for Brick chroot (bin/brick-debian.tar.gz)
 	bash scripts/bootstrap-debian-brick.sh
@@ -55,9 +72,9 @@ bootstrap-debian: ## Build Debian arm64 rootfs tarball for Brick chroot (bin/bri
 sync-debian: ## Transfer Debian rootfs to Brick and extract to /userdata/debian
 	@test -f bin/brick-debian.tar.gz || { echo "bin/brick-debian.tar.gz missing; run 'make bootstrap-debian' first"; exit 1; }
 	@echo "Transferring rootfs tarball to Brick (may take a few minutes)..."
-	scp bin/brick-debian.tar.gz root@192.168.1.213:/userdata/
-	scp ext/brick/debian-enter.sh ext/brick/debian-cleanup.sh root@192.168.1.213:/userdata/system/apps/rex/
-	ssh root@192.168.1.213 'set -e; \
+	scp bin/brick-debian.tar.gz brick-root:/userdata/
+	scp ext/brick/debian-enter.sh ext/brick/debian-cleanup.sh brick-root:/userdata/system/apps/rex/
+	ssh brick-root 'set -e; \
 		mkdir -p /userdata/debian; \
 		[ -z "$$(ls -A /userdata/debian 2>/dev/null)" ] || { echo "/userdata/debian is not empty; refusing to extract"; exit 1; }; \
 		tar xzf /userdata/brick-debian.tar.gz -C /userdata/debian; \
@@ -66,33 +83,48 @@ sync-debian: ## Transfer Debian rootfs to Brick and extract to /userdata/debian
 		echo "Debian chroot ready."'
 	$(MAKE) setup-debian
 
-setup-debian: ## (Re)install Debian packages, sherpa libs, and claude-code inside the chroot (idempotent)
+setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-code inside the chroot (idempotent)
 	@echo "Installing sherpa/onnx libs into chroot /usr/local/lib and running ldconfig..."
-	ssh root@192.168.1.213 'set -eu; \
+	ssh brick-root 'set -eu; \
 		for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do \
 			[ -f /userdata/system/apps/rex/lib/$$lib ] && cp -u /userdata/system/apps/rex/lib/$$lib /userdata/debian/usr/local/lib/ || echo "warn: $$lib not found on host, skipping"; \
 		done; \
-		/userdata/system/apps/rex/debian-enter.sh "ldconfig"'
+		/userdata/system/apps/rex/debian-enter.sh --root "ldconfig"'
 	@echo "Enabling bookworm-backports (for tmux 3.5a — extended-keys-format)..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "echo deb http://deb.debian.org/debian bookworm-backports main > /etc/apt/sources.list.d/backports.list"'
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "echo deb http://deb.debian.org/debian bookworm-backports main > /etc/apt/sources.list.d/backports.list"'
 	@echo "Installing apt packages + claude-code inside chroot..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 openssh-server locales alsa-utils nodejs npm && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version && tmux -V"'
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs npm && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version && tmux -V"'
 	@echo "Generating en_US.UTF-8 locale in chroot..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "\
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
 		locale-gen en_US.UTF-8 >/dev/null && \
 		update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8"'
-	@echo "Configuring sshd in chroot (port 2222, pubkey auth)..."
-	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "\
+	@echo "Creating rex user (sudo NOPASSWD, groups: sudo,audio,video)..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
+		id rex >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo,audio,video rex && \
+		usermod -aG sudo,audio,video rex && \
+		echo \"rex ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/rex-nopasswd && \
+		chmod 440 /etc/sudoers.d/rex-nopasswd && \
+		for item in .cache .claude .claude.json .local .npm .tmux.conf bin notes projects; do \
+			[ -e /root/\$$item ] && [ ! -e /home/rex/\$$item ] && cp -a /root/\$$item /home/rex/ || true; \
+		done && \
+		{ [ -d /root/.config ] && mkdir -p /home/rex/.config && cp -rn /root/.config/. /home/rex/.config/ 2>/dev/null; true; } && \
+		chown -R rex:rex /home/rex"'
+	@echo "Configuring sshd in chroot (port 2222, pubkey auth, rex user)..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		mkdir -p /etc/ssh/sshd_config.d && \
 		echo Port 2222 > /etc/ssh/sshd_config.d/rex.conf && \
 		echo PermitRootLogin prohibit-password >> /etc/ssh/sshd_config.d/rex.conf && \
 		mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
 		cp /userdata/system/.ssh/authorized_keys /root/.ssh/authorized_keys && \
-		chmod 600 /root/.ssh/authorized_keys"'
+		chmod 600 /root/.ssh/authorized_keys && \
+		mkdir -p /home/rex/.ssh && chmod 700 /home/rex/.ssh && \
+		cp /userdata/system/.ssh/authorized_keys /home/rex/.ssh/authorized_keys && \
+		chmod 600 /home/rex/.ssh/authorized_keys && \
+		chown -R rex:rex /home/rex/.ssh"'
 	@echo "Done. To start sshd on boot, add this line to /userdata/system/custom.sh:"
 	@echo "  /userdata/system/apps/rex/debian-sshd.sh"
-	@echo "Connect with: ssh -p 2222 root@192.168.1.213"
+	@echo "Connect with: ssh brick"
 
 build-docker-ext-%: ## Build program from ext/
 	docker build -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*

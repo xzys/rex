@@ -1,6 +1,6 @@
 #!/bin/bash
 # Stop Rex and unfreeze ES.
-# Designed to be called via SSH: ssh root@brick '/path/to/stop-rex.sh'
+# Designed to be called via SSH: ssh brick-root '/path/to/stop-rex.sh'
 
 # Gracefully stop termsp — SIGTERM triggers SDL cleanup via signal handler
 TERMSP_PID=$(pidof termsp)

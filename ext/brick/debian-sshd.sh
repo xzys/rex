@@ -2,7 +2,7 @@
 # Start OpenSSH inside the Debian chroot (port 2222).
 # Call from /userdata/system/custom.sh so it comes up on boot:
 #   /userdata/system/apps/rex/debian-sshd.sh
-# Connect with: ssh -p 2222 root@<brick-ip>
+# Connect with: ssh brick  (rex@:2222 via ~/.ssh/config alias)
 
 exec /userdata/system/apps/rex/debian-enter.sh '
     mkdir -p /run/sshd
