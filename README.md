@@ -100,22 +100,38 @@ make install-system-files     # Install dotfiles and systemd services
 
 ## TODO
 
-- portability
-  - [ ] run on stock firmware
-  - [ ] package to make it easy to install
-- usability
-  - [ ] rex help screen with controls shown over keyboard, tab for different apps
-  - [ ] wifi settings tui
+
 - input
   - keyboard
     - [ ] adjust keybinds for be efficient
   - voice
-    - [ ] test companion app on R36S
-    - [ ] companion app bluetooth trigger to connect ws / send text
-- pi
-  - [X] running pi on device
-  - [ ] pi keymaps
-  - [ ] pi kitten tts
-  - [ ] pi markdown notes skill
+    - [X] test companion app on R36S
+    - [X] companion app bluetooth trigger to connect ws / send text
+- output
+  - [ ] 
+
+- abilities
+  - code
+    - [X] running pi on device
+    - [X] running claudde on device
+    - [X] claude keymaps
+    - [X] run debian inside knulli
+    - [ ] pi keymaps
+    - [ ] pi kitten tts
+    - [ ] pi markdown notes skill
+  - remote
+    - [ ] reconnect popup
+    - [ ] TEST audio relay, install popup
+  - music
+    - [ ] daw
+    - [ ] easy syncing to peers
+
+- usability
+  - [ ] rex help screen with controls shown over keyboard, tab for different apps
+  - [ ] wifi settings tui
+  - [ ] bluetooth settings tui
+  - [ ] package to make it easy to install
+
 - publishing
   - [ ] terminal intro, REX stylized text or something
+  - [ ] colorize text in 
