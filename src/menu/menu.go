@@ -19,6 +19,8 @@ type Menu struct {
 	width       int
 	height      int
 	itemsPerRow int
+	rowsFit     int
+	rowOffset   int
 	selected    bool
 	sshHost     *string
 }
@@ -154,18 +156,22 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
+			m.scrollToCursor()
 		case "right", "l":
 			if m.cursor < len(m.effectiveApps())-1 {
 				m.cursor++
 			}
+			m.scrollToCursor()
 		case "up", "k":
 			if m.cursor >= m.itemsPerRow {
 				m.cursor -= m.itemsPerRow
 			}
+			m.scrollToCursor()
 		case "down", "j":
 			if m.cursor+m.itemsPerRow < len(m.effectiveApps()) {
 				m.cursor += m.itemsPerRow
 			}
+			m.scrollToCursor()
 		case "enter":
 			if m.cursor < len(m.effectiveApps()) {
 				m.selected = true
@@ -175,13 +181,14 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.calculateItemsPerRow()
+		m.calculateLayout()
+		m.scrollToCursor()
 	}
 
 	return m, nil
 }
 
-func (m *Menu) calculateItemsPerRow() {
+func (m *Menu) calculateLayout() {
 	layout := m.config.Layout
 	availableWidth := m.width - (layout.MarginX * 2)
 	borderWidth := 2 // left + right border chars
@@ -191,6 +198,35 @@ func (m *Menu) calculateItemsPerRow() {
 		if m.itemsPerRow < 1 {
 			m.itemsPerRow = 1
 		}
+	}
+
+	cardHeight := layout.SquareSize/2 + 2 // content + top/bottom border
+	rowHeight := cardHeight + layout.Gap/2
+	gridArea := m.height
+	if m.sshHost != nil {
+		gridArea = m.height - 1
+	}
+	if rowHeight > 0 {
+		m.rowsFit = gridArea / rowHeight
+		if m.rowsFit < 1 {
+			m.rowsFit = 1
+		}
+	}
+}
+
+func (m *Menu) scrollToCursor() {
+	if m.itemsPerRow <= 0 || m.rowsFit <= 0 {
+		return
+	}
+	cursorRow := m.cursor / m.itemsPerRow
+	if cursorRow < m.rowOffset {
+		m.rowOffset = cursorRow
+	}
+	if cursorRow >= m.rowOffset+m.rowsFit {
+		m.rowOffset = cursorRow - m.rowsFit + 1
+	}
+	if m.rowOffset < 0 {
+		m.rowOffset = 0
 	}
 }
 
@@ -222,8 +258,12 @@ func (m *Menu) View() string {
 	for i, app := range apps {
 		style := baseStyle.
 			BorderForeground(lipgloss.Color(app.Color)).
-			Foreground(lipgloss.Color(app.Color)).
-			MarginRight(layout.Gap)
+			Foreground(lipgloss.Color(app.Color))
+
+		isLastInRow := len(currentRow) == m.itemsPerRow-1 || i == len(apps)-1
+		if !isLastInRow {
+			style = style.MarginRight(layout.Gap)
+		}
 
 		if i == m.cursor {
 			style = style.
@@ -247,17 +287,31 @@ func (m *Menu) View() string {
 		rows = append(rows, row)
 	}
 
+	if m.rowOffset > len(rows)-m.rowsFit {
+		m.rowOffset = len(rows) - m.rowsFit
+	}
+	if m.rowOffset < 0 {
+		m.rowOffset = 0
+	}
+	end := m.rowOffset + m.rowsFit
+	if end > len(rows) {
+		end = len(rows)
+	}
+	visibleRows := rows[m.rowOffset:end]
+
 	gapStyle := lipgloss.NewStyle().MarginBottom(layout.Gap / 2)
 	var gappedRows []string
-	for _, row := range rows {
+	for _, row := range visibleRows {
 		gappedRows = append(gappedRows, gapStyle.Render(row))
 	}
 
-	grid := lipgloss.JoinVertical(lipgloss.Left, gappedRows...)
+	grid := lipgloss.JoinVertical(lipgloss.Center, gappedRows...)
 
-	content := lipgloss.NewStyle().
-		Padding(layout.MarginY, layout.MarginX).
-		Render(grid)
+	gridHeight := m.height
+	if m.sshHost != nil {
+		gridHeight = m.height - 1
+	}
+	centered := lipgloss.Place(m.width, gridHeight, lipgloss.Center, lipgloss.Center, grid)
 
 	if m.sshHost != nil {
 		barStyle := lipgloss.NewStyle().
@@ -268,26 +322,11 @@ func (m *Menu) View() string {
 			Align(lipgloss.Left, lipgloss.Center).
 			Padding(0, 1)
 
-		barText := "open remotely in " + *m.sshHost
-		bar := barStyle.Render(barText)
-
-		contentHeight := strings.Count(content, "\n")
-		spacerHeight := m.height - contentHeight - 1
-		if spacerHeight < 0 {
-			spacerHeight = 0
-		}
-
-		spacer := lipgloss.NewStyle().Height(spacerHeight).Render("")
-		combined := lipgloss.JoinVertical(lipgloss.Left, content, spacer, bar)
-
-		containerStyle := lipgloss.NewStyle().
-			Width(m.width).
-			Height(m.height)
-
-		return containerStyle.Render(combined)
+		bar := barStyle.Render("open remotely in " + *m.sshHost)
+		return lipgloss.JoinVertical(lipgloss.Left, centered, bar)
 	}
 
-	return content
+	return centered
 }
 
 func (m *Menu) SelectedApp() *cfg.App {
