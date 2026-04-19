@@ -34,21 +34,20 @@ build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+bric
 		brick-rex-builder \
 		go build -tags "sdl brick sherpa" -o /output/rex-brick
 
-sync-brick: ## Deploy rex, termsp, tmux, fonts, and launch script to TrimUI Brick
+sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and launch scripts to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."
-	ssh root@192.168.1.213 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports'
-	scp bin/rex-brick root@192.168.1.213:/userdata/system/apps/rex/rex
+	ssh root@192.168.1.213 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports /userdata/debian/root/bin'
+	scp bin/rex-brick root@192.168.1.213:/userdata/debian/root/bin/rex
 	scp bin/termsp root@192.168.1.213:/userdata/system/apps/rex/termsp
-	scp bin/tmux root@192.168.1.213:/userdata/system/apps/rex/tmux
 	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so root@192.168.1.213:/userdata/system/apps/rex/lib/
 	ssh root@192.168.1.213 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
 	scp ext/fonts/*.ttf root@192.168.1.213:/userdata/system/apps/rex/fonts/
 	scp ext/brick/Rex.sh root@192.168.1.213:/userdata/roms/tools/Rex.sh
-	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-launch-rex.sh ext/brick/debian-rex.sh root@192.168.1.213:/userdata/system/apps/rex/
+	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh root@192.168.1.213:/userdata/system/apps/rex/
 	scp config.yaml.brick.example root@192.168.1.213:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf root@192.168.1.213:/userdata/debian/root/.tmux.conf
 	ssh root@192.168.1.213 'mkdir -p /userdata/debian/root/.config/rex && [ -f /userdata/debian/root/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/root/.config/rex/config.yaml'
-	ssh root@192.168.1.213 'chmod +x /userdata/system/apps/rex/rex /userdata/system/apps/rex/termsp /userdata/system/apps/rex/tmux /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-launch-rex.sh /userdata/system/apps/rex/debian-rex.sh'
+	ssh root@192.168.1.213 'chmod +x /userdata/debian/root/bin/rex /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh'
 
 bootstrap-debian: ## Build Debian arm64 rootfs tarball for Brick chroot (bin/brick-debian.tar.gz)
 	bash scripts/bootstrap-debian-brick.sh
@@ -67,7 +66,14 @@ sync-debian: ## Transfer Debian rootfs to Brick and extract to /userdata/debian
 		echo "Debian chroot ready."'
 	$(MAKE) setup-debian
 
-setup-debian: ## (Re)install standard Debian packages + claude-code inside the chroot (idempotent)
+setup-debian: ## (Re)install Debian packages, sherpa libs, and claude-code inside the chroot (idempotent)
+	@echo "Installing sherpa/onnx libs into chroot /usr/local/lib and running ldconfig..."
+	ssh root@192.168.1.213 'set -eu; \
+		for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do \
+			[ -f /userdata/system/apps/rex/lib/$$lib ] && cp -u /userdata/system/apps/rex/lib/$$lib /userdata/debian/usr/local/lib/ || echo "warn: $$lib not found on host, skipping"; \
+		done; \
+		/userdata/system/apps/rex/debian-enter.sh "ldconfig"'
+	@echo "Installing apt packages + claude-code inside chroot..."
 	ssh root@192.168.1.213 '/userdata/system/apps/rex/debian-enter.sh "apt update -qq && apt install -y -qq libsdl2-2.0-0 nodejs npm && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version"'
 
 build-docker-ext-%: ## Build program from ext/

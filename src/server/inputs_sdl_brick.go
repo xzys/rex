@@ -38,27 +38,34 @@ func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 	return nil
 }
 
-// TrimUI Brick raw SDL joystick button layout:
-// b4=A(east), b5=B(south), b6=X(north), b7=Y(west)
+// TrimUI Brick raw SDL joystick button layout.
+// NOTE: indices depend on which libSDL2 rex is linked against.
+// Debian's stock SDL2 uses upstream evdev enumeration. Knulli's bundled SDL2
+// carries Batocera's sdl2_input_as_retroarch_udev.patch which shifts indices
+// (phantom pre-BTN_JOYSTICK keys take low slots), pushing conventional buttons
+// up by ~4. We run rex inside the Debian chroot against apt's libsdl2-2.0-0,
+// so the layout below matches jstest on Debian SDL:
+// b0=A(east), b1=B(south), b2=X(north), b3=Y(west)
 // Physical labels use Nintendo layout (swapped vs Xbox):
-//   b4 (hw "A") → KeyB (east), b5 (hw "B") → KeyA (south)
-//   b6 (hw "X") → KeyY (north), b7 (hw "Y") → KeyX (west)
-// b8=L1, b9=R1, b10=L2, b11=R2
-// b12=Select, b13=Start, b14=Menu/Guide
+//   b0 (hw "A") → KeyB (east), b1 (hw "B") → KeyA (south)
+//   b2 (hw "X") → KeyY (north), b3 (hw "Y") → KeyX (west)
+// b4=L1, b5=R1, b6=L2, b7=R2
+// b8=Select, b9=Start, b10=Mode/Menu/Guide
+// b11/b12 = ThumbL/ThumbR clicks (unmapped)
 // D-pad: hat 0 (SDL_JOYHATMOTION)
 
 var brickButtonMap = map[uint8]int{
-	4:  protocol.KeyB,
-	5:  protocol.KeyA,
-	6:  protocol.KeyY,
-	7:  protocol.KeyX,
-	8:  protocol.KeyL1,
-	9:  protocol.KeyR1,
-	10: protocol.KeyL2,
-	11: protocol.KeyR2,
-	12: protocol.KeySelect,
-	13: protocol.KeyStart,
-	14: protocol.KeyFn,
+	0:  protocol.KeyB,
+	1:  protocol.KeyA,
+	2:  protocol.KeyY,
+	3:  protocol.KeyX,
+	4:  protocol.KeyL1,
+	5:  protocol.KeyR1,
+	6:  protocol.KeyL2,
+	7:  protocol.KeyR2,
+	8:  protocol.KeySelect,
+	9:  protocol.KeyStart,
+	10: protocol.KeyFn,
 }
 
 // lastHatKey tracks the currently-held d-pad direction so we can

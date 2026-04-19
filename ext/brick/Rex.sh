@@ -12,6 +12,6 @@ env \
     "$APP/termsp" -s 24 \
     -f "$APP/fonts/JetBrainsMono-Regular.ttf" \
     -b "$APP/fonts/JetBrainsMono-Bold.ttf" \
-    -e "$APP/rex"
+    -e "$APP/debian-rex.sh"
 
 /etc/init.d/S31emulationstation start
