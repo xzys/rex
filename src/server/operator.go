@@ -51,6 +51,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 			o.l1DownAt = time.Now()
 			if o.r1Down {
 				o.comboFired = true
+				o.killKeyboardIfActive()
 				if time.Since(o.r1DownAt) <= shoulderChordWindow {
 					return execute("tmux", "kill-pane")
 				}
@@ -60,6 +61,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		}
 		o.l1Down = false
 		if !o.r1Down && !o.comboFired {
+			o.killKeyboardIfActive()
 			return o.prevWindow()
 		}
 		o.comboFired = false
@@ -70,6 +72,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 			o.r1DownAt = time.Now()
 			if o.l1Down {
 				o.comboFired = true
+				o.killKeyboardIfActive()
 				if time.Since(o.l1DownAt) <= shoulderChordWindow {
 					return execute("tmux", "kill-pane")
 				}
@@ -79,6 +82,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		}
 		o.r1Down = false
 		if !o.l1Down && !o.comboFired {
+			o.killKeyboardIfActive()
 			return o.nextWindow()
 		}
 		o.comboFired = false
@@ -222,6 +226,17 @@ func (o *GlobalOperator) closeKeyboardPane() error {
 	}
 	o.SetKeyboardActive(false)
 	return nil
+}
+
+// Dismiss the keyboard on any pane/window nav — input is socket-routed to it
+// while active, so leaving focus would strand the user typing into a dead pane.
+func (o *GlobalOperator) killKeyboardIfActive() {
+	if !o.keyboardActive {
+		return
+	}
+	if err := o.closeKeyboardPane(); err != nil {
+		slog.Warn("failed to close keyboard on nav", "err", err)
+	}
 }
 
 // opens the menu in a new window
