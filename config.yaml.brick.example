@@ -14,6 +14,11 @@ apps:
       color: "2"
       command: codex
       exclusive: false
+    - name: pi
+      icon: π
+      color: "5"
+      command: pi --no-tools
+      exclusive: false
     - name: ssh
       icon: "~"
       color: "6"

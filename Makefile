@@ -110,8 +110,19 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-
 		/userdata/system/apps/rex/debian-enter.sh --root "ldconfig"'
 	@echo "Enabling bookworm-backports (for tmux 3.5a — extended-keys-format)..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "echo deb http://deb.debian.org/debian bookworm-backports main > /etc/apt/sources.list.d/backports.list"'
+	@echo "Configuring NodeSource apt repo for Node 20 (Debian bookworm ships Node 18 which lacks ES2024 regex-v; pi-coding-agent crashes on import. See notes/research/brick/debian-chroot-on-knulli.md)..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
+		apt update -qq && \
+		apt install -y -qq gnupg ca-certificates curl && \
+		[ -f /usr/share/keyrings/nodesource.gpg ] || { \
+			curl -fsSL -o /tmp/nodesource.key https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key && \
+			gpg --dearmor --yes -o /usr/share/keyrings/nodesource.gpg /tmp/nodesource.key && \
+			rm -f /tmp/nodesource.key; \
+		} && \
+		[ -f /etc/apt/sources.list.d/nodesource.list ] || \
+			echo \"deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main\" > /etc/apt/sources.list.d/nodesource.list"'
 	@echo "Installing apt packages + claude-code inside chroot..."
-	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs npm && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version && tmux -V"'
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version && node --version && npm --version && tmux -V"'
 	@echo "Generating en_US.UTF-8 locale in chroot..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \

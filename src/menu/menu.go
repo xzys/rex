@@ -305,7 +305,7 @@ func (m *Menu) View() string {
 		gappedRows = append(gappedRows, gapStyle.Render(row))
 	}
 
-	grid := lipgloss.JoinVertical(lipgloss.Center, gappedRows...)
+	grid := lipgloss.JoinVertical(lipgloss.Left, gappedRows...)
 
 	gridHeight := m.height
 	if m.sshHost != nil {
