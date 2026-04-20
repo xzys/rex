@@ -10,14 +10,22 @@ import (
 )
 
 type Model struct {
-	config    cfg.Config
-	cursor    int
-	width     int
-	height    int
-	modes     []string
-	modeIndex int
-	status    string
+	config       cfg.Config
+	cursor       int
+	width        int
+	height       int
+	kbModes      []string
+	kbModeIndex  int
+	sttModes     []string
+	sttModeIndex int
+	status       string
 }
+
+const (
+	rowKeyboardMode = iota
+	rowSTTMode
+	rowCount
+)
 
 func Run() error {
 	config, err := cfg.LoadConfig()
@@ -32,20 +40,28 @@ func Run() error {
 }
 
 func NewModel(config cfg.Config) *Model {
-	modes := cfg.KeyboardModes()
-	modeIndex := 0
-	for i, mode := range modes {
-		if mode == config.KeyboardMode {
-			modeIndex = i
-			break
-		}
-	}
+	kbModes := cfg.KeyboardModes()
+	kbModeIndex := indexOf(kbModes, config.KeyboardMode)
+
+	sttModes := cfg.STTModes()
+	sttModeIndex := indexOf(sttModes, cfg.NormalizeSTTMode(config.STTMode))
 
 	return &Model{
-		config:    config,
-		modes:     modes,
-		modeIndex: modeIndex,
+		config:       config,
+		kbModes:      kbModes,
+		kbModeIndex:  kbModeIndex,
+		sttModes:     sttModes,
+		sttModeIndex: sttModeIndex,
 	}
+}
+
+func indexOf(values []string, target string) int {
+	for i, v := range values {
+		if v == target {
+			return i
+		}
+	}
+	return 0
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -55,7 +71,6 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		rowCount := 1
 		switch msg.String() {
 		case "ctrl+c", "q", "esc", "b":
 			return m, tea.Quit
@@ -104,19 +119,31 @@ func (m *Model) View() string {
 		innerWidth = 20
 	}
 
-	row := m.formatRow("Chording mode", m.modes[m.modeIndex], innerWidth)
-	if m.cursor == 0 {
-		row = selectedRowStyle.Render(row)
-	} else {
-		row = rowStyle.Render(row)
+	rows := []struct {
+		label string
+		value string
+	}{
+		{"Chording mode", m.kbModes[m.kbModeIndex]},
+		{"STT mode", m.sttModes[m.sttModeIndex]},
 	}
 
-	help := hintStyle.Render("←/→ change • enter select • esc back")
+	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
 
 	var top strings.Builder
 	top.WriteString(titleStyle.Render("Settings"))
 	top.WriteString("\n\n")
-	top.WriteString(row)
+	for i, r := range rows {
+		line := m.formatRow(r.label, r.value, innerWidth)
+		if m.cursor == i {
+			line = selectedRowStyle.Render(line)
+		} else {
+			line = rowStyle.Render(line)
+		}
+		if i > 0 {
+			top.WriteString("\n")
+		}
+		top.WriteString(line)
+	}
 	if m.status != "" {
 		top.WriteString("\n\n")
 		top.WriteString(statusStyle.Render(m.status))
@@ -148,13 +175,20 @@ func (m *Model) View() string {
 }
 
 func (m *Model) cycleMode(direction int) {
-	count := len(m.modes)
-	if count == 0 {
+	switch m.cursor {
+	case rowKeyboardMode:
+		if n := len(m.kbModes); n > 0 {
+			m.kbModeIndex = (m.kbModeIndex + direction + n) % n
+			m.config.KeyboardMode = m.kbModes[m.kbModeIndex]
+		}
+	case rowSTTMode:
+		if n := len(m.sttModes); n > 0 {
+			m.sttModeIndex = (m.sttModeIndex + direction + n) % n
+			m.config.STTMode = m.sttModes[m.sttModeIndex]
+		}
+	default:
 		return
 	}
-
-	m.modeIndex = (m.modeIndex + direction + count) % count
-	m.config.KeyboardMode = m.modes[m.modeIndex]
 	if err := cfg.SaveConfig(m.config); err != nil {
 		m.status = fmt.Sprintf("save failed: %v", err)
 		return

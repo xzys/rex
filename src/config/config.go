@@ -83,6 +83,7 @@ func loadConfigFromPath(path string) (Config, error) {
 
 func saveConfigToPath(path string, config Config) error {
 	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
+	config.STTMode = NormalizeSTTMode(config.STTMode)
 
 	data, err := yaml.Marshal(&config)
 	if err != nil {
@@ -137,6 +138,28 @@ func NormalizeKeyboardMode(mode string) string {
 		return mode
 	default:
 		return KeyboardModeChorded
+	}
+}
+
+// KeyboardPaneHeight returns the tmux pane height for the keyboard pane.
+// Compact mode stacks 3 rows of 2-line keys (6 lines); normal uses 3-line keys (9 lines).
+// Autocomplete adds a one-line suggestion bar above the keys.
+func KeyboardPaneHeight(compact, autocomplete bool) int {
+	rows := 9
+	if compact {
+		rows = 6
+	}
+	if autocomplete {
+		rows++
+	}
+	return rows
+}
+
+func STTModes() []string {
+	return []string{
+		STTModeSherpa,
+		STTModeParakeet,
+		STTModeCompanion,
 	}
 }
 

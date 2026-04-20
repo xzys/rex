@@ -39,6 +39,11 @@ apps:
       color: "3"
       command: claude
       exclusive: false
+    - name: codex
+      icon: X
+      color: "2"
+      command: codex
+      exclusive: false
     - name: ssh
       icon: ≈
       color: "6"

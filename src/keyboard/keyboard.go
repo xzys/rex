@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
+	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
@@ -59,7 +60,14 @@ func (k *Keyboard) getKeyboardModel(mode string) KeyboardModel {
 }
 
 func (k *Keyboard) createVoiceModel() *VoiceModel {
-	if k.sttMode == "companion" {
+	// Re-read config so Settings app changes take effect on next voice entry
+	// without needing a rex restart.
+	sttMode := k.sttMode
+	if fresh, err := cfg.LoadConfig(); err == nil {
+		sttMode = cfg.NormalizeSTTMode(fresh.STTMode)
+	}
+
+	if sttMode == cfg.STTModeCompanion {
 		provider := NewCompanionSTTProvider(func(action string) error {
 			if k.encoder == nil {
 				return fmt.Errorf("not connected to server")
@@ -72,19 +80,14 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 		})
 		return NewVoiceModel(provider)
 	}
-	return NewVoiceModel(defaultSTTProvider(k.sttMode))
+	return NewVoiceModel(defaultSTTProvider(sttMode))
 }
 
 func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string) *Keyboard {
-	paneHeight := 12
-	if compact {
-		paneHeight = 8
-	}
-
 	k := &Keyboard{
 		keyboard:   keyboardLayout,
 		compact:    compact,
-		paneHeight: paneHeight,
+		paneHeight: cfg.KeyboardPaneHeight(compact, autocomplete),
 		sttMode:    sttMode,
 	}
 	k.model = k.getKeyboardModel(keyboardMode)
@@ -219,7 +222,7 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Err == nil && strings.TrimSpace(msg.Text) != "" {
 				// In companion mode, the server already injected text via smart replace.
 				// Don't send PressStringMessage to avoid double injection.
-				if k.sttMode != "companion" {
+				if k.sttMode != cfg.STTModeCompanion {
 					sendCmd := k.sendString(strings.TrimSpace(msg.Text) + ". ")
 					if cmd != nil {
 						return k, tea.Batch(cmd, sendCmd)

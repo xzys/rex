@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-parakeet
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -51,8 +51,17 @@ sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and laun
 	@echo "Fixing ownership of /home/rex inside chroot (scp lands files as root)..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "id rex >/dev/null 2>&1 && chown -R rex:rex /home/rex || echo warn: rex user not yet created, run make setup-debian"'
 
+STT_SHERPA_URL = https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-ctc-en-conformer-small-2024-08-01.tar.bz2
+STT_SHERPA_DIR = bin/sherpa-onnx-nemo-ctc-en-conformer-small-2024-08-01
+
 STT_PARAKEET_URL = https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8.tar.bz2
 STT_PARAKEET_DIR = bin/sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8
+
+$(STT_SHERPA_DIR)/model.int8.onnx:
+	@echo "Downloading NeMo Conformer-Small int8 (~45MB)..."
+	curl -L -o bin/sherpa.tar.bz2 $(STT_SHERPA_URL)
+	tar xjf bin/sherpa.tar.bz2 -C bin/
+	rm bin/sherpa.tar.bz2
 
 $(STT_PARAKEET_DIR)/model.int8.onnx:
 	@echo "Downloading Parakeet-TDT-CTC 110M int8 (~120MB)..."
@@ -60,11 +69,20 @@ $(STT_PARAKEET_DIR)/model.int8.onnx:
 	tar xjf bin/parakeet.tar.bz2 -C bin/
 	rm bin/parakeet.tar.bz2
 
+install-stt-sherpa: $(STT_SHERPA_DIR)/model.int8.onnx ## Install NeMo Conformer-Small onto Brick (stt_mode: sherpa, default)
+	@echo "Installing Conformer-Small model to /userdata/system/apps/rex/stt/..."
+	ssh brick-root 'mkdir -p /userdata/system/apps/rex/stt'
+	scp $(STT_SHERPA_DIR)/model.int8.onnx $(STT_SHERPA_DIR)/tokens.txt brick-root:/userdata/system/apps/rex/stt/
+	ssh brick-root 'chmod -R a+rX /userdata/system/apps/rex/stt'
+
 install-stt-parakeet: $(STT_PARAKEET_DIR)/model.int8.onnx ## Install Parakeet-TDT-CTC 110M onto Brick (stt_mode: parakeet)
 	@echo "Installing Parakeet model to /userdata/system/apps/rex/stt-parakeet/..."
 	ssh brick-root 'mkdir -p /userdata/system/apps/rex/stt-parakeet'
 	scp $(STT_PARAKEET_DIR)/model.int8.onnx $(STT_PARAKEET_DIR)/tokens.txt brick-root:/userdata/system/apps/rex/stt-parakeet/
-	@echo "Done. Set stt_mode: parakeet in ~/.config/rex/config.yaml on the device (as rex)."
+	ssh brick-root 'chmod -R a+rX /userdata/system/apps/rex/stt-parakeet'
+
+install-stt-models: install-stt-sherpa install-stt-parakeet ## Install both STT models onto Brick so Settings app can switch dynamically
+	@echo "Done. Switch between stt_mode: sherpa / parakeet in the rex Settings app."
 
 bootstrap-debian: ## Build Debian arm64 rootfs tarball for Brick chroot (bin/brick-debian.tar.gz)
 	bash scripts/bootstrap-debian-brick.sh

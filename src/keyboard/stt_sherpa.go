@@ -22,18 +22,8 @@ type SherpaOnnxProvider struct {
 	recognizer *sherpa.OfflineRecognizer
 }
 
-func NewSherpaOnnxProvider(modelDir string) (*SherpaOnnxProvider, error) {
-	modelPath := filepath.Join(modelDir, "model.int8.onnx")
-	tokensPath := filepath.Join(modelDir, "tokens.txt")
-
-	if _, err := os.Stat(modelPath); err != nil {
-		return nil, fmt.Errorf("model not found: %s", modelPath)
-	}
-	if _, err := os.Stat(tokensPath); err != nil {
-		return nil, fmt.Errorf("tokens not found: %s", tokensPath)
-	}
-
-	return &SherpaOnnxProvider{modelDir: modelDir}, nil
+func NewSherpaOnnxProvider(modelDir string) *SherpaOnnxProvider {
+	return &SherpaOnnxProvider{modelDir: modelDir}
 }
 
 func (p *SherpaOnnxProvider) Initialize() error {
@@ -43,6 +33,13 @@ func (p *SherpaOnnxProvider) Initialize() error {
 
 	modelPath := filepath.Join(p.modelDir, "model.int8.onnx")
 	tokensPath := filepath.Join(p.modelDir, "tokens.txt")
+
+	if _, err := os.Stat(modelPath); err != nil {
+		return fmt.Errorf("model not found: %s", modelPath)
+	}
+	if _, err := os.Stat(tokensPath); err != nil {
+		return fmt.Errorf("tokens not found: %s", tokensPath)
+	}
 
 	config := sherpa.OfflineRecognizerConfig{}
 	config.ModelConfig.NemoCTC.Model = modelPath
@@ -95,11 +92,5 @@ func defaultSTTProvider(sttMode string) STTProvider {
 			modelDir = sttModelDirSherpa
 		}
 	}
-
-	provider, err := NewSherpaOnnxProvider(modelDir)
-	if err != nil {
-		slog.Error("failed to load sherpa-onnx", "err", err, "mode", sttMode, "dir", modelDir)
-		os.Exit(1)
-	}
-	return provider
+	return NewSherpaOnnxProvider(modelDir)
 }
