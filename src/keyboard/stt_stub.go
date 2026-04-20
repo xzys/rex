@@ -14,6 +14,7 @@ func (s *StubSTTProvider) Transcribe(audio []byte, sampleRate int) (string, erro
 	return "hello world", nil
 }
 
-func defaultSTTProvider() STTProvider {
+func defaultSTTProvider(sttMode string) STTProvider {
+	_ = sttMode
 	return &StubSTTProvider{}
 }

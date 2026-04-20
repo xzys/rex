@@ -72,7 +72,7 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 		})
 		return NewVoiceModel(provider)
 	}
-	return NewVoiceModel(defaultSTTProvider())
+	return NewVoiceModel(defaultSTTProvider(k.sttMode))
 }
 
 func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string) *Keyboard {

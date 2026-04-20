@@ -12,7 +12,10 @@ import (
 	sherpa "github.com/k2-fsa/sherpa-onnx-go/sherpa_onnx"
 )
 
-const defaultSTTModelDir = "/userdata/system/apps/rex/stt"
+const (
+	sttModelDirSherpa   = "/userdata/system/apps/rex/stt"
+	sttModelDirParakeet = "/userdata/system/apps/rex/stt-parakeet"
+)
 
 type SherpaOnnxProvider struct {
 	modelDir   string
@@ -82,15 +85,20 @@ func (p *SherpaOnnxProvider) Transcribe(audio []byte, sampleRate int) (string, e
 	return result.Text, nil
 }
 
-func defaultSTTProvider() STTProvider {
+func defaultSTTProvider(sttMode string) STTProvider {
 	modelDir := os.Getenv("REX_STT_MODEL_DIR")
 	if modelDir == "" {
-		modelDir = defaultSTTModelDir
+		switch sttMode {
+		case "parakeet":
+			modelDir = sttModelDirParakeet
+		default:
+			modelDir = sttModelDirSherpa
+		}
 	}
 
 	provider, err := NewSherpaOnnxProvider(modelDir)
 	if err != nil {
-		slog.Error("failed to load sherpa-onnx", "err", err)
+		slog.Error("failed to load sherpa-onnx", "err", err, "mode", sttMode, "dir", modelDir)
 		os.Exit(1)
 	}
 	return provider

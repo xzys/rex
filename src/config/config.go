@@ -16,7 +16,8 @@ const (
 	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
 
-	STTModeSherpa    = "sherpa"    // on-device STT via sherpa-onnx (TrimUI Brick)
+	STTModeSherpa    = "sherpa"    // on-device STT via sherpa-onnx, NeMo Conformer-Small (Brick default)
+	STTModeParakeet  = "parakeet"  // on-device STT via sherpa-onnx, Parakeet-TDT-CTC 110M (Brick, with punctuation + casing)
 	STTModeCompanion = "companion" // iOS companion app STT (R36S)
 )
 
@@ -43,7 +44,7 @@ type Config struct {
 	KeyboardCompact      bool   `yaml:"keyboard_compact,omitempty"`
 	KeyboardAutocomplete bool   `yaml:"keyboard_autocomplete,omitempty"`
 	DictWords            int    `yaml:"dict_words,omitempty"`
-	STTMode              string `yaml:"stt_mode,omitempty"` // "sherpa" (default) or "companion"
+	STTMode              string `yaml:"stt_mode,omitempty"` // "sherpa" (default), "parakeet", or "companion"
 }
 
 func LoadConfig() (Config, error) {
@@ -123,7 +124,7 @@ func resolveConfigPath() (string, error) {
 
 func NormalizeSTTMode(mode string) string {
 	switch mode {
-	case STTModeSherpa, STTModeCompanion:
+	case STTModeSherpa, STTModeParakeet, STTModeCompanion:
 		return mode
 	default:
 		return STTModeSherpa
