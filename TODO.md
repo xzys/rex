@@ -1,0 +1,47 @@
+- abilities
+  - input
+    - keyboard
+      - [ ] adjust keybinds for be efficient
+    - voice
+      - [X] test companion app on R36S
+      - [X] companion app bluetooth trigger to connect ws / send text
+  - output
+    - [ ] bluetooth manager tui for audio out
+  - code
+    - [X] running pi on device
+    - [X] running claudde on device
+    - [X] claude keymaps
+    - [X] run debian inside knulli
+    - [ ] pi keymaps
+    - [ ] pi kitten tts
+    - [ ] rex skill
+  - remote
+    - [ ] ssh tmux operator
+    - [ ] reconnecting popup
+    - [ ] TEST audio relay, install popup
+      - [ ] audio relay install popup
+  - music
+    - [ ] daw
+    - [ ] easy syncing to peers
+
+- usability
+  - [ ] rex help screen with controls shown over keyboard, tab for different apps
+  - [ ] wifi settings tui
+  - [ ] bluetooth settings tui
+  - [ ] package to make it easy to install
+
+- publishing
+  - demo
+    - [ ] write script for demo
+    - [ ] record demo
+  - [.] website
+    - [X] 3d device with floating text
+    - [X] mobile friendly
+    - [ ] colorize text on hover
+    - [ ] show text section by section
+    - [ ] write actual copy for website
+    - [ ] detiled docs
+  - [ ] make repo public
+    - [ ] strip notes
+    - [ ] fix authors
+  - [ ] terminal intro, REX stylized text or something
