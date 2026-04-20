@@ -43,11 +43,17 @@ func NewServer() *Server {
 	server := &Server{
 		inputDevice: selectInputDevice(),
 	}
-	server.operator = NewGlobalOperator(server, map[string]Operator{
-		"ncmpcpp": NewNcmpcppOperator(),
-		"tmux":    NewSSHTmuxOperator(),
-		"claude":  NewClaudeOperator(),
-	})
+	operators := LoadPlugins()
+	// Hardcoded operators stay in Go because they're not pure key→tmux-string
+	// mappings: `tmux` runs remote ssh commands, `claude` owns async timers and
+	// an audio relay. Plugin files with the same name would override these.
+	if _, ok := operators["tmux"]; !ok {
+		operators["tmux"] = NewSSHTmuxOperator()
+	}
+	if _, ok := operators["claude"]; !ok {
+		operators["claude"] = NewClaudeOperator()
+	}
+	server.operator = NewGlobalOperator(server, operators)
 
 	// Create voice WebSocket server for companion app.
 	// tmuxInject sends keys to tmux pane 0 via the operator.

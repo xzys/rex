@@ -3,9 +3,13 @@ module github.com/xrfr/t-rex/v2
 go 1.24.1
 
 require (
+	github.com/buke/quickjs-go v0.7.6
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/coder/websocket v1.8.14
+	github.com/creack/pty v1.1.24
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
+	github.com/k2-fsa/sherpa-onnx-go v1.12.29
 	github.com/lmittmann/tint v1.1.2
 	github.com/veandco/go-sdl2 v0.4.40
 	gopkg.in/yaml.v3 v3.0.1
@@ -17,10 +21,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/coder/websocket v1.8.14 // indirect
-	github.com/creack/pty v1.1.24 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/k2-fsa/sherpa-onnx-go v1.12.29 // indirect
 	github.com/k2-fsa/sherpa-onnx-go-linux v1.12.29 // indirect
 	github.com/k2-fsa/sherpa-onnx-go-macos v1.12.29 // indirect
 	github.com/k2-fsa/sherpa-onnx-go-windows v1.12.29 // indirect

@@ -29,6 +29,6 @@ ENV GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
     PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
     PKG_CONFIG_SYSROOT_DIR=/ \
     CGO_CFLAGS='-I/usr/aarch64-linux-gnu/include/SDL2' \
-    CGO_LDFLAGS='-L/usr/lib/aarch64-linux-gnu'
+    CGO_LDFLAGS='-L/usr/lib/aarch64-linux-gnu -ldl'
 
 WORKDIR /app
