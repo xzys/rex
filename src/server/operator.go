@@ -5,10 +5,13 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"time"
 
 	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
+
+const shoulderChordWindow = 100 * time.Millisecond
 
 type GlobalOperator struct {
 	keyboardActive bool
@@ -17,6 +20,8 @@ type GlobalOperator struct {
 	activeOperator *Operator
 	l1Down         bool
 	r1Down         bool
+	l1DownAt       time.Time
+	r1DownAt       time.Time
 	comboFired     bool
 }
 
@@ -43,8 +48,12 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 	case protocol.KeyL1:
 		if event.IsDown {
 			o.l1Down = true
+			o.l1DownAt = time.Now()
 			if o.r1Down {
 				o.comboFired = true
+				if time.Since(o.r1DownAt) <= shoulderChordWindow {
+					return execute("tmux", "kill-pane")
+				}
 				return execute("tmux", "select-pane", "-t", ":.-")
 			}
 			return nil
@@ -58,8 +67,12 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 	case protocol.KeyR1:
 		if event.IsDown {
 			o.r1Down = true
+			o.r1DownAt = time.Now()
 			if o.l1Down {
 				o.comboFired = true
+				if time.Since(o.l1DownAt) <= shoulderChordWindow {
+					return execute("tmux", "kill-pane")
+				}
 				return execute("tmux", "select-pane", "-t", ":.+")
 			}
 			return nil
