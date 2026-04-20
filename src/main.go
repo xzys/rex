@@ -163,6 +163,9 @@ func startOrAttach() error {
 
 	serverCmd := exec.Command(rexPath, "server")
 	serverCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	// GOTRACEBACK=all dumps every goroutine's stack on a runtime fatal, not just
+	// the crashing one — useful since the deadlock is likely cross-goroutine.
+	serverCmd.Env = append(os.Environ(), "GOTRACEBACK=all")
 	if err := serverCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
@@ -176,11 +179,16 @@ func startOrAttach() error {
 		return fmt.Errorf("failed to start tmux: %w", err)
 	}
 
-	done := make(chan error, 2)
-	go func() { done <- serverCmd.Wait() }()
-	go func() { done <- tmuxCmd.Wait() }()
+	type exitInfo struct {
+		who string
+		err error
+	}
+	done := make(chan exitInfo, 2)
+	go func() { done <- exitInfo{"server", serverCmd.Wait()} }()
+	go func() { done <- exitInfo{"tmux", tmuxCmd.Wait()} }()
 
-	<-done
+	first := <-done
+	logChildExit(first.who, first.err)
 
 	serverCmd.Process.Kill()
 	tmuxCmd.Process.Signal(syscall.SIGHUP)
@@ -188,6 +196,23 @@ func startOrAttach() error {
 	tmuxCmd.Wait()
 
 	return nil
+}
+
+func logChildExit(who string, err error) {
+	if err == nil {
+		slog.Info("child exited cleanly", "who", who)
+		return
+	}
+	if ee, ok := err.(*exec.ExitError); ok {
+		ws := ee.Sys().(syscall.WaitStatus)
+		if ws.Signaled() {
+			slog.Error("child killed by signal", "who", who, "signal", ws.Signal().String())
+			return
+		}
+		slog.Error("child exited non-zero", "who", who, "code", ws.ExitStatus())
+		return
+	}
+	slog.Error("child wait error", "who", who, "err", err)
 }
 
 func runExclusive(args []string) error {

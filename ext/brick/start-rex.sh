@@ -14,6 +14,11 @@ fi
 
 # termsp runs natively on Knulli (needs Knulli's patched SDL2 + PowerVR blobs);
 # its -e child enters the Debian chroot and execs rex there.
+{
+    echo ""
+    echo "=== rex starting at $(date -Iseconds) ==="
+} >> /tmp/rex-launch.log
+
 nohup env \
     LD_LIBRARY_PATH="$APP/lib:$LD_LIBRARY_PATH" \
     PATH="$APP:$PATH" \
@@ -23,6 +28,6 @@ nohup env \
     -f "$APP/fonts/JetBrainsMono-Regular.ttf" \
     -b "$APP/fonts/JetBrainsMono-Bold.ttf" \
     -e "$APP/debian-rex.sh" \
-    > /tmp/rex-launch.log 2>&1 &
+    >> /tmp/rex-launch.log 2>&1 &
 
 echo "rex started (pid $!)"

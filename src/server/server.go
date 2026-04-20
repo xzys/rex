@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -68,8 +69,18 @@ func selectInputDevice() InputDevice {
 }
 
 // Run starts the server and blocks until interrupted
-func (s *Server) Run() error {
-	slog.Info("starting server")
+func (s *Server) Run() (runErr error) {
+	slog.Info("starting server", "pid", os.Getpid())
+
+	// Capture panics in Run's goroutine so we get a structured stack trace in
+	// rex.log. Panics in spawned goroutines bypass this — they land in
+	// /tmp/rex-stderr.log instead via debian-rex.sh's stderr redirect.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("server panic", "panic", r, "stack", string(debug.Stack()))
+			runErr = fmt.Errorf("panic: %v", r)
+		}
+	}()
 
 	// get binary name
 	if execPath, err := os.Executable(); err != nil {
@@ -126,12 +137,14 @@ func (s *Server) Run() error {
 
 	go s.handleControlConnections(controlListener)
 
-	// handle cleanup on interrupt
+	// handle cleanup on interrupt. Catch more signals than we plan to handle
+	// so an unexpected signal kill (e.g. SIGHUP from parent exit) shows up in
+	// the log instead of a silent death.
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
 	go func() {
-		<-sigChan
-		slog.Info("shutting down server")
+		sig := <-sigChan
+		slog.Info("shutting down server", "signal", sig.String())
 		inputListener.Close()
 		outputListener.Close()
 		controlListener.Close()
