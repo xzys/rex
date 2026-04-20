@@ -26,8 +26,6 @@ func (o *NcmpcppOperator) HandleInput(key int, isDown bool) (bool, error) {
 		err = o.nextScreen()
 	case protocol.KeyDPadLeft:
 		err = o.prevScreen()
-	case protocol.KeyA:
-		err = execute("tmux", "send-keys", "-t", "0", "Enter") // select item
 	case protocol.KeyB:
 		err = execute("tmux", "send-keys", "-t", "0", "p") // play/pause
 	case protocol.KeyX:

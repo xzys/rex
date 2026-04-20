@@ -34,11 +34,6 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 		}
 		o.stopVoice()
 		return true, nil
-	case protocol.KeyA:
-		if isDown {
-			return true, execute("tmux", "send-keys", "-t", "0", "Enter")
-		}
-		return true, nil
 	case protocol.KeyX:
 		if isDown {
 			return true, execute("tmux", "send-keys", "-t", "0", "Escape")

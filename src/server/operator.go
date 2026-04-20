@@ -116,6 +116,10 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return o.openKeyboardPane()
 	case protocol.KeyStart:
 		return o.openMenu()
+	case protocol.KeyA:
+		return execute("tmux", "send-keys", "-t", "0", "Enter")
+	case protocol.KeyB:
+		return execute("tmux", "send-keys", "-t", "0", "Escape")
 	case protocol.KeyDPadUp:
 		return execute("tmux", "send-keys", "-t", "0", "Up")
 	case protocol.KeyDPadDown:

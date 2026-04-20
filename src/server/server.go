@@ -44,7 +44,6 @@ func NewServer() *Server {
 	}
 	server.operator = NewGlobalOperator(server, map[string]Operator{
 		"ncmpcpp": NewNcmpcppOperator(),
-		"menu":    NewMenuOperator(),
 		"tmux":    NewSSHTmuxOperator(),
 		"claude":  NewClaudeOperator(),
 	})
