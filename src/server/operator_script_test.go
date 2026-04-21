@@ -53,6 +53,47 @@ function handleKey(key) {
 	}
 }
 
+func TestScriptOperatorMenu(t *testing.T) {
+	script := `
+function handleKey(key) {
+  switch (key) {
+    case KEY_DPAD_UP:    return "Up";
+    case KEY_DPAD_DOWN:  return "Down";
+    case KEY_DPAD_LEFT:  return "Left";
+    case KEY_DPAD_RIGHT: return "Right";
+  }
+  return null;
+}
+`
+	op, err := NewScriptOperator("menu", script)
+	if err != nil {
+		t.Fatalf("NewScriptOperator: %v", err)
+	}
+	defer op.Close()
+
+	cases := []struct {
+		name    string
+		key     int
+		wantKey string
+		wantOK  bool
+	}{
+		{"dpad up -> Up", protocol.KeyDPadUp, "Up", true},
+		{"dpad down -> Down", protocol.KeyDPadDown, "Down", true},
+		{"dpad left -> Left", protocol.KeyDPadLeft, "Left", true},
+		{"dpad right -> Right", protocol.KeyDPadRight, "Right", true},
+		{"A falls through", protocol.KeyA, "", false},
+		{"B falls through", protocol.KeyB, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotKey, gotOK := op.evalKey(tc.key)
+			if gotKey != tc.wantKey || gotOK != tc.wantOK {
+				t.Fatalf("evalKey(%d) = (%q, %v), want (%q, %v)", tc.key, gotKey, gotOK, tc.wantKey, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestScriptOperatorMissingHandleKey(t *testing.T) {
 	_, err := NewScriptOperator("bad", `const x = 1;`)
 	if err == nil {

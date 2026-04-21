@@ -125,13 +125,13 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 	case protocol.KeyB:
 		return execute("tmux", "send-keys", "-t", "0", "Escape")
 	case protocol.KeyDPadUp:
-		return execute("tmux", "send-keys", "-t", "0", "Up")
+		return execute("tmux", "copy-mode", "-eu", "-t", "0")
 	case protocol.KeyDPadDown:
-		return execute("tmux", "send-keys", "-t", "0", "Down")
+		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
 	case protocol.KeyDPadLeft:
-		return execute("tmux", "send-keys", "-t", "0", "Left")
+		return execute("tmux", "send-keys", "-t", "0", "Up")
 	case protocol.KeyDPadRight:
-		return execute("tmux", "send-keys", "-t", "0", "Right")
+		return execute("tmux", "send-keys", "-t", "0", "Down")
 	}
 	return nil
 }
@@ -275,10 +275,10 @@ func (o *GlobalOperator) updateActiveOperator() error {
 }
 
 func (o *GlobalOperator) nextWindow() error {
-	return tryExecute("tmux", []string{"no next window"}, "next-window")
+	return tryExecuteIgnoreMessages([]string{"no next window"}, "tmux", "next-window")
 }
 
 func (o *GlobalOperator) prevWindow() error {
-	return tryExecute("tmux", []string{"no previous window"}, "previous-window")
+	return tryExecuteIgnoreMessages([]string{"no previous window"}, "tmux", "previous-window")
 }
 
