@@ -16,7 +16,7 @@
     - [ ] pi kitten tts
     - [ ] rex skill
   - remote
-    - [ ] ssh tmux operator
+    - [X] ssh tmux operator
     - [ ] reconnecting popup
     - [ ] TEST audio relay, install popup
       - [ ] audio relay install popup
@@ -34,11 +34,11 @@
   - demo
     - [ ] write script for demo
     - [ ] record demo
-  - [.] website
+  - [o] website
     - [X] 3d device with floating text
     - [X] mobile friendly
+    - [X] show text section by section
     - [ ] colorize text on hover
-    - [ ] show text section by section
     - [ ] write actual copy for website
     - [ ] detiled docs
   - [ ] make repo public
