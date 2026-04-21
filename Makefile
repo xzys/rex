@@ -132,6 +132,8 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		id rex >/dev/null 2>&1 || useradd -m -s /bin/bash -G sudo,audio,video rex && \
 		usermod -aG sudo,audio,video rex && \
+		getent group inet >/dev/null 2>&1 || groupadd -g 3003 inet && \
+		usermod -aG inet rex && \
 		echo \"rex ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/rex-nopasswd && \
 		chmod 440 /etc/sudoers.d/rex-nopasswd && \
 		for item in .cache .claude .claude.json .local .npm .tmux.conf bin notes projects; do \

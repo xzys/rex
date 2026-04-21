@@ -1,33 +1,40 @@
 #!/bin/bash
-# Start Rex safely — freezes ES, launches termsp on Knulli with rex running
-# inside the Debian chroot as termsp's PTY child.
-# Use stop-rex.sh to stop rex and unfreeze ES.
+# Start Rex safely — stops ES (reclaims ~90 MB RAM), launches termsp on Knulli
+# with rex running inside the Debian chroot as termsp's PTY child.
+# Symmetric with Rex.sh (the ES menu launcher). Use stop-rex.sh to stop rex
+# early and let ES come back up.
 # Designed to be called via SSH: ssh brick-root '/path/to/start-rex.sh'
 
 APP=/userdata/system/apps/rex
 
-# Freeze ES instead of stopping it — avoids disrupting audio/dbus
-ES_PID=$(pidof emulationstation)
-if [ -n "$ES_PID" ]; then
-    kill -STOP $ES_PID
-fi
+# Stop ES (reclaims RAM). init.d is the same path Rex.sh uses from the ES menu.
+/etc/init.d/S31emulationstation stop >/dev/null 2>&1
+sleep 1
 
-# termsp runs natively on Knulli (needs Knulli's patched SDL2 + PowerVR blobs);
-# its -e child enters the Debian chroot and execs rex there.
-{
+# Background a subshell that owns the full lifecycle: launch termsp in the
+# foreground, and on ANY exit (clean tmux shutdown via L1+R1, crash, SIGTERM,
+# stop-rex.sh) fire an EXIT trap that restarts ES. Symmetric stop/start.
+nohup bash -c '
+    APP="$1"
+    cleanup() {
+        /etc/init.d/S31emulationstation start >/dev/null 2>&1
+        echo "=== rex exited at $(date -Iseconds), ES restarted ==="
+    }
+    trap cleanup EXIT
+
     echo ""
     echo "=== rex starting at $(date -Iseconds) ==="
-} >> /tmp/rex-launch.log
+    # No "exec" here — we need the shell to stay alive past termsp so the
+    # EXIT trap fires. env is a single-fork cost, termsp is the long-lived one.
+    env \
+        LD_LIBRARY_PATH="$APP/lib:$LD_LIBRARY_PATH" \
+        PATH="$APP:$PATH" \
+        TERM=xterm-256color \
+        SHELL=/bin/bash \
+        "$APP/termsp" -s 24 \
+        -f "$APP/fonts/JetBrainsMono-Regular.ttf" \
+        -b "$APP/fonts/JetBrainsMono-Bold.ttf" \
+        -e "$APP/debian-rex.sh"
+' _ "$APP" >> /tmp/rex-launch.log 2>&1 &
 
-nohup env \
-    LD_LIBRARY_PATH="$APP/lib:$LD_LIBRARY_PATH" \
-    PATH="$APP:$PATH" \
-    TERM=xterm-256color \
-    SHELL=/bin/bash \
-    "$APP/termsp" -s 24 \
-    -f "$APP/fonts/JetBrainsMono-Regular.ttf" \
-    -b "$APP/fonts/JetBrainsMono-Bold.ttf" \
-    -e "$APP/debian-rex.sh" \
-    >> /tmp/rex-launch.log 2>&1 &
-
-echo "rex started (pid $!)"
+echo "rex started (session pid $!)"
