@@ -220,6 +220,10 @@ func (m *VoiceModel) RenderView(width int) string {
 	red := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	green := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	recordButton := green
+	if !m.isCompanion {
+		recordButton = red
+	}
 
 	var status string
 	switch m.state {
@@ -231,7 +235,7 @@ func (m *VoiceModel) RenderView(width int) string {
 			status = fmt.Sprintf("INITIALIZING %s", frame)
 		}
 	case stateIdle:
-		status = "HOLD " + green.Render("Y") + " TO RECORD"
+		status = "HOLD " + recordButton.Render("Y") + " TO RECORD"
 	case stateRecording:
 		status = "RECORDING"
 	case stateProcessing:
