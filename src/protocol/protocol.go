@@ -45,6 +45,8 @@ const (
 	KeySelect
 	KeyStart
 	KeyFn
+	KeyScrollUp
+	KeyScrollDown
 )
 
 // Special key constants (non-printable control codes to avoid collisions)

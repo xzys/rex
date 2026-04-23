@@ -132,6 +132,10 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return execute("tmux", "copy-mode", "-eu", "-t", "0")
 	case protocol.KeyDPadRight:
 		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
+	case protocol.KeyScrollUp:
+		return execute("tmux", "copy-mode", "-eu", "-t", "0")
+	case protocol.KeyScrollDown:
+		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
 	}
 	return nil
 }

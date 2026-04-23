@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"sync"
+	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/xrfr/t-rex/v2/protocol"
@@ -43,7 +45,10 @@ func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 
 func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error) {
 	var err error
+	leftStickYDir := 0 // -1 = up, +1 = down, 0 = centered/deadzone
+	repeater := newKeyRepeater(inputHandler)
 	defer func() {
+		repeater.StopAll()
 		sdl.Quit()
 		if joystick != nil {
 			joystick.Close()
@@ -64,8 +69,13 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error)
 
 		switch e := event.(type) {
 		case *sdl.JoyButtonEvent:
-			if err = handleJoystickEvent(e, inputHandler); err != nil {
+			if err = handleJoystickEvent(e, inputHandler, repeater); err != nil {
 				slog.Error("failed to handle joystick event", "err", err)
+				return
+			}
+		case *sdl.JoyAxisEvent:
+			if err = handleJoystickAxisEvent(e, inputHandler, &leftStickYDir, repeater); err != nil {
+				slog.Error("failed to handle joystick axis event", "err", err)
 				return
 			}
 		}
@@ -95,11 +105,82 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error)
 // The axes are mapped as follows:
 // Joy-Axis 	Description
 // 0 	Left joystick - Left-Right motion
-// 1 	Left joystick - Up-Down motion
+// 1 	Left joystick - Up-Down motion (mapped to tmux scroll up/down)
 // 2 	Right joystick - Left-Right motion
 // 3 	Right joystick - Up-Down motion
 
-func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent) error) error {
+const (
+	leftStickYAxis         = 1
+	leftStickAxisThreshold = 16000
+	repeatDelay            = 260 * time.Millisecond
+	repeatInterval         = 90 * time.Millisecond
+)
+
+type keyRepeater struct {
+	handler func(InputEvent) error
+
+	mu   sync.Mutex
+	key  int
+	stop chan struct{}
+}
+
+func newKeyRepeater(handler func(InputEvent) error) *keyRepeater {
+	return &keyRepeater{handler: handler, key: -1}
+}
+
+func (r *keyRepeater) Start(key int) {
+	r.mu.Lock()
+	if r.key == key && r.stop != nil {
+		r.mu.Unlock()
+		return
+	}
+	r.stopLocked()
+	stop := make(chan struct{})
+	r.key = key
+	r.stop = stop
+	r.mu.Unlock()
+
+	go func() {
+		timer := time.NewTimer(repeatDelay)
+		defer timer.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-timer.C:
+				if err := r.handler(InputEvent{Key: key, IsDown: true}); err != nil {
+					slog.Warn("repeat key dispatch failed", "key", key, "err", err)
+				}
+				timer.Reset(repeatInterval)
+			}
+		}
+	}()
+}
+
+func (r *keyRepeater) Stop(key int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.key != key {
+		return
+	}
+	r.stopLocked()
+}
+
+func (r *keyRepeater) StopAll() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.stopLocked()
+}
+
+func (r *keyRepeater) stopLocked() {
+	if r.stop != nil {
+		close(r.stop)
+		r.stop = nil
+	}
+	r.key = -1
+}
+
+func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent) error, repeater *keyRepeater) error {
 	isDown := event.Type == sdl.JOYBUTTONDOWN
 	if event.Type != sdl.JOYBUTTONDOWN && event.Type != sdl.JOYBUTTONUP {
 		slog.Warn("unknown event type", "event", event)
@@ -142,8 +223,62 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent
 		slog.Warn("unknown button", "button", event.Button)
 		return nil
 	}
+	if key == protocol.KeyDPadLeft || key == protocol.KeyDPadRight {
+		if isDown {
+			if err := inputHandler(InputEvent{Key: key, IsDown: true}); err != nil {
+				return fmt.Errorf("failed to handle button: %w", err)
+			}
+			repeater.Start(key)
+			return nil
+		}
+		repeater.Stop(key)
+	}
+
 	if err := inputHandler(InputEvent{Key: key, IsDown: isDown}); err != nil {
 		return fmt.Errorf("failed to handle button: %w", err)
 	}
+	return nil
+}
+
+func handleJoystickAxisEvent(event *sdl.JoyAxisEvent, inputHandler func(InputEvent) error, lastDir *int, repeater *keyRepeater) error {
+	if event.Axis != leftStickYAxis {
+		return nil
+	}
+
+	dir := 0
+	if event.Value <= -leftStickAxisThreshold {
+		dir = -1
+	} else if event.Value >= leftStickAxisThreshold {
+		dir = 1
+	}
+
+	if dir == *lastDir {
+		return nil
+	}
+
+	keyForDir := func(d int) int {
+		if d < 0 {
+			return protocol.KeyScrollUp
+		}
+		return protocol.KeyScrollDown
+	}
+
+	if *lastDir != 0 {
+		oldKey := keyForDir(*lastDir)
+		repeater.Stop(oldKey)
+		if err := inputHandler(InputEvent{Key: oldKey, IsDown: false}); err != nil {
+			return fmt.Errorf("failed to release axis scroll key: %w", err)
+		}
+	}
+
+	if dir != 0 {
+		newKey := keyForDir(dir)
+		if err := inputHandler(InputEvent{Key: newKey, IsDown: true}); err != nil {
+			return fmt.Errorf("failed to press axis scroll key: %w", err)
+		}
+		repeater.Start(newKey)
+	}
+
+	*lastDir = dir
 	return nil
 }
