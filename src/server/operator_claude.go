@@ -47,22 +47,22 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 		return true, nil
 	case protocol.KeyDPadUp:
 		if isDown {
-			return true, execute("tmux", "copy-mode", "-eu", "-t", "0")
+			return true, execute("tmux", "send-keys", "-t", "0", "Up")
 		}
 		return true, nil
 	case protocol.KeyDPadDown:
 		if isDown {
-			return true, tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
+			return true, execute("tmux", "send-keys", "-t", "0", "Down")
 		}
 		return true, nil
 	case protocol.KeyDPadLeft:
 		if isDown {
-			return true, execute("tmux", "send-keys", "-t", "0", "Left")
+			return true, execute("tmux", "copy-mode", "-eu", "-t", "0")
 		}
 		return true, nil
 	case protocol.KeyDPadRight:
 		if isDown {
-			return true, execute("tmux", "send-keys", "-t", "0", "Right")
+			return true, tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
 		}
 		return true, nil
 	}

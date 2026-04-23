@@ -1,9 +1,9 @@
 // menu per-app key mapping.
 //
-// The global operator remaps the d-pad (up/down = tmux scroll, left/right =
-// Up/Down arrows) because most apps use the main pane for scrollback reading.
-// The menu is a grid and needs the literal axes, so translate each d-pad
-// direction straight to its matching arrow key.
+// The global operator remaps the d-pad (up/down = Up/Down arrows, left/right =
+// tmux scroll up/down) for terminal navigation. The menu is a grid and needs
+// the literal axes, so translate each d-pad direction straight to its matching
+// arrow key.
 
 function handleKey(key) {
   switch (key) {

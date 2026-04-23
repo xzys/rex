@@ -51,3 +51,4 @@ apps:
       exclusive: false
 ssh_hosts: []
 keyboard_mode: front-chorded
+stt_mode: companion

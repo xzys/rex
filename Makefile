@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -7,7 +7,10 @@ debug:
 	cd src && dlv debug . -- --server
 
 build-docker-r36s: ## Build for R36S using Docker
-	docker build -f src/Dockerfile -t r36s-keyboard-builder src/
+	# On Docker Desktop, plain `docker build` may leave only a manifest-list tag
+	# that `docker run` then fails to resolve locally. `buildx --load` forces a
+	# runnable linux/amd64 image into the local image store.
+	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t r36s-keyboard-builder src/
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
@@ -19,12 +22,23 @@ build-docker-r36s: ## Build for R36S using Docker
 
 sync-r36s:
 	@echo "Syncing rex binary and scripts to r36s..."
+	ssh r36s 'mkdir -p ~/bin ~/.config/rex'
 	rsync bin/rex r36s:bin/
-	ssh r36s 'mkdir -p ~/.config/rex'
 	rsync config.yaml r36s:~/.config/rex/
 
+sync-auth-r36s: ## Sync Codex, pi, and Claude auth to r36s
+	@echo "Syncing Codex, pi, and Claude auth to r36s..."
+	@test -f "$(HOME)/.codex/auth.json" || { echo "Missing $(HOME)/.codex/auth.json"; exit 1; }
+	@test -f "$(HOME)/.pi/agent/auth.json" || { echo "Missing $(HOME)/.pi/agent/auth.json"; exit 1; }
+	@command -v security >/dev/null || { echo "macOS 'security' CLI not found"; exit 1; }
+	ssh r36s 'umask 077 && mkdir -p ~/.codex ~/.pi/agent ~/.claude'
+	scp "$(HOME)/.codex/auth.json" r36s:/home/ark/.codex/auth.json
+	scp "$(HOME)/.pi/agent/auth.json" r36s:/home/ark/.pi/agent/auth.json
+	security find-generic-password -s "Claude Code-credentials" -w | ssh r36s 'umask 077 && cat > /home/ark/.claude/.credentials.json'
+	ssh r36s 'chmod 600 ~/.codex/auth.json ~/.pi/agent/auth.json ~/.claude/.credentials.json'
+
 build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+brick tags)
-	docker build -f src/Dockerfile -t brick-rex-builder src/
+	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t brick-rex-builder src/
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
@@ -158,7 +172,7 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-
 	@echo "Connect with: ssh brick"
 
 build-docker-ext-%: ## Build program from ext/
-	docker build -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
+	docker buildx build --platform linux/amd64 --load -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
