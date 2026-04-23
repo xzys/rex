@@ -62,6 +62,17 @@ func (o *SSHTmuxOperator) remoteCommand(args ...string) error {
 		return err
 	}
 	cmdArgs := append([]string{"-S", socket, "-o", "BatchMode=yes", host, "tmux"}, args...)
+
+	// Mirror local behavior: trying to move past the edge window should not be fatal.
+	if len(args) > 0 {
+		switch args[0] {
+		case "previous-window":
+			return tryExecuteIgnoreMessages([]string{"no previous window"}, "ssh", cmdArgs...)
+		case "next-window":
+			return tryExecuteIgnoreMessages([]string{"no next window"}, "ssh", cmdArgs...)
+		}
+	}
+
 	return execute("ssh", cmdArgs...)
 }
 
