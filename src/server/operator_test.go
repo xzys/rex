@@ -20,8 +20,8 @@ func TestGlobalOperatorFallbackDPadMappings(t *testing.T) {
 	}{
 		{name: "up sends up arrow", key: protocol.KeyDPadUp, expected: "send-keys -t 0 Up"},
 		{name: "down sends down arrow", key: protocol.KeyDPadDown, expected: "send-keys -t 0 Down"},
-		{name: "left scrolls up", key: protocol.KeyDPadLeft, expected: "copy-mode -eu -t 0"},
-		{name: "right scrolls down", key: protocol.KeyDPadRight, expected: "send-keys -t 0 -X page-down"},
+		{name: "left sends left arrow", key: protocol.KeyDPadLeft, expected: "send-keys -t 0 Left"},
+		{name: "right sends right arrow", key: protocol.KeyDPadRight, expected: "send-keys -t 0 Right"},
 	}
 
 	for _, tc := range tests {
@@ -51,8 +51,8 @@ func TestClaudeOperatorDPadMappings(t *testing.T) {
 	}{
 		{name: "up sends up arrow", key: protocol.KeyDPadUp, expected: "send-keys -t 0 Up"},
 		{name: "down sends down arrow", key: protocol.KeyDPadDown, expected: "send-keys -t 0 Down"},
-		{name: "left scrolls up", key: protocol.KeyDPadLeft, expected: "copy-mode -eu -t 0"},
-		{name: "right scrolls down", key: protocol.KeyDPadRight, expected: "send-keys -t 0 -X page-down"},
+		{name: "left sends left arrow", key: protocol.KeyDPadLeft, expected: "send-keys -t 0 Left"},
+		{name: "right sends right arrow", key: protocol.KeyDPadRight, expected: "send-keys -t 0 Right"},
 	}
 
 	for _, tc := range tests {
