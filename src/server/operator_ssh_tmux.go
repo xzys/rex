@@ -51,6 +51,22 @@ func (o *SSHTmuxOperator) HandleInput(key int, isDown bool) (bool, error) {
 			o.comboFired = false
 		}
 		return true, nil
+
+	case protocol.KeyScrollUp:
+		if isDown {
+			return true, o.remoteCommand("copy-mode", "-eu")
+		}
+		return true, nil
+	case protocol.KeyScrollDown:
+		if isDown {
+			socket, host, err := readSSHInfo()
+			if err != nil {
+				return true, err
+			}
+			cmdArgs := []string{"-S", socket, "-o", "BatchMode=yes", host, "tmux", "send-keys", "-X", "page-down"}
+			return true, tryExecuteIgnoreMessages([]string{"not in a mode"}, "ssh", cmdArgs...)
+		}
+		return true, nil
 	}
 	return false, nil
 }
