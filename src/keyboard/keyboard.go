@@ -83,14 +83,20 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 	return NewVoiceModel(defaultSTTProvider(sttMode))
 }
 
-func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool) *Keyboard {
 	k := &Keyboard{
 		keyboard:   keyboardLayout,
 		compact:    compact,
 		paneHeight: cfg.KeyboardPaneHeight(compact, autocomplete),
 		sttMode:    sttMode,
 	}
-	k.model = k.getKeyboardModel(keyboardMode)
+	if defaultVoice {
+		// Start in voice mode; save the normal model so Fn can toggle back
+		k.priorModel = k.getKeyboardModel(keyboardMode)
+		k.model = k.createVoiceModel()
+	} else {
+		k.model = k.getKeyboardModel(keyboardMode)
+	}
 
 	if autocomplete {
 		f, err := wordsFile.Open("words.txt")

@@ -207,15 +207,22 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	mode := cfg.KeyboardModeChorded
 	compact := false
 	autocomplete := false
+	defaultVoice := false
 	if loaded, err := cfg.LoadConfig(); err == nil {
 		mode = cfg.NormalizeKeyboardMode(loaded.KeyboardMode)
 		compact = loaded.KeyboardCompact
 		autocomplete = loaded.KeyboardAutocomplete
+		defaultVoice = loaded.DefaultVoice
 	} else {
 		slog.Warn("failed to load config, using default keyboard mode", "err", err)
 	}
 
-	paneHeight := fmt.Sprintf("%d", cfg.KeyboardPaneHeight(compact, autocomplete))
+	var paneHeight string
+	if defaultVoice {
+		paneHeight = "1" // voice mode uses a single line
+	} else {
+		paneHeight = fmt.Sprintf("%d", cfg.KeyboardPaneHeight(compact, autocomplete))
+	}
 
 	slog.Info("opening keyboard pane", "mode", mode, "compact", compact, "autocomplete", autocomplete)
 	// Create the split pane

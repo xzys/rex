@@ -45,6 +45,7 @@ type Config struct {
 	KeyboardAutocomplete bool   `yaml:"keyboard_autocomplete,omitempty"`
 	DictWords            int    `yaml:"dict_words,omitempty"`
 	STTMode              string `yaml:"stt_mode,omitempty"` // "sherpa" (default), "parakeet", or "companion"
+	DefaultVoice         bool   `yaml:"default_voice,omitempty"` // open keyboard in voice mode by default
 }
 
 func LoadConfig() (Config, error) {

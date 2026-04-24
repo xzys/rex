@@ -18,12 +18,14 @@ type Model struct {
 	kbModeIndex  int
 	sttModes     []string
 	sttModeIndex int
+	defaultVoice bool
 	status       string
 }
 
 const (
 	rowKeyboardMode = iota
 	rowSTTMode
+	rowDefaultVoice
 	rowCount
 )
 
@@ -52,6 +54,7 @@ func NewModel(config cfg.Config) *Model {
 		kbModeIndex:  kbModeIndex,
 		sttModes:     sttModes,
 		sttModeIndex: sttModeIndex,
+		defaultVoice: config.DefaultVoice,
 	}
 }
 
@@ -119,12 +122,18 @@ func (m *Model) View() string {
 		innerWidth = 20
 	}
 
+	defaultVoiceStr := "off"
+	if m.defaultVoice {
+		defaultVoiceStr = "on"
+	}
+
 	rows := []struct {
 		label string
 		value string
 	}{
 		{"Chording mode", m.kbModes[m.kbModeIndex]},
 		{"STT mode", m.sttModes[m.sttModeIndex]},
+		{"Default voice", defaultVoiceStr},
 	}
 
 	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
@@ -186,6 +195,9 @@ func (m *Model) cycleMode(direction int) {
 			m.sttModeIndex = (m.sttModeIndex + direction + n) % n
 			m.config.STTMode = m.sttModes[m.sttModeIndex]
 		}
+	case rowDefaultVoice:
+		m.defaultVoice = !m.defaultVoice
+		m.config.DefaultVoice = m.defaultVoice
 	default:
 		return
 	}
