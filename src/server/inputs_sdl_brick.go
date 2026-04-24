@@ -51,8 +51,12 @@ func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 //   b2 (hw "X") → KeyY (north), b3 (hw "Y") → KeyX (west)
 // b4=L1, b5=R1, b6=L2, b7=R2
 // b8=Select, b9=Start, b10=Mode/Menu/Guide
-// b11/b12 = ThumbL/ThumbR clicks (unmapped)
+// b11 = ThumbL click (unmapped)
+// b12 = ThumbR / R3 click — types '/'
 // D-pad: hat 0 (SDL_JOYHATMOTION)
+// TODO: joystick axis scroll (KeyScrollUp/KeyScrollDown via left-stick Y) is not yet
+// implemented on Brick — the device has a left joystick but the axis handler used on
+// R36S was never ported. Add handleBrickAxisEvent mirroring inputs_sdl.go when needed.
 
 var brickButtonMap = map[uint8]int{
 	0:  protocol.KeyB,
@@ -66,6 +70,7 @@ var brickButtonMap = map[uint8]int{
 	8:  protocol.KeySelect,
 	9:  protocol.KeyStart,
 	10: protocol.KeyFn,
+	12: protocol.KeyR3,
 }
 
 // lastHatKey tracks the currently-held d-pad direction so we can

@@ -100,6 +100,8 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error)
 // 11 	D-Right
 // 12 	Select
 // 13 	Start
+// 14 	L3 (left stick click)
+// 15 	R3 (right stick click) — types '/'
 // 16 	Fn
 
 // The axes are mapped as follows:
@@ -217,6 +219,8 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent
 		key = protocol.KeySelect
 	case 13: // Start
 		key = protocol.KeyStart
+	case 15: // R3 (right stick click)
+		key = protocol.KeyR3
 	case 16: // Fn
 		key = protocol.KeyFn
 	default:
