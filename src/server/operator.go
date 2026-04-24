@@ -93,8 +93,13 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		if event.Key == protocol.KeySelect && event.IsDown {
 			return o.closeKeyboardPane()
 		}
-		// send key input message to keyboard
-		return o.server.SendKeyInputMessage(event)
+		// Keys the keyboard doesn't handle fall through to global
+		switch event.Key {
+		case protocol.KeyScrollUp, protocol.KeyScrollDown, protocol.KeyR3:
+			// fall through to global handler below
+		default:
+			return o.server.SendKeyInputMessage(event)
+		}
 	}
 
 	// key-up: active operator
