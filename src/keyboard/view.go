@@ -11,13 +11,18 @@ import (
 // -tags keyboard for keyboard support
 // Default to keyboard if no tags specified
 
-// Common keyboard layout
+// Common keyboard layout: four rows, split into two four-column hands.
 var keyboardLayout = [][]string{
-	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "MIC"},
-	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
-	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
+	{"q", "w", "e", "r", "u", "i", "o", "p"},
+	{"a", "s", "d", "f", "h", "j", "k", "l"},
+	{"z", "x", "c", "v", "b", "n", "m", "MIC"},
+	{"123", "SFT", "g", "t", "y", "ENT", "DEL", "SPC"},
 }
-var keyboardOffsets = []int{0, 2, 7}
+
+const (
+	keyboardHandCols    = 4
+	keyboardMinKeyWidth = 5
+)
 
 // implement tea.Model interface View
 
@@ -38,11 +43,16 @@ func (k *Keyboard) View() string {
 				Border(border, true, true, showBottom, true).
 				BorderForeground(lipgloss.Color(bg)).
 				Foreground(lipgloss.Color(fg))
+			if lipgloss.Width(key) < keyboardMinKeyWidth {
+				style = style.Width(keyboardMinKeyWidth).Align(lipgloss.Center)
+			}
+			if j == keyboardHandCols-1 {
+				style = style.MarginRight(2)
+			}
 
 			keys = append(keys, style.Render(key))
 		}
 		rowStr := lipgloss.JoinHorizontal(lipgloss.Bottom, keys...)
-		rowStr = lipgloss.NewStyle().Padding(0, keyboardOffsets[i]).Render(rowStr)
 		rows = append(rows, rowStr)
 	}
 

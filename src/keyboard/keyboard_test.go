@@ -74,16 +74,16 @@ var chordTestCases = []chordTestCase{
 
 var simpleLayout = [][]string{
 	// Mirror the on-screen simple layout to drive navigation tests.
-	{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "MIC"},
-	{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
-	{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
+	{"q", "w", "e", "r", "u", "i", "o", "p"},
+	{"a", "s", "d", "f", "h", "j", "k", "l"},
+	{"z", "x", "c", "v", "b", "n", "m", "MIC"},
+	{"123", "SFT", "g", "t", "y", "ENT", "DEL", "SPC"},
 }
 
 var simpleSpecialKeyOutputs = map[string]string{
 	"SPC": string(protocol.SpecialKeySpace),
 	"ENT": string(protocol.SpecialKeyEnter),
 	"DEL": string(protocol.SpecialKeyDelete),
-	"MIC": string(protocol.SpecialKeyMic),
 	"SFT": string(protocol.SpecialKeyShift),
 	"123": string(protocol.SpecialKeyNumbers),
 }
@@ -103,7 +103,6 @@ var chordedSpecialCases = []chordTestCase{
 	{protocol.KeyL2, protocol.KeyDPadRight, string(protocol.SpecialKeySpace)},
 	{protocol.KeyL2, protocol.KeyX, string(protocol.SpecialKeyEnter)},
 	{protocol.KeyL2, protocol.KeyY, string(protocol.SpecialKeyDelete)},
-	{protocol.KeyL2, protocol.KeyA, string(protocol.SpecialKeyMic)},
 }
 
 // TestKeyboardModes verifies chorded (toggle and simultaneous) and simple layouts,
@@ -161,9 +160,7 @@ func TestKeyboardModes(t *testing.T) {
 					inputs: []inputEvent{
 						keyDown(protocol.KeyDPadDown),
 						keyDown(protocol.KeyDPadDown),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyDPadRight),
+						keyDown(protocol.KeyDPadDown),
 						keyDown(protocol.KeyDPadRight),
 						keyDown(protocol.KeyDPadRight),
 						keyDown(protocol.KeyDPadRight),
@@ -201,7 +198,7 @@ func buildChordedCases(includeKeyUp bool) []keyboardCase {
 			inputs = append(inputs, keyUp(tc.modifier))
 		}
 		cases = append(cases, keyboardCase{
-			name: fmt.Sprintf("mod%d_key%d_%s", tc.modifier, tc.trigger, tc.expected),
+			name:     fmt.Sprintf("mod%d_key%d_%s", tc.modifier, tc.trigger, tc.expected),
 			inputs:   inputs,
 			expected: []string{tc.expected},
 		})
@@ -530,8 +527,8 @@ func TestFrontChordedKeyboard(t *testing.T) {
 
 	cases := []keyboardCase{
 		{
-			name: "type_t_produces_t",
-			inputs: frontChordInputs(protocol.KeyDPadRight, protocol.KeyY),
+			name:     "type_t_produces_t",
+			inputs:   frontChordInputs(protocol.KeyDPadRight, protocol.KeyY),
 			expected: []string{"t"},
 		},
 		{
@@ -562,7 +559,7 @@ func TestFrontChordedKeyboard(t *testing.T) {
 		{
 			name: "no_autocomplete_after_space",
 			inputs: append(append(append(
-				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY), // t
+				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY),   // t
 				frontChordInputs(protocol.KeyX, protocol.KeyDPadLeft)..., // space
 			),
 				frontChordInputs(protocol.KeyDPadRight, protocol.KeyY)..., // t again

@@ -205,7 +205,7 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	}
 
 	mode := cfg.KeyboardModeChorded
-	compact := false
+	compact := true
 	autocomplete := false
 	defaultVoice := false
 	if loaded, err := cfg.LoadConfig(); err == nil {
@@ -299,4 +299,3 @@ func (o *GlobalOperator) nextWindow() error {
 func (o *GlobalOperator) prevWindow() error {
 	return tryExecuteIgnoreMessages([]string{"no previous window"}, "tmux", "previous-window")
 }
-

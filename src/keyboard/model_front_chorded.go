@@ -140,12 +140,12 @@ func getFrontChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modDown, protocol.KeyB)] = 'c'
 	chordMap[encodeChord(modDown, protocol.KeyA)] = 'v'
 
-	// Right: T, G, B
+	// Right: T, G, B, Y
 	modRight := protocol.KeyDPadRight
 	chordMap[encodeChord(modRight, protocol.KeyY)] = 't'
 	chordMap[encodeChord(modRight, protocol.KeyX)] = 'g'
 	chordMap[encodeChord(modRight, protocol.KeyB)] = 'b'
-	// chordMap[encodeChord(modRight, protocol.KeyA)] = ' ' // Unused or maybe Space?
+	chordMap[encodeChord(modRight, protocol.KeyA)] = 'y'
 
 	// Right Hand Modifiers
 	// Triggers: D-Pad (Left Hand)
@@ -171,15 +171,12 @@ func getFrontChordMaps() (map[int]rune, map[int]rune) {
 	chordMap[encodeChord(modA, protocol.KeyDPadDown)] = 'k'
 	chordMap[encodeChord(modA, protocol.KeyDPadRight)] = 'l'
 
-	// B (Down): N, M, Comma, Dot
+	// B (Down): N, M, Shift, Mic
 	modB := protocol.KeyB
 	chordMap[encodeChord(modB, protocol.KeyDPadUp)] = 'n'
 	chordMap[encodeChord(modB, protocol.KeyDPadLeft)] = 'm'
-	// Assuming Comma/Dot are mapped to something or just not in the basic set?
-	// The plan says "Comma, Dot". I need to check if I have special keys for them or just chars.
-	// Usually they are just characters.
-	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = protocol.SpecialKeyMic
-	chordMap[encodeChord(modB, protocol.KeyDPadRight)] = '.'
+	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = protocol.SpecialKeyShift
+	chordMap[encodeChord(modB, protocol.KeyDPadRight)] = protocol.SpecialKeyMic
 
 	// Numbers Mode Mapping (Populate chordAltMap)
 	// I'll map numbers to the QWERTY row equivalent positions if possible, or just 1-0

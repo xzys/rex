@@ -37,15 +37,15 @@ type Layout struct {
 }
 
 type Config struct {
-	Layout       Layout   `yaml:"layout"`
-	Apps         []App    `yaml:"apps"`
-	SSHHosts     []string `yaml:"ssh_hosts"`
-	KeyboardMode         string `yaml:"keyboard_mode"`
-	KeyboardCompact      bool   `yaml:"keyboard_compact,omitempty"`
-	KeyboardAutocomplete bool   `yaml:"keyboard_autocomplete,omitempty"`
-	DictWords            int    `yaml:"dict_words,omitempty"`
-	STTMode              string `yaml:"stt_mode,omitempty"` // "sherpa" (default), "parakeet", or "companion"
-	DefaultVoice         bool   `yaml:"default_voice,omitempty"` // open keyboard in voice mode by default
+	Layout               Layout   `yaml:"layout"`
+	Apps                 []App    `yaml:"apps"`
+	SSHHosts             []string `yaml:"ssh_hosts"`
+	KeyboardMode         string   `yaml:"keyboard_mode"`
+	KeyboardCompact      bool     `yaml:"keyboard_compact"`
+	KeyboardAutocomplete bool     `yaml:"keyboard_autocomplete,omitempty"`
+	DictWords            int      `yaml:"dict_words,omitempty"`
+	STTMode              string   `yaml:"stt_mode,omitempty"`      // "sherpa" (default), "parakeet", or "companion"
+	DefaultVoice         bool     `yaml:"default_voice,omitempty"` // open keyboard in voice mode by default
 }
 
 func LoadConfig() (Config, error) {
@@ -65,21 +65,29 @@ func SaveConfig(config Config) error {
 }
 
 func loadConfigFromPath(path string) (Config, error) {
+	config := defaultConfig()
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Config{}, nil
+			return config, nil
 		}
 		return Config{}, err
 	}
 
-	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return Config{}, err
 	}
 
 	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
 	return config, nil
+}
+
+func defaultConfig() Config {
+	return Config{
+		KeyboardMode:    KeyboardModeChorded,
+		KeyboardCompact: true,
+	}
 }
 
 func saveConfigToPath(path string, config Config) error {
@@ -143,12 +151,12 @@ func NormalizeKeyboardMode(mode string) string {
 }
 
 // KeyboardPaneHeight returns the tmux pane height for the keyboard pane.
-// Compact mode stacks 3 rows of 2-line keys (6 lines); normal uses 3-line keys (9 lines).
+// Compact mode stacks 4 rows of 2-line keys (8 lines); normal uses 3-line keys (12 lines).
 // Autocomplete adds a one-line suggestion bar above the keys.
 func KeyboardPaneHeight(compact, autocomplete bool) int {
-	rows := 9
+	rows := 12
 	if compact {
-		rows = 6
+		rows = 8
 	}
 	if autocomplete {
 		rows++
