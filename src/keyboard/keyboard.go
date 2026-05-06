@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -120,8 +121,28 @@ func (k *Keyboard) Run() error {
 		}
 	}()
 
+	// Connect before starting the tea program so connection failures surface
+	// as a plain error rather than a panic from inside the bubble tea loop.
+	inputConn, err := net.Dial("unix", protocol.InputSocketPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "rex keyboard: could not connect to server (is the rex server running?)\n  %v\n", err)
+		return err
+	}
+	k.inputConn = inputConn
+	k.decoder = json.NewDecoder(inputConn)
+
+	outputConn, err := net.Dial("unix", protocol.OutputSocketPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "rex keyboard: could not connect to server (is the rex server running?)\n  %v\n", err)
+		return err
+	}
+	k.outputConn = outputConn
+	k.encoder = json.NewEncoder(outputConn)
+
+	slog.Info("connected to server", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath())
+
 	p := tea.NewProgram(k)
-	_, err := p.Run()
+	_, err = p.Run()
 	return err
 }
 
@@ -129,27 +150,6 @@ func (k *Keyboard) Run() error {
 var QuitCmd = tea.Sequence(tea.ExitAltScreen, tea.Quit)
 
 func (k *Keyboard) Init() tea.Cmd {
-	// Connect to input socket (receives KeyInput from server)
-	inputConn, err := net.Dial("unix", protocol.InputSocketPath())
-	if err != nil {
-		slog.Error("failed to connect to input socket", "err", err)
-		return QuitCmd
-	}
-	k.inputConn = inputConn
-	k.decoder = json.NewDecoder(inputConn)
-
-	// Connect to output socket (sends KeyPress to server)
-	outputConn, err := net.Dial("unix", protocol.OutputSocketPath())
-	if err != nil {
-		slog.Error("failed to connect to output socket", "err", err)
-		inputConn.Close()
-		return QuitCmd
-	}
-	k.outputConn = outputConn
-	k.encoder = json.NewEncoder(outputConn)
-
-	slog.Info("connected to server", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath())
-
 	// 0. return tea.Cmd to read socket
 	// 1. ReadSocket returns a message containing the parsed message or an error
 	// 2. Update parses message and returns ReadSocket command again
