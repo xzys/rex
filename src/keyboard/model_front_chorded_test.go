@@ -16,37 +16,26 @@ func TestFrontChordedModel(t *testing.T) {
 	model := NewKeyboardModelFrontChorded(layout)
 
 	tests := []struct {
-		name     string
-		ops      []struct {
+		name string
+		ops  []struct {
 			key       int
 			isKeyDown bool
 		}
 		expected *string
 	}{
 		{
-			name: "Left Mod Up + Y -> q",
+			name: "Left Mod Left + X -> q",
 			ops: []struct {
 				key       int
 				isKeyDown bool
 			}{
-				{protocol.KeyDPadUp, true}, // Mod
-				{protocol.KeyY, true},      // Trigger
+				{protocol.KeyDPadLeft, true}, // Mod
+				{protocol.KeyX, true},        // Trigger
 			},
 			expected: ptrString("q"),
 		},
 		{
-			name: "Left Mod Up + X -> w",
-			ops: []struct {
-				key       int
-				isKeyDown bool
-			}{
-				{protocol.KeyDPadUp, true},
-				{protocol.KeyX, true},
-			},
-			expected: ptrString("w"),
-		},
-		{
-			name: "Left Mod Left + Y -> a",
+			name: "Left Mod Left + Y -> w",
 			ops: []struct {
 				key       int
 				isKeyDown bool
@@ -54,27 +43,38 @@ func TestFrontChordedModel(t *testing.T) {
 				{protocol.KeyDPadLeft, true},
 				{protocol.KeyY, true},
 			},
-			expected: ptrString("a"),
+			expected: ptrString("w"),
 		},
 		{
-			name: "Right Mod Y + Up -> u",
+			name: "Left Mod Up + X -> a",
 			ops: []struct {
 				key       int
 				isKeyDown bool
 			}{
-				{protocol.KeyY, true},      // Mod
-				{protocol.KeyDPadUp, true}, // Trigger
+				{protocol.KeyDPadUp, true},
+				{protocol.KeyX, true},
 			},
-			expected: ptrString("u"),
+			expected: ptrString("a"),
 		},
 		{
-			name: "Right Mod X + Left -> Space",
+			name: "Right Mod X + Left -> u",
 			ops: []struct {
 				key       int
 				isKeyDown bool
 			}{
 				{protocol.KeyX, true},        // Mod
 				{protocol.KeyDPadLeft, true}, // Trigger
+			},
+			expected: ptrString("u"),
+		},
+		{
+			name: "Right Mod A + Right -> Space",
+			ops: []struct {
+				key       int
+				isKeyDown bool
+			}{
+				{protocol.KeyA, true},         // Mod
+				{protocol.KeyDPadRight, true}, // Trigger
 			},
 			expected: ptrString(" "),
 		},
@@ -84,14 +84,14 @@ func TestFrontChordedModel(t *testing.T) {
 				key       int
 				isKeyDown bool
 			}{
-				{protocol.KeyX, true},       // Mod
-				{protocol.KeyDPadUp, true},  // Trigger (Shift/Numbers) -> Toggle Numbers
-				{protocol.KeyX, false},      // Release Mod
-				{protocol.KeyDPadUp, false}, // Release Trigger
-				
+				{protocol.KeyDPadRight, true}, // Mod
+				{protocol.KeyX, true},         // Trigger (Numbers) -> Toggle Numbers
+				{protocol.KeyDPadRight, false},
+				{protocol.KeyX, false},
+
 				// Now try a number chord
-				{protocol.KeyDPadUp, true}, // Mod Up
-				{protocol.KeyY, true},      // Trigger Y -> Q in letters, 1 in numbers
+				{protocol.KeyDPadLeft, true}, // Mod Left
+				{protocol.KeyX, true},        // Trigger X -> Q in letters, 1 in numbers
 			},
 			expected: ptrString("1"),
 		},
@@ -101,7 +101,7 @@ func TestFrontChordedModel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Reset model state between tests if needed, or create new model
 			model = NewKeyboardModelFrontChorded(layout)
-			
+
 			var result *string
 			for _, op := range tc.ops {
 				res := model.HandleKey(op.key, op.isKeyDown)
@@ -131,30 +131,30 @@ func TestFrontChordedModel_RenderKey(t *testing.T) {
 	}
 	model := NewKeyboardModelFrontChorded(layout)
 
-	// Hold modifier KeyDPadUp (Left Mod Up)
-	model.HandleKey(protocol.KeyDPadUp, true)
+	// Hold modifier KeyDPadLeft (left matrix first row)
+	model.HandleKey(protocol.KeyDPadLeft, true)
 
 	// In this state:
-	// KeyDPadUp + KeyY -> 'q'
-	// KeyDPadUp + KeyX -> 'w'
-	// KeyDPadUp + KeyB -> 'e'
-	// KeyDPadUp + KeyA -> 'r'
+	// KeyDPadLeft + KeyX -> 'q'
+	// KeyDPadLeft + KeyY -> 'w'
+	// KeyDPadLeft + KeyB -> 'e'
+	// KeyDPadLeft + KeyA -> 'r'
 
-	// RenderKey(0, 0) -> 'q'. Should be highlighted with trigger 'y' color.
-	// Trigger 'y' -> "2", "2" (Yellow/Orange)
+	// RenderKey(0, 0) -> 'q'. Should be highlighted with trigger 'x' color.
+	// Trigger 'x' -> "4", "4" (Blue/Green)
 	fg, bg, text := model.RenderKey(0, 0, "q")
-	if fg != "2" || bg != "2" {
-		t.Errorf("expected highlight for 'q' with mod Up (trigger Y), got fg=%s bg=%s", fg, bg)
+	if fg != "4" || bg != "4" {
+		t.Errorf("expected highlight for 'q' with mod Left (trigger X), got fg=%s bg=%s", fg, bg)
 	}
 	if text != "q" {
 		t.Errorf("expected text 'q', got %s", text)
 	}
 
-	// RenderKey(0, 1) -> 'w'. Trigger 'x'.
-	// Trigger 'x' -> "4", "4" (Blue/Green)
+	// RenderKey(0, 1) -> 'w'. Trigger 'y'.
+	// Trigger 'y' -> "2", "2" (Yellow/Orange)
 	fg, bg, text = model.RenderKey(0, 1, "w")
-	if fg != "4" || bg != "4" {
-		t.Errorf("expected highlight for 'w' with mod Up (trigger X), got fg=%s bg=%s", fg, bg)
+	if fg != "2" || bg != "2" {
+		t.Errorf("expected highlight for 'w' with mod Left (trigger Y), got fg=%s bg=%s", fg, bg)
 	}
 }
 

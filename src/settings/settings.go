@@ -10,25 +10,28 @@ import (
 )
 
 type Model struct {
-	config       cfg.Config
-	cursor       int
-	width        int
-	height       int
-	kbModes      []string
-	kbModeIndex  int
-	kbViews      []string
-	kbViewIndex  int
-	sttModes     []string
-	sttModeIndex int
-	defaultVoice bool
-	status       string
+	config        cfg.Config
+	cursor        int
+	width         int
+	height        int
+	kbModes       []string
+	kbModeIndex   int
+	kbLayouts     []string
+	kbLayoutIndex int
+	kbViews       []string
+	kbViewIndex   int
+	sttModes      []string
+	sttModeIndex  int
+	defaultVoice  bool
+	status        string
 }
 
 const (
 	rowKeyboardMode = iota
+	rowKeyboardLayout
 	rowKeyboardView
-	rowSTTMode
 	rowDefaultVoice
+	rowSTTMode
 	rowCount
 )
 
@@ -48,6 +51,9 @@ func NewModel(config cfg.Config) *Model {
 	kbModes := cfg.KeyboardModes()
 	kbModeIndex := indexOf(kbModes, config.KeyboardMode)
 
+	kbLayouts := cfg.KeyboardLayouts()
+	kbLayoutIndex := indexOf(kbLayouts, cfg.NormalizeKeyboardLayout(config.KeyboardLayout))
+
 	kbViews := cfg.KeyboardViews()
 	kbViewIndex := indexOf(kbViews, cfg.NormalizeKeyboardView(config.KeyboardView))
 
@@ -55,14 +61,16 @@ func NewModel(config cfg.Config) *Model {
 	sttModeIndex := indexOf(sttModes, cfg.NormalizeSTTMode(config.STTMode))
 
 	return &Model{
-		config:       config,
-		kbModes:      kbModes,
-		kbModeIndex:  kbModeIndex,
-		kbViews:      kbViews,
-		kbViewIndex:  kbViewIndex,
-		sttModes:     sttModes,
-		sttModeIndex: sttModeIndex,
-		defaultVoice: config.DefaultVoice,
+		config:        config,
+		kbModes:       kbModes,
+		kbModeIndex:   kbModeIndex,
+		kbLayouts:     kbLayouts,
+		kbLayoutIndex: kbLayoutIndex,
+		kbViews:       kbViews,
+		kbViewIndex:   kbViewIndex,
+		sttModes:      sttModes,
+		sttModeIndex:  sttModeIndex,
+		defaultVoice:  config.DefaultVoice,
 	}
 }
 
@@ -140,9 +148,10 @@ func (m *Model) View() string {
 		value string
 	}{
 		{"Chording mode", m.kbModes[m.kbModeIndex]},
+		{"Keyboard layout", m.kbLayouts[m.kbLayoutIndex]},
 		{"Keyboard view", m.kbViews[m.kbViewIndex]},
+		{"Keyboard Default Voice Mode", defaultVoiceStr},
 		{"STT mode", m.sttModes[m.sttModeIndex]},
-		{"Default voice", defaultVoiceStr},
 	}
 
 	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
@@ -198,6 +207,11 @@ func (m *Model) cycleMode(direction int) {
 		if n := len(m.kbModes); n > 0 {
 			m.kbModeIndex = (m.kbModeIndex + direction + n) % n
 			m.config.KeyboardMode = m.kbModes[m.kbModeIndex]
+		}
+	case rowKeyboardLayout:
+		if n := len(m.kbLayouts); n > 0 {
+			m.kbLayoutIndex = (m.kbLayoutIndex + direction + n) % n
+			m.config.KeyboardLayout = m.kbLayouts[m.kbLayoutIndex]
 		}
 	case rowKeyboardView:
 		if n := len(m.kbViews); n > 0 {

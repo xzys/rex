@@ -15,6 +15,8 @@ const (
 	KeyboardModeFrontChorded        = "front-chorded"
 	KeyboardViewGrid                = "grid"
 	KeyboardViewFan                 = "fan"
+	KeyboardLayout4x8               = "4x8"
+	KeyboardLayout3Row              = "3-row"
 	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
 
@@ -43,6 +45,7 @@ type Config struct {
 	Apps                 []App    `yaml:"apps"`
 	SSHHosts             []string `yaml:"ssh_hosts"`
 	KeyboardMode         string   `yaml:"keyboard_mode"`
+	KeyboardLayout       string   `yaml:"keyboard_layout,omitempty"`
 	KeyboardView         string   `yaml:"keyboard_view,omitempty"`
 	KeyboardCompact      bool     `yaml:"keyboard_compact"`
 	KeyboardAutocomplete bool     `yaml:"keyboard_autocomplete,omitempty"`
@@ -83,6 +86,7 @@ func loadConfigFromPath(path string) (Config, error) {
 	}
 
 	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
+	config.KeyboardLayout = NormalizeKeyboardLayout(config.KeyboardLayout)
 	config.KeyboardView = NormalizeKeyboardView(config.KeyboardView)
 	return config, nil
 }
@@ -90,6 +94,7 @@ func loadConfigFromPath(path string) (Config, error) {
 func defaultConfig() Config {
 	return Config{
 		KeyboardMode:    KeyboardModeChorded,
+		KeyboardLayout:  KeyboardLayout4x8,
 		KeyboardView:    KeyboardViewGrid,
 		KeyboardCompact: true,
 	}
@@ -97,6 +102,7 @@ func defaultConfig() Config {
 
 func saveConfigToPath(path string, config Config) error {
 	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
+	config.KeyboardLayout = NormalizeKeyboardLayout(config.KeyboardLayout)
 	config.KeyboardView = NormalizeKeyboardView(config.KeyboardView)
 	config.STTMode = NormalizeSTTMode(config.STTMode)
 
@@ -165,14 +171,35 @@ func NormalizeKeyboardView(view string) string {
 	}
 }
 
-// KeyboardPaneHeight returns the tmux pane height for the keyboard pane.
-// Compact mode stacks 4 rows of 2-line keys (8 lines); normal uses 3-line keys (12 lines).
-// Autocomplete adds a one-line suggestion bar above the keys.
-func KeyboardPaneHeight(compact, autocomplete bool) int {
-	rows := 12
-	if compact {
-		rows = 8
+func NormalizeKeyboardLayout(layout string) string {
+	switch layout {
+	case KeyboardLayout4x8, KeyboardLayout3Row:
+		return layout
+	default:
+		return KeyboardLayout4x8
 	}
+}
+
+// KeyboardPaneHeight returns the tmux pane height for the default keyboard layout.
+func KeyboardPaneHeight(compact, autocomplete bool) int {
+	return KeyboardPaneHeightForLayout(compact, autocomplete, KeyboardLayout4x8)
+}
+
+// KeyboardPaneHeightForLayout returns the tmux pane height for the keyboard pane.
+// Compact mode stacks rows of 2-line keys; normal uses 3-line keys.
+// Autocomplete adds a one-line suggestion bar above the keys.
+func KeyboardPaneHeightForLayout(compact, autocomplete bool, layout string) int {
+	rowCount := 4
+	if NormalizeKeyboardLayout(layout) == KeyboardLayout3Row {
+		rowCount = 3
+	}
+
+	rowHeight := 3
+	if compact {
+		rowHeight = 2
+	}
+
+	rows := rowCount * rowHeight
 	if autocomplete {
 		rows++
 	}
@@ -200,5 +227,12 @@ func KeyboardViews() []string {
 	return []string{
 		KeyboardViewGrid,
 		KeyboardViewFan,
+	}
+}
+
+func KeyboardLayouts() []string {
+	return []string{
+		KeyboardLayout4x8,
+		KeyboardLayout3Row,
 	}
 }

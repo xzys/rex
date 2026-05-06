@@ -81,7 +81,7 @@ func main() {
 			dw = cfg.DefaultDictWords
 		}
 		sttMode := cfg.NormalizeSTTMode(config.STTMode)
-		err = keyboard.NewKeyboard(mode, dw, config.KeyboardCompact, config.KeyboardAutocomplete, sttMode, config.DefaultVoice, config.KeyboardView).Run()
+		err = keyboard.NewKeyboard(mode, dw, config.KeyboardCompact, config.KeyboardAutocomplete, sttMode, config.DefaultVoice, config.KeyboardView, config.KeyboardLayout).Run()
 	case "menu":
 		fs := flag.NewFlagSet("menu", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }

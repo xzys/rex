@@ -37,6 +37,9 @@ type Keyboard struct {
 	// display
 	compact      bool
 	keyboardView string
+	handCols     int
+	rowOffsets   []int
+	minKeyWidth  int
 	paneHeight   int
 	// voice companion mode
 	sttMode string // "sherpa" or "companion"
@@ -47,13 +50,13 @@ type RuntimeError error
 func (k *Keyboard) getKeyboardModel(mode string) KeyboardModel {
 	switch mode {
 	case "chorded":
-		return NewKeyboardModelChorded(keyboardLayout, false)
+		return NewKeyboardModelChorded(k.keyboard, false)
 	case "chorded-simultaneous":
-		return NewKeyboardModelChorded(keyboardLayout, true)
+		return NewKeyboardModelChorded(k.keyboard, true)
 	case "simple":
-		return NewKeyboardModelSimple()
+		return NewKeyboardModelSimple(k.keyboard)
 	case "front-chorded":
-		return NewKeyboardModelFrontChorded(keyboardLayout)
+		return NewKeyboardModelFrontChorded(k.keyboard)
 	case "voice":
 		return k.createVoiceModel()
 	default:
@@ -85,12 +88,16 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 	return NewVoiceModel(defaultSTTProvider(sttMode))
 }
 
-func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool, keyboardView string) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool, keyboardView string, keyboardLayout string) *Keyboard {
+	layout := keyboardLayoutForName(keyboardLayout)
 	k := &Keyboard{
-		keyboard:     keyboardLayout,
+		keyboard:     layout.keys,
 		compact:      compact,
 		keyboardView: cfg.NormalizeKeyboardView(keyboardView),
-		paneHeight:   cfg.KeyboardPaneHeight(compact, autocomplete),
+		handCols:     layout.handCols,
+		rowOffsets:   layout.rowOffsets,
+		minKeyWidth:  layout.minKeyWidth,
+		paneHeight:   cfg.KeyboardPaneHeightForLayout(compact, autocomplete, keyboardLayout),
 		sttMode:      sttMode,
 	}
 	if defaultVoice {

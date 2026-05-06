@@ -205,11 +205,13 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	}
 
 	mode := cfg.KeyboardModeChorded
+	layout := cfg.KeyboardLayout4x8
 	compact := true
 	autocomplete := false
 	defaultVoice := false
 	if loaded, err := cfg.LoadConfig(); err == nil {
 		mode = cfg.NormalizeKeyboardMode(loaded.KeyboardMode)
+		layout = cfg.NormalizeKeyboardLayout(loaded.KeyboardLayout)
 		compact = loaded.KeyboardCompact
 		autocomplete = loaded.KeyboardAutocomplete
 		defaultVoice = loaded.DefaultVoice
@@ -221,10 +223,10 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	if defaultVoice {
 		paneHeight = "1" // voice mode uses a single line
 	} else {
-		paneHeight = fmt.Sprintf("%d", cfg.KeyboardPaneHeight(compact, autocomplete))
+		paneHeight = fmt.Sprintf("%d", cfg.KeyboardPaneHeightForLayout(compact, autocomplete, layout))
 	}
 
-	slog.Info("opening keyboard pane", "mode", mode, "compact", compact, "autocomplete", autocomplete)
+	slog.Info("opening keyboard pane", "mode", mode, "layout", layout, "compact", compact, "autocomplete", autocomplete)
 	// Create the split pane
 	if err := execute("tmux", "split-window",
 		"-l", paneHeight,

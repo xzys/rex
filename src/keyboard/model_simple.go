@@ -5,17 +5,19 @@ import (
 )
 
 type KeyboardModelSimple struct {
+	layout      [][]string
 	selectedRow int
 	selectedCol int
 	rowWidths   []int
 }
 
-func NewKeyboardModelSimple() *KeyboardModelSimple {
-	rowWidths := make([]int, len(keyboardLayout))
-	for i, row := range keyboardLayout {
+func NewKeyboardModelSimple(layout [][]string) *KeyboardModelSimple {
+	rowWidths := make([]int, len(layout))
+	for i, row := range layout {
 		rowWidths[i] = len(row)
 	}
 	return &KeyboardModelSimple{
+		layout:      layout,
 		selectedRow: 0,
 		selectedCol: 0,
 		rowWidths:   rowWidths,
@@ -51,9 +53,9 @@ func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
 		}
 	case protocol.KeyA:
 		// Return the currently selected key
-		if m.selectedRow >= 0 && m.selectedRow < len(keyboardLayout) &&
-			m.selectedCol >= 0 && m.selectedCol < len(keyboardLayout[m.selectedRow]) {
-			key := keyboardLayout[m.selectedRow][m.selectedCol]
+		if m.selectedRow >= 0 && m.selectedRow < len(m.layout) &&
+			m.selectedCol >= 0 && m.selectedCol < len(m.layout[m.selectedRow]) {
+			key := m.layout[m.selectedRow][m.selectedCol]
 			if mapped, ok := specialKeyMap[key]; ok {
 				mappedString := string(mapped)
 				return &mappedString

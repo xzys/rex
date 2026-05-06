@@ -28,4 +28,10 @@ apps:
       color: "3"
       command: rex settings
 ssh_hosts: []
+
+# Keyboard input model: simple | chorded | chorded-simultaneous | front-chorded
 keyboard_mode: chorded
+# Keyboard layout: 4x8 | 3-row
+keyboard_layout: 4x8
+# 4x8 view: grid | fan. Ignored when keyboard_layout is 3-row.
+keyboard_view: grid

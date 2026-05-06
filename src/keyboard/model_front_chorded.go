@@ -113,104 +113,71 @@ func getFrontChordMaps() (map[int]rune, map[int]rune) {
 	chordMap := make(map[int]rune)
 	chordAltMap := make(map[int]rune)
 
-	// Helper to map a zone
-	// Modifiers: D-Pad (Left Hand)
-	// Triggers: ABXY (Right Hand)
+	// The 4x8 front-chorded grid is two 4x4 matrices.
+	// Left matrix: D-pad modifiers (left, up, down, right) + XYBA triggers.
+	// Right matrix: XYBA modifiers + D-pad triggers (left, up, down, right).
 
-	// Left Hand Modifiers
-
-	// Up: Q, W, E, R
-	modUp := protocol.KeyDPadUp
-	chordMap[encodeChord(modUp, protocol.KeyY)] = 'q'
-	chordMap[encodeChord(modUp, protocol.KeyX)] = 'w'
-	chordMap[encodeChord(modUp, protocol.KeyB)] = 'e'
-	chordMap[encodeChord(modUp, protocol.KeyA)] = 'r'
-
-	// Left: A, S, D, F
+	// Left hand modifiers, XYBA trigger columns.
 	modLeft := protocol.KeyDPadLeft
-	chordMap[encodeChord(modLeft, protocol.KeyY)] = 'a'
-	chordMap[encodeChord(modLeft, protocol.KeyX)] = 's'
-	chordMap[encodeChord(modLeft, protocol.KeyB)] = 'd'
-	chordMap[encodeChord(modLeft, protocol.KeyA)] = 'f'
+	chordMap[encodeChord(modLeft, protocol.KeyX)] = 'q'
+	chordMap[encodeChord(modLeft, protocol.KeyY)] = 'w'
+	chordMap[encodeChord(modLeft, protocol.KeyB)] = 'e'
+	chordMap[encodeChord(modLeft, protocol.KeyA)] = 'r'
 
-	// Down: Z, X, C, V
+	modUp := protocol.KeyDPadUp
+	chordMap[encodeChord(modUp, protocol.KeyX)] = 'a'
+	chordMap[encodeChord(modUp, protocol.KeyY)] = 's'
+	chordMap[encodeChord(modUp, protocol.KeyB)] = 'd'
+	chordMap[encodeChord(modUp, protocol.KeyA)] = 'f'
+
 	modDown := protocol.KeyDPadDown
-	chordMap[encodeChord(modDown, protocol.KeyY)] = 'z'
-	chordMap[encodeChord(modDown, protocol.KeyX)] = 'x'
+	chordMap[encodeChord(modDown, protocol.KeyX)] = 'z'
+	chordMap[encodeChord(modDown, protocol.KeyY)] = 'x'
 	chordMap[encodeChord(modDown, protocol.KeyB)] = 'c'
 	chordMap[encodeChord(modDown, protocol.KeyA)] = 'v'
 
-	// Right: T, G, B, Y
 	modRight := protocol.KeyDPadRight
-	chordMap[encodeChord(modRight, protocol.KeyY)] = 't'
-	chordMap[encodeChord(modRight, protocol.KeyX)] = 'g'
-	chordMap[encodeChord(modRight, protocol.KeyB)] = 'b'
-	chordMap[encodeChord(modRight, protocol.KeyA)] = 'y'
+	chordMap[encodeChord(modRight, protocol.KeyX)] = protocol.SpecialKeyNumbers
+	chordMap[encodeChord(modRight, protocol.KeyY)] = protocol.SpecialKeyShift
+	chordMap[encodeChord(modRight, protocol.KeyB)] = 'g'
+	chordMap[encodeChord(modRight, protocol.KeyA)] = 't'
 
-	// Right Hand Modifiers
-	// Triggers: D-Pad (Left Hand)
-
-	// Y (Up): U, I, O, P
-	modY := protocol.KeyY
-	chordMap[encodeChord(modY, protocol.KeyDPadUp)] = 'u'
-	chordMap[encodeChord(modY, protocol.KeyDPadLeft)] = 'i'
-	chordMap[encodeChord(modY, protocol.KeyDPadDown)] = 'o'
-	chordMap[encodeChord(modY, protocol.KeyDPadRight)] = 'p'
-
-	// X (Left) [Inner Right Zone]: Special Keys
+	// Right hand modifiers, D-pad trigger columns.
 	modX := protocol.KeyX
-	chordMap[encodeChord(modX, protocol.KeyDPadUp)] = protocol.SpecialKeyNumbers // Shift/Numbers? Plan says Shift/Numbers
-	chordMap[encodeChord(modX, protocol.KeyDPadLeft)] = protocol.SpecialKeySpace
-	chordMap[encodeChord(modX, protocol.KeyDPadDown)] = protocol.SpecialKeyEnter
-	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = protocol.SpecialKeyDelete // Backspace
+	chordMap[encodeChord(modX, protocol.KeyDPadLeft)] = 'u'
+	chordMap[encodeChord(modX, protocol.KeyDPadUp)] = 'i'
+	chordMap[encodeChord(modX, protocol.KeyDPadDown)] = 'o'
+	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = 'p'
 
-	// A (Right): H, J, K, L
-	modA := protocol.KeyA
-	chordMap[encodeChord(modA, protocol.KeyDPadUp)] = 'h'
-	chordMap[encodeChord(modA, protocol.KeyDPadLeft)] = 'j'
-	chordMap[encodeChord(modA, protocol.KeyDPadDown)] = 'k'
-	chordMap[encodeChord(modA, protocol.KeyDPadRight)] = 'l'
+	modY := protocol.KeyY
+	chordMap[encodeChord(modY, protocol.KeyDPadLeft)] = 'h'
+	chordMap[encodeChord(modY, protocol.KeyDPadUp)] = 'j'
+	chordMap[encodeChord(modY, protocol.KeyDPadDown)] = 'k'
+	chordMap[encodeChord(modY, protocol.KeyDPadRight)] = 'l'
 
-	// B (Down): N, M, Shift, Mic
 	modB := protocol.KeyB
+	chordMap[encodeChord(modB, protocol.KeyDPadLeft)] = 'b'
 	chordMap[encodeChord(modB, protocol.KeyDPadUp)] = 'n'
-	chordMap[encodeChord(modB, protocol.KeyDPadLeft)] = 'm'
-	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = protocol.SpecialKeyShift
+	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = 'm'
 	chordMap[encodeChord(modB, protocol.KeyDPadRight)] = protocol.SpecialKeyMic
 
-	// Numbers Mode Mapping (Populate chordAltMap)
-	// I'll map numbers to the QWERTY row equivalent positions if possible, or just 1-0
-	// Plan doesn't explicitly define number mapping, but implies "Shift/Numbers" toggles it.
-	// Let's assume a standard mapping or just map top row QWERTY to 1-0.
+	modA := protocol.KeyA
+	chordMap[encodeChord(modA, protocol.KeyDPadLeft)] = 'y'
+	chordMap[encodeChord(modA, protocol.KeyDPadUp)] = protocol.SpecialKeyEnter
+	chordMap[encodeChord(modA, protocol.KeyDPadDown)] = protocol.SpecialKeyDelete
+	chordMap[encodeChord(modA, protocol.KeyDPadRight)] = protocol.SpecialKeySpace
 
-	// QWERTY row is on Mod Up (QWER) and Mod Y (UIOP) + Mod Right (T)
-	// Let's map:
-	// Mod Up + Y (Q) -> 1
-	chordAltMap[encodeChord(modUp, protocol.KeyY)] = '1'
-	// Mod Up + X (W) -> 2
-	chordAltMap[encodeChord(modUp, protocol.KeyX)] = '2'
-	// Mod Up + B (E) -> 3
-	chordAltMap[encodeChord(modUp, protocol.KeyB)] = '3'
-	// Mod Up + A (R) -> 4
-	chordAltMap[encodeChord(modUp, protocol.KeyA)] = '4'
-
-	// Mod Right + Y (T) -> 5
-	chordAltMap[encodeChord(modRight, protocol.KeyY)] = '5'
-
-	// Mod Y + Up (U) -> 7 (Wait, standard is 12345 67890)
-	// Y (Up) -> U, I, O, P
-	// Let's map Y + Up (U) -> 7
-	chordAltMap[encodeChord(modY, protocol.KeyDPadUp)] = '7'
-	// Y + Left (I) -> 8
-	chordAltMap[encodeChord(modY, protocol.KeyDPadLeft)] = '8'
-	// Y + Down (O) -> 9
-	chordAltMap[encodeChord(modY, protocol.KeyDPadDown)] = '9'
-	// Y + Right (P) -> 0
-	chordAltMap[encodeChord(modY, protocol.KeyDPadRight)] = '0'
-
-	// Missing 6?
-	// Mod Right + X (G) -> 6?
-	chordAltMap[encodeChord(modRight, protocol.KeyX)] = '6'
+	// Numbers mode follows the QWERTY number row: qwertyuiop -> 1234567890.
+	chordAltMap[encodeChord(modLeft, protocol.KeyX)] = '1'      // q
+	chordAltMap[encodeChord(modLeft, protocol.KeyY)] = '2'      // w
+	chordAltMap[encodeChord(modLeft, protocol.KeyB)] = '3'      // e
+	chordAltMap[encodeChord(modLeft, protocol.KeyA)] = '4'      // r
+	chordAltMap[encodeChord(modRight, protocol.KeyA)] = '5'     // t
+	chordAltMap[encodeChord(modA, protocol.KeyDPadLeft)] = '6'  // y
+	chordAltMap[encodeChord(modX, protocol.KeyDPadLeft)] = '7'  // u
+	chordAltMap[encodeChord(modX, protocol.KeyDPadUp)] = '8'    // i
+	chordAltMap[encodeChord(modX, protocol.KeyDPadDown)] = '9'  // o
+	chordAltMap[encodeChord(modX, protocol.KeyDPadRight)] = '0' // p
 
 	return chordMap, chordAltMap
 }

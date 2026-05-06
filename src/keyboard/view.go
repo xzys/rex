@@ -12,17 +12,36 @@ import (
 // -tags keyboard for keyboard support
 // Default to keyboard if no tags specified
 
-// Common keyboard layout: four rows, split into two four-column hands.
-var keyboardLayout = [][]string{
-	{"q", "w", "e", "r", "u", "i", "o", "p"},
-	{"a", "s", "d", "f", "h", "j", "k", "l"},
-	{"z", "x", "c", "v", "b", "n", "m", "MIC"},
-	{"123", "SFT", "g", "t", "y", "ENT", "DEL", "SPC"},
+type keyboardLayoutDefinition struct {
+	keys        [][]string
+	handCols    int
+	rowOffsets  []int
+	minKeyWidth int
+}
+
+// Four rows, split into two four-column hands.
+var keyboardLayout4x8 = keyboardLayoutDefinition{
+	keys: [][]string{
+		{"q", "w", "e", "r", "u", "i", "o", "p"},
+		{"a", "s", "d", "f", "h", "j", "k", "l"},
+		{"z", "x", "c", "v", "b", "n", "m", "MIC"},
+		{"123", "SFT", "g", "t", "y", "ENT", "DEL", "SPC"},
+	},
+	handCols:    4,
+	minKeyWidth: 5,
+}
+
+// Original three-row keyboard layout.
+var keyboardLayout3Row = keyboardLayoutDefinition{
+	keys: [][]string{
+		{"123", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "MIC"},
+		{"SFT", "a", "s", "d", "f", "g", "h", "j", "k", "l", "SPC"},
+		{"DEL", "z", "x", "c", "v", "b", "n", "m", "ENT"},
+	},
+	rowOffsets: []int{0, 2, 7},
 }
 
 const (
-	keyboardHandCols    = 4
-	keyboardMinKeyWidth = 5
 	keyboardBaseHandGap = 2
 	keyboardFanStep     = 2 // Grow center gap by two so each hand fans out one char per row.
 )
@@ -39,6 +58,7 @@ func (k *Keyboard) View() string {
 	for i, row := range k.keyboard {
 		var keys []string
 		handGap := k.handGapForRow(i, totalRows)
+		rowOffset := k.rowOffsetForRow(i)
 		for j, key := range row {
 			fg, bg, key := k.model.RenderKey(i, j, key)
 			border := lipgloss.NormalBorder()
@@ -48,16 +68,19 @@ func (k *Keyboard) View() string {
 				Border(border, true, true, showBottom, true).
 				BorderForeground(lipgloss.Color(bg)).
 				Foreground(lipgloss.Color(fg))
-			if lipgloss.Width(key) < keyboardMinKeyWidth {
-				style = style.Width(keyboardMinKeyWidth).Align(lipgloss.Center)
+			if k.minKeyWidth > 0 && lipgloss.Width(key) < k.minKeyWidth {
+				style = style.Width(k.minKeyWidth).Align(lipgloss.Center)
 			}
-			if j == keyboardHandCols-1 {
+			if k.handCols > 0 && j == k.handCols-1 {
 				style = style.MarginRight(handGap)
 			}
 
 			keys = append(keys, style.Render(key))
 		}
 		rowStr := lipgloss.JoinHorizontal(lipgloss.Bottom, keys...)
+		if rowOffset > 0 {
+			rowStr = lipgloss.NewStyle().Padding(0, rowOffset).Render(rowStr)
+		}
 		rows = append(rows, rowStr)
 	}
 
@@ -93,4 +116,18 @@ func (k *Keyboard) handGapForRow(rowIndex, totalRows int) int {
 		return keyboardBaseHandGap
 	}
 	return keyboardBaseHandGap + (totalRows-1-rowIndex)*keyboardFanStep
+}
+
+func (k *Keyboard) rowOffsetForRow(rowIndex int) int {
+	if rowIndex < 0 || rowIndex >= len(k.rowOffsets) {
+		return 0
+	}
+	return k.rowOffsets[rowIndex]
+}
+
+func keyboardLayoutForName(name string) keyboardLayoutDefinition {
+	if cfg.NormalizeKeyboardLayout(name) == cfg.KeyboardLayout3Row {
+		return keyboardLayout3Row
+	}
+	return keyboardLayout4x8
 }
