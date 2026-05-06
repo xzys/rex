@@ -16,6 +16,8 @@ type Model struct {
 	height       int
 	kbModes      []string
 	kbModeIndex  int
+	kbViews      []string
+	kbViewIndex  int
 	sttModes     []string
 	sttModeIndex int
 	defaultVoice bool
@@ -24,6 +26,7 @@ type Model struct {
 
 const (
 	rowKeyboardMode = iota
+	rowKeyboardView
 	rowSTTMode
 	rowDefaultVoice
 	rowCount
@@ -45,6 +48,9 @@ func NewModel(config cfg.Config) *Model {
 	kbModes := cfg.KeyboardModes()
 	kbModeIndex := indexOf(kbModes, config.KeyboardMode)
 
+	kbViews := cfg.KeyboardViews()
+	kbViewIndex := indexOf(kbViews, cfg.NormalizeKeyboardView(config.KeyboardView))
+
 	sttModes := cfg.STTModes()
 	sttModeIndex := indexOf(sttModes, cfg.NormalizeSTTMode(config.STTMode))
 
@@ -52,6 +58,8 @@ func NewModel(config cfg.Config) *Model {
 		config:       config,
 		kbModes:      kbModes,
 		kbModeIndex:  kbModeIndex,
+		kbViews:      kbViews,
+		kbViewIndex:  kbViewIndex,
 		sttModes:     sttModes,
 		sttModeIndex: sttModeIndex,
 		defaultVoice: config.DefaultVoice,
@@ -132,6 +140,7 @@ func (m *Model) View() string {
 		value string
 	}{
 		{"Chording mode", m.kbModes[m.kbModeIndex]},
+		{"Keyboard view", m.kbViews[m.kbViewIndex]},
 		{"STT mode", m.sttModes[m.sttModeIndex]},
 		{"Default voice", defaultVoiceStr},
 	}
@@ -189,6 +198,11 @@ func (m *Model) cycleMode(direction int) {
 		if n := len(m.kbModes); n > 0 {
 			m.kbModeIndex = (m.kbModeIndex + direction + n) % n
 			m.config.KeyboardMode = m.kbModes[m.kbModeIndex]
+		}
+	case rowKeyboardView:
+		if n := len(m.kbViews); n > 0 {
+			m.kbViewIndex = (m.kbViewIndex + direction + n) % n
+			m.config.KeyboardView = m.kbViews[m.kbViewIndex]
 		}
 	case rowSTTMode:
 		if n := len(m.sttModes); n > 0 {

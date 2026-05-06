@@ -17,6 +17,9 @@ func TestLoadConfigDefaultsToCompactKeyboard(t *testing.T) {
 	if !cfg.KeyboardCompact {
 		t.Fatalf("expected missing config to default keyboard_compact to true")
 	}
+	if cfg.KeyboardView != KeyboardViewGrid {
+		t.Fatalf("expected missing config to default keyboard_view to %q, got %q", KeyboardViewGrid, cfg.KeyboardView)
+	}
 }
 
 func TestLoadConfigMissingCompactDefaultsTrue(t *testing.T) {
@@ -31,6 +34,9 @@ func TestLoadConfigMissingCompactDefaultsTrue(t *testing.T) {
 	if !cfg.KeyboardCompact {
 		t.Fatalf("expected omitted keyboard_compact to default to true")
 	}
+	if cfg.KeyboardView != KeyboardViewGrid {
+		t.Fatalf("expected omitted keyboard_view to default to %q, got %q", KeyboardViewGrid, cfg.KeyboardView)
+	}
 }
 
 func TestLoadConfigExplicitCompactFalse(t *testing.T) {
@@ -44,6 +50,20 @@ func TestLoadConfigExplicitCompactFalse(t *testing.T) {
 
 	if cfg.KeyboardCompact {
 		t.Fatalf("expected explicit keyboard_compact: false to be preserved")
+	}
+}
+
+func TestLoadConfigExplicitKeyboardView(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	testWriteFile(t, path, "keyboard_view: fan\n")
+
+	cfg, err := loadConfigFromPath(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	if cfg.KeyboardView != KeyboardViewFan {
+		t.Fatalf("keyboard_view: got %q, want %q", cfg.KeyboardView, KeyboardViewFan)
 	}
 }
 

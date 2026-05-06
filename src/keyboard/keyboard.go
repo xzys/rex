@@ -35,8 +35,9 @@ type Keyboard struct {
 	currentWord string
 	suggestions [4]string
 	// display
-	compact    bool
-	paneHeight int
+	compact      bool
+	keyboardView string
+	paneHeight   int
 	// voice companion mode
 	sttMode string // "sherpa" or "companion"
 }
@@ -84,12 +85,13 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 	return NewVoiceModel(defaultSTTProvider(sttMode))
 }
 
-func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool, keyboardView string) *Keyboard {
 	k := &Keyboard{
-		keyboard:   keyboardLayout,
-		compact:    compact,
-		paneHeight: cfg.KeyboardPaneHeight(compact, autocomplete),
-		sttMode:    sttMode,
+		keyboard:     keyboardLayout,
+		compact:      compact,
+		keyboardView: cfg.NormalizeKeyboardView(keyboardView),
+		paneHeight:   cfg.KeyboardPaneHeight(compact, autocomplete),
+		sttMode:      sttMode,
 	}
 	if defaultVoice {
 		// Start in voice mode; save the normal model so Fn can toggle back

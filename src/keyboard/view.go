@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	cfg "github.com/xrfr/t-rex/v2/config"
 )
 
 // Build flags:
@@ -22,6 +23,8 @@ var keyboardLayout = [][]string{
 const (
 	keyboardHandCols    = 4
 	keyboardMinKeyWidth = 5
+	keyboardBaseHandGap = 2
+	keyboardFanStep     = 2 // Grow center gap by two so each hand fans out one char per row.
 )
 
 // implement tea.Model interface View
@@ -32,8 +35,10 @@ func (k *Keyboard) View() string {
 	}
 
 	var rows []string
+	totalRows := len(k.keyboard)
 	for i, row := range k.keyboard {
 		var keys []string
+		handGap := k.handGapForRow(i, totalRows)
 		for j, key := range row {
 			fg, bg, key := k.model.RenderKey(i, j, key)
 			border := lipgloss.NormalBorder()
@@ -47,7 +52,7 @@ func (k *Keyboard) View() string {
 				style = style.Width(keyboardMinKeyWidth).Align(lipgloss.Center)
 			}
 			if j == keyboardHandCols-1 {
-				style = style.MarginRight(2)
+				style = style.MarginRight(handGap)
 			}
 
 			keys = append(keys, style.Render(key))
@@ -81,4 +86,11 @@ func (k *Keyboard) View() string {
 		Width(k.width).
 		Align(lipgloss.Center).
 		Render(keys)
+}
+
+func (k *Keyboard) handGapForRow(rowIndex, totalRows int) int {
+	if k.keyboardView != cfg.KeyboardViewFan {
+		return keyboardBaseHandGap
+	}
+	return keyboardBaseHandGap + (totalRows-1-rowIndex)*keyboardFanStep
 }

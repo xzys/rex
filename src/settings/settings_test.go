@@ -44,6 +44,9 @@ func TestSettingsCycling(t *testing.T) {
 
 	// Cursor starts on row 0 (keyboard mode). Cycle right once.
 	m, _ = m.Update(keyMsg("right"))
+	// Move down to keyboard view row and cycle right.
+	m, _ = m.Update(keyMsg("down"))
+	m, _ = m.Update(keyMsg("right"))
 	// Move down to STT row, cycle right (sherpa -> parakeet).
 	m, _ = m.Update(keyMsg("down"))
 	m, _ = m.Update(keyMsg("right"))
@@ -60,6 +63,9 @@ func TestSettingsCycling(t *testing.T) {
 	if got.KeyboardMode == cfg.KeyboardModeChorded {
 		t.Errorf("keyboard_mode did not advance from initial %q", got.KeyboardMode)
 	}
+	if got.KeyboardView != cfg.KeyboardViewFan {
+		t.Errorf("keyboard_view: got %q, want %q", got.KeyboardView, cfg.KeyboardViewFan)
+	}
 
 	// Sanity-check persistence: file on disk matches.
 	raw, err := os.ReadFile(path)
@@ -68,6 +74,9 @@ func TestSettingsCycling(t *testing.T) {
 	}
 	if !contains(string(raw), "stt_mode: companion") {
 		t.Errorf("stt_mode not written to file: %s", raw)
+	}
+	if !contains(string(raw), "keyboard_view: fan") {
+		t.Errorf("keyboard_view not written to file: %s", raw)
 	}
 }
 

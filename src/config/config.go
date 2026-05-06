@@ -13,6 +13,8 @@ const (
 	KeyboardModeChorded             = "chorded"
 	KeyboardModeChordedSimultaneous = "chorded-simultaneous"
 	KeyboardModeFrontChorded        = "front-chorded"
+	KeyboardViewGrid                = "grid"
+	KeyboardViewFan                 = "fan"
 	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
 
@@ -41,6 +43,7 @@ type Config struct {
 	Apps                 []App    `yaml:"apps"`
 	SSHHosts             []string `yaml:"ssh_hosts"`
 	KeyboardMode         string   `yaml:"keyboard_mode"`
+	KeyboardView         string   `yaml:"keyboard_view,omitempty"`
 	KeyboardCompact      bool     `yaml:"keyboard_compact"`
 	KeyboardAutocomplete bool     `yaml:"keyboard_autocomplete,omitempty"`
 	DictWords            int      `yaml:"dict_words,omitempty"`
@@ -80,18 +83,21 @@ func loadConfigFromPath(path string) (Config, error) {
 	}
 
 	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
+	config.KeyboardView = NormalizeKeyboardView(config.KeyboardView)
 	return config, nil
 }
 
 func defaultConfig() Config {
 	return Config{
 		KeyboardMode:    KeyboardModeChorded,
+		KeyboardView:    KeyboardViewGrid,
 		KeyboardCompact: true,
 	}
 }
 
 func saveConfigToPath(path string, config Config) error {
 	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
+	config.KeyboardView = NormalizeKeyboardView(config.KeyboardView)
 	config.STTMode = NormalizeSTTMode(config.STTMode)
 
 	data, err := yaml.Marshal(&config)
@@ -150,6 +156,15 @@ func NormalizeKeyboardMode(mode string) string {
 	}
 }
 
+func NormalizeKeyboardView(view string) string {
+	switch view {
+	case KeyboardViewGrid, KeyboardViewFan:
+		return view
+	default:
+		return KeyboardViewGrid
+	}
+}
+
 // KeyboardPaneHeight returns the tmux pane height for the keyboard pane.
 // Compact mode stacks 4 rows of 2-line keys (8 lines); normal uses 3-line keys (12 lines).
 // Autocomplete adds a one-line suggestion bar above the keys.
@@ -178,5 +193,12 @@ func KeyboardModes() []string {
 		KeyboardModeChorded,
 		KeyboardModeChordedSimultaneous,
 		KeyboardModeFrontChorded,
+	}
+}
+
+func KeyboardViews() []string {
+	return []string{
+		KeyboardViewGrid,
+		KeyboardViewFan,
 	}
 }
