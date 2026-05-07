@@ -27,4 +27,5 @@ See `Makefile` for all build/sync/install targets.
 - `notes/features/` - Feature designs
 - `notes/bugs/` - Known issues
 - `notes/research/` - Device/tech research
+- `notes/skills/` - Reusable debug/dev workflows (e.g. `brick-screenshot.md`)
 - `notes/testing.md` - Testing patterns
