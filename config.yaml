@@ -49,6 +49,11 @@ apps:
       color: "6"
       command: rex menu --ssh
       exclusive: false
+    - name: wifi
+      icon: W
+      color: "4"
+      command: rex wifi
+      exclusive: false
 ssh_hosts: []
 keyboard_mode: front-chorded
 stt_mode: companion

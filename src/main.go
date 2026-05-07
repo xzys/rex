@@ -17,6 +17,7 @@ import (
 	"github.com/xrfr/t-rex/v2/server"
 	"github.com/xrfr/t-rex/v2/settings"
 	_ "github.com/xrfr/t-rex/v2/utils"
+	"github.com/xrfr/t-rex/v2/wifi"
 )
 
 // Build flags:
@@ -29,6 +30,7 @@ func usage() {
        rex keyboard [options]
        rex menu [options]
        rex settings
+       rex wifi
        rex exclusive <command> [args...]
 
 Use 'rex <command> --help' for more information about a command.
@@ -120,6 +122,17 @@ func main() {
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex settings\n\nOpen settings UI.\n") }
 		fs.Parse(args)
 		err = settings.Run()
+	case "wifi":
+		fs := flag.NewFlagSet("wifi", flag.ExitOnError)
+		fs.Usage = func() {
+			fmt.Fprintf(os.Stderr, "usage: rex wifi [list]\n\nManage WiFi via ConnMan. With no args, opens the TUI; 'list' prints services to stdout.\n")
+		}
+		fs.Parse(args)
+		if fs.NArg() > 0 && fs.Arg(0) == "list" {
+			err = wifi.List()
+		} else {
+			err = wifi.Run()
+		}
 	case "exclusive":
 		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
 		fs.Usage = func() {

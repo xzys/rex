@@ -7,6 +7,16 @@
 
 APP=/userdata/system/apps/rex
 
+# Install ConnMan dbus policy if missing — root /etc is on tmpfs overlay so this
+# is lost on reboot. Lets uid 1000 (rex inside chroot) talk to net.connman for
+# `rex wifi`. No-op if already present or source file missing.
+if [ -f "$APP/connman-rex.conf" ] && [ ! -f /etc/dbus-1/system.d/connman-rex.conf ]; then
+    cp "$APP/connman-rex.conf" /etc/dbus-1/system.d/connman-rex.conf
+    chmod 644 /etc/dbus-1/system.d/connman-rex.conf
+    dbus-send --system --type=method_call --dest=org.freedesktop.DBus / \
+        org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
+fi
+
 # Stop ES (reclaims RAM). init.d is the same path Rex.sh uses from the ES menu.
 /etc/init.d/S31emulationstation stop >/dev/null 2>&1
 sleep 1

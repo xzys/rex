@@ -77,7 +77,7 @@ sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and laun
 	ssh brick-root 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
 	scp ext/fonts/*.ttf brick-root:/userdata/system/apps/rex/fonts/
 	scp ext/brick/Rex.sh brick-root:/userdata/roms/tools/Rex.sh
-	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh brick-root:/userdata/system/apps/rex/
+	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh ext/brick/connman-rex.conf brick-root:/userdata/system/apps/rex/
 	scp config.yaml.brick.example brick-root:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf brick-root:/userdata/debian/home/rex/.tmux.conf
 	scp config/dot/tmux-wifi.sh brick-root:/userdata/debian/home/rex/.tmux-wifi.sh

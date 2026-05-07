@@ -31,6 +31,9 @@ is_mounted "$DEBIAN/dev"     || mount --bind   /dev   "$DEBIAN/dev"
 is_mounted "$DEBIAN/dev/pts" || mount --bind   /dev/pts "$DEBIAN/dev/pts"
 is_mounted "$DEBIAN/tmp"     || mount --bind   /tmp   "$DEBIAN/tmp"
 
+mkdir -p "$DEBIAN/run/dbus"
+is_mounted "$DEBIAN/run/dbus" || mount --bind /run/dbus "$DEBIAN/run/dbus"
+
 mkdir -p "$DEBIAN/userdata"
 is_mounted "$DEBIAN/userdata" || mount --bind /userdata "$DEBIAN/userdata"
 
