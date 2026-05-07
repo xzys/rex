@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian package package-brick package-r36s build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-r36s build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -191,6 +191,24 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-
 	@echo "Done. To start sshd on boot, add this line to /userdata/system/custom.sh:"
 	@echo "  /userdata/system/apps/rex/debian-sshd.sh"
 	@echo "Connect with: ssh brick"
+
+# Optional curated tools for the chroot. Idempotent — safe to re-run.
+# apt: ncmpcpp+mpd (music), fzf (fuzzy picker), htop (process viewer)
+# .deb downloads: aptui (apt TUI), bottom/btm (system monitor)
+APTUI_VERSION := 0.7.0
+BOTTOM_VERSION := 0.12.3
+setup-debian-extras: ## Install curated extras into the chroot (ncmpcpp+mpd, btm, aptui, fzf, htop)
+	@echo "Installing apt extras (ncmpcpp mpd fzf htop)..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq ncmpcpp mpd fzf htop"'
+	@echo "Installing aptui $(APTUI_VERSION) (.deb)..."
+	ssh brick 'set -e; cd /tmp && \
+		[ -f aptui_$(APTUI_VERSION)_linux_arm64.deb ] || curl -fsSLO https://github.com/mexirica/aptui/releases/download/v$(APTUI_VERSION)/aptui_$(APTUI_VERSION)_linux_arm64.deb && \
+		sudo dpkg -i aptui_$(APTUI_VERSION)_linux_arm64.deb || sudo apt-get install -f -y'
+	@echo "Installing bottom $(BOTTOM_VERSION) (.deb, provides btm)..."
+	ssh brick 'set -e; cd /tmp && \
+		[ -f bottom_$(BOTTOM_VERSION)-1_arm64.deb ] || curl -fsSLO https://github.com/ClementTsang/bottom/releases/download/$(BOTTOM_VERSION)/bottom_$(BOTTOM_VERSION)-1_arm64.deb && \
+		sudo dpkg -i bottom_$(BOTTOM_VERSION)-1_arm64.deb || sudo apt-get install -f -y'
+	@echo "Done. Run on brick: aptui, btm, ncmpcpp"
 
 build-docker-ext-%: ## Build program from ext/
 	docker buildx build --platform linux/amd64 --load -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
