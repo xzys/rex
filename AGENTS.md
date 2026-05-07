@@ -20,12 +20,6 @@ See `Makefile` for all build/sync/install targets.
 - `src/menu/` - Start menu
 - `ext/` - External deps (TermSP, fonts, brick scripts)
 
-## Docs (read when relevant, not upfront)
+## Docs
 
-- `notes/architecture.md` - System design, data flow
-- `notes/plans/` - Active implementation plans
-- `notes/features/` - Feature designs
-- `notes/bugs/` - Known issues
-- `notes/research/` - Device/tech research
-- `notes/skills/` - Reusable debug/dev workflows (e.g. `brick-screenshot.md`)
-- `notes/testing.md` - Testing patterns
+- `ARCHITECTURE.md` - System design, data flow
