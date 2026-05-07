@@ -163,7 +163,15 @@ func (k *Keyboard) Init() tea.Cmd {
 	// 1. ReadSocket returns a message containing the parsed message or an error
 	// 2. Update parses message and returns ReadSocket command again
 	// 3. back to 1
-	return tea.EnterAltScreen
+	cmds := []tea.Cmd{tea.EnterAltScreen}
+	// If we started in voice mode (defaultVoice), drain the queued STT init cmd
+	// so Initialize() actually runs.
+	if vm, ok := k.model.(*VoiceModel); ok {
+		if c := vm.DrainCmd(); c != nil {
+			cmds = append(cmds, c)
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func (k *Keyboard) ReadSocket() tea.Msg {
@@ -194,8 +202,8 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case protocol.KeyInputMessage:
 		// Intercept Fn for voice mode toggle before passing to model
 		if msg.IsKeyDown && msg.KeyInput == protocol.KeyFn {
-			k.toggleVoiceMode()
-			return k, k.ReadSocket
+			initCmd := k.toggleVoiceMode()
+			return k, tea.Batch(initCmd, k.ReadSocket)
 		}
 		// Process the input and send response, then read next message
 		return k, tea.Sequence(k.handleDeviceInput(msg), k.ReadSocket)
@@ -277,7 +285,11 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return k, k.ReadSocket
 }
 
-func (k *Keyboard) toggleVoiceMode() {
+// toggleVoiceMode switches between voice and prior keyboard model. When entering
+// voice mode it returns the VoiceModel's queued init command so bubbletea actually
+// runs STT Initialize() and the spinner tick — without this the model stays stuck
+// in stateInitializing forever.
+func (k *Keyboard) toggleVoiceMode() tea.Cmd {
 	if _, isVoice := k.model.(*VoiceModel); isVoice {
 		// Switch back to prior model
 		if k.priorModel != nil {
@@ -286,13 +298,15 @@ func (k *Keyboard) toggleVoiceMode() {
 			resizeKeyboardPane(k.paneHeight)
 			slog.Info("voice mode off")
 		}
-	} else {
-		// Switch to voice mode
-		k.priorModel = k.model
-		k.model = k.createVoiceModel()
-		resizeKeyboardPane(1)
-		slog.Info("voice mode on")
+		return nil
 	}
+	// Switch to voice mode
+	k.priorModel = k.model
+	vm := k.createVoiceModel()
+	k.model = vm
+	resizeKeyboardPane(1)
+	slog.Info("voice mode on")
+	return vm.DrainCmd()
 }
 
 func resizeKeyboardPane(height int) {
@@ -314,8 +328,7 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 	// Voice model: intercept X to exit, B for delete, otherwise drain queued commands
 	if vm, ok := k.model.(*VoiceModel); ok {
 		if msg.IsKeyDown && msg.KeyInput == protocol.KeyX {
-			k.toggleVoiceMode()
-			return nil
+			return k.toggleVoiceMode()
 		}
 		if msg.IsKeyDown && msg.KeyInput == protocol.KeyA {
 			return k.sendKeyPress(string(protocol.SpecialKeyEnter))
@@ -353,8 +366,7 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 
 	// Intercept MIC key to toggle voice mode
 	if len(*keyToPress) == 1 && rune((*keyToPress)[0]) == protocol.SpecialKeyMic {
-		k.toggleVoiceMode()
-		return nil
+		return k.toggleVoiceMode()
 	}
 
 	// Track typed characters for autocomplete
