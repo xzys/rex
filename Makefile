@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian package package-brick package-r36s build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -48,6 +48,26 @@ build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+bric
 		brick-rex-builder \
 		go build -tags "sdl brick sherpa" -o /output/rex-brick
 
+build-docker-termsp: ## Build TermSP for TrimUI Brick (cross-compile ARM64, outputs bin/termsp)
+	docker buildx build --platform linux/amd64 --load -t termsp-builder ext/TermSP/
+	docker run --rm --platform linux/amd64 \
+		-v $$(pwd)/ext/TermSP:/app \
+		-v $$(pwd)/bin:/output \
+		-w /app \
+		termsp-builder \
+		bash build.sh
+
+screenshot-brick: ## Trigger TermSP screenshot on Brick and pull bin/termsp-screenshot.png
+	ssh brick-root 'pkill -USR1 termsp && sleep 1 && ls -la /tmp/termsp-screenshot.png'
+	scp brick-root:/tmp/termsp-screenshot.png bin/termsp-screenshot.png
+	@echo "Saved bin/termsp-screenshot.png"
+	@command -v open >/dev/null && open bin/termsp-screenshot.png || true
+
+textdump-brick: ## Trigger TermSP screen-text dump on Brick and pull bin/termsp-text.txt
+	ssh brick-root 'pkill -USR2 termsp && sleep 1 && ls -la /tmp/termsp-text.txt'
+	scp brick-root:/tmp/termsp-text.txt bin/termsp-text.txt
+	@echo "Saved bin/termsp-text.txt"
+
 sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and launch scripts to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."
 	ssh brick-root 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports /userdata/debian/home/rex/bin /userdata/debian/home/rex/.config/rex'
@@ -60,8 +80,9 @@ sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and laun
 	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh brick-root:/userdata/system/apps/rex/
 	scp config.yaml.brick.example brick-root:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf brick-root:/userdata/debian/home/rex/.tmux.conf
+	scp config/dot/tmux-wifi.sh brick-root:/userdata/debian/home/rex/.tmux-wifi.sh
 	ssh brick-root '[ -f /userdata/debian/home/rex/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/home/rex/.config/rex/config.yaml'
-	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/rex /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
+	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/rex /userdata/debian/home/rex/.tmux-wifi.sh /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
 	@echo "Fixing ownership of /home/rex inside chroot (scp lands files as root)..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "id rex >/dev/null 2>&1 && chown -R rex:rex /home/rex || echo warn: rex user not yet created, run make setup-debian"'
 
@@ -208,3 +229,11 @@ install-systemd:
 	done && \
 	sudo systemctl daemon-reload; \
 	rm -rf /tmp/systemd'
+
+package: package-brick package-r36s ## Build install tarballs for both targets
+
+package-brick: ## Build dist/rex-brick-<v>.tar.gz (requires bin/rex-brick + bin/termsp; package.sh prints hints if missing)
+	bash scripts/package.sh brick
+
+package-r36s: ## Build dist/rex-r36s-<v>.tar.gz (requires bin/rex; package.sh prints hints if missing)
+	bash scripts/package.sh r36s
