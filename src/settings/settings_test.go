@@ -102,8 +102,8 @@ func TestSettingsCursorBounds(t *testing.T) {
 		t.Errorf("up at top: cursor=%d, want 0", m.cursor)
 	}
 
-	// Down should advance to rowSTTMode, further down should stop at rowCount-1.
-	for i := 0; i < 5; i++ {
+	// Down should advance to the last row, further down should stop at rowCount-1.
+	for i := 0; i < rowCount+1; i++ {
 		model, _ = model.Update(keyMsg("down"))
 	}
 	if m.cursor != rowCount-1 {

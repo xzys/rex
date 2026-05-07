@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,6 +24,7 @@ type Model struct {
 	sttModes      []string
 	sttModeIndex  int
 	defaultVoice  bool
+	rexOnBoot     bool
 	status        string
 }
 
@@ -32,6 +34,7 @@ const (
 	rowKeyboardView
 	rowDefaultVoice
 	rowSTTMode
+	rowRexOnBoot
 	rowCount
 )
 
@@ -71,7 +74,31 @@ func NewModel(config cfg.Config) *Model {
 		sttModes:      sttModes,
 		sttModeIndex:  sttModeIndex,
 		defaultVoice:  config.DefaultVoice,
+		rexOnBoot:     rexEnabledOnBoot(),
 	}
+}
+
+func rexEnabledOnBoot() bool {
+	return exec.Command("systemctl", "is-enabled", "--quiet", "rex.service").Run() == nil
+}
+
+func setRexOnBoot(enable bool) error {
+	if enable {
+		if out, err := exec.Command("sudo", "systemctl", "enable", "rex.service").CombinedOutput(); err != nil {
+			return fmt.Errorf("enable rex: %v: %s", err, strings.TrimSpace(string(out)))
+		}
+		if out, err := exec.Command("sudo", "systemctl", "disable", "emulationstation.service").CombinedOutput(); err != nil {
+			return fmt.Errorf("disable emulationstation: %v: %s", err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	if out, err := exec.Command("sudo", "systemctl", "disable", "rex.service").CombinedOutput(); err != nil {
+		return fmt.Errorf("disable rex: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	if out, err := exec.Command("sudo", "systemctl", "enable", "emulationstation.service").CombinedOutput(); err != nil {
+		return fmt.Errorf("enable emulationstation: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func indexOf(values []string, target string) int {
@@ -142,6 +169,10 @@ func (m *Model) View() string {
 	if m.defaultVoice {
 		defaultVoiceStr = "on"
 	}
+	rexOnBootStr := "off"
+	if m.rexOnBoot {
+		rexOnBootStr = "on"
+	}
 
 	rows := []struct {
 		label string
@@ -152,6 +183,7 @@ func (m *Model) View() string {
 		{"Keyboard view", m.kbViews[m.kbViewIndex]},
 		{"Keyboard Default Voice Mode", defaultVoiceStr},
 		{"STT mode", m.sttModes[m.sttModeIndex]},
+		{"Start Rex on boot", rexOnBootStr},
 	}
 
 	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
@@ -226,6 +258,19 @@ func (m *Model) cycleMode(direction int) {
 	case rowDefaultVoice:
 		m.defaultVoice = !m.defaultVoice
 		m.config.DefaultVoice = m.defaultVoice
+	case rowRexOnBoot:
+		want := !m.rexOnBoot
+		if err := setRexOnBoot(want); err != nil {
+			m.status = err.Error()
+			return
+		}
+		m.rexOnBoot = want
+		if want {
+			m.status = "rex enabled on boot"
+		} else {
+			m.status = "rex disabled on boot"
+		}
+		return
 	default:
 		return
 	}
