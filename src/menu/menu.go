@@ -101,10 +101,7 @@ func (m *Menu) runSSHTmux() error {
 	}
 	defer os.Remove(sshInfoFile)
 
-	script := `tmux set status off` +
-		` && tmux resize-pane -Z` +
-		` && tmux attach` +
-		` ; tmux set status on`
+	script := `tmux resize-pane -Z && tmux attach`
 
 	cmd := exec.Command("ssh",
 		"-M", "-S", sshControlSocket,

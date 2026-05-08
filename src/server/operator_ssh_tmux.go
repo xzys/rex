@@ -4,15 +4,22 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 const sshInfoFile = "/tmp/rex-ssh-info"
 
+// L2+R2 pressed within this window toggles zoom; longer holds fall back to
+// previous/next-window so the existing window-switch gesture still works.
+const sshTmuxComboWindow = 100 * time.Millisecond
+
 type SSHTmuxOperator struct {
 	l2Down     bool
 	r2Down     bool
+	l2DownAt   time.Time
+	r2DownAt   time.Time
 	comboFired bool // prevents the trailing key-up from firing a pane action after a window combo
 }
 
@@ -25,12 +32,16 @@ func (o *SSHTmuxOperator) HandleInput(key int, isDown bool) (bool, error) {
 	case protocol.KeyL2:
 		o.l2Down = isDown
 		if isDown {
+			o.l2DownAt = time.Now()
 			if o.r2Down {
 				o.comboFired = true
+				if time.Since(o.r2DownAt) <= sshTmuxComboWindow {
+					return true, o.remoteCommand("resize-pane", "-Z")
+				}
 				return true, o.remoteCommand("previous-window")
 			}
-		} else {
-			if !o.r2Down && !o.comboFired {
+		} else if !o.r2Down {
+			if !o.comboFired {
 				return true, o.remoteCommand("select-pane", "-t", ":.-")
 			}
 			o.comboFired = false
@@ -40,12 +51,16 @@ func (o *SSHTmuxOperator) HandleInput(key int, isDown bool) (bool, error) {
 	case protocol.KeyR2:
 		o.r2Down = isDown
 		if isDown {
+			o.r2DownAt = time.Now()
 			if o.l2Down {
 				o.comboFired = true
+				if time.Since(o.l2DownAt) <= sshTmuxComboWindow {
+					return true, o.remoteCommand("resize-pane", "-Z")
+				}
 				return true, o.remoteCommand("next-window")
 			}
-		} else {
-			if !o.l2Down && !o.comboFired {
+		} else if !o.l2Down {
+			if !o.comboFired {
 				return true, o.remoteCommand("select-pane", "-t", ":.+")
 			}
 			o.comboFired = false
