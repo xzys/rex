@@ -2,17 +2,58 @@ package settings
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	cfg "github.com/xrfr/t-rex/v2/config"
+	"github.com/xrfr/t-rex/v2/wifi"
 )
+
+type screenKind int
+
+const (
+	screenSettings screenKind = iota
+	screenWifi
+)
+
+type rowKind int
+
+const (
+	rowHeader rowKind = iota
+	rowValue
+)
+
+type row struct {
+	kind  rowKind
+	id    string // value-row identifier; ignored for headers
+	label string
+}
+
+// Section + value-row identifiers. Order in this list = display order.
+const (
+	idKeyboardMode   = "keyboard_mode"
+	idKeyboardLayout = "keyboard_layout"
+	idKeyboardView   = "keyboard_view"
+	idDefaultVoice   = "default_voice"
+	idSTTMode        = "stt_mode"
+	idRexOnBoot      = "rex_on_boot"
+	idTimezone       = "timezone"
+	idWifiOn         = "wifi_on"
+	idWifi           = "wifi"
+)
+
+type wifiPoweredMsg struct {
+	on  bool
+	err error
+}
 
 type Model struct {
 	config        cfg.Config
-	cursor        int
+	rows          []row
+	cursor        int // index into rows; always lands on a rowValue
 	width         int
 	height        int
 	kbModes       []string
@@ -23,20 +64,16 @@ type Model struct {
 	kbViewIndex   int
 	sttModes      []string
 	sttModeIndex  int
+	timezones     []string
+	tzIndex       int
 	defaultVoice  bool
 	rexOnBoot     bool
 	status        string
+	screen        screenKind
+	wifiClient    *wifi.Client
+	wifiModel     *wifi.Model
+	wifiPowered   *bool // nil = not yet queried
 }
-
-const (
-	rowKeyboardMode = iota
-	rowKeyboardLayout
-	rowKeyboardView
-	rowDefaultVoice
-	rowSTTMode
-	rowRexOnBoot
-	rowCount
-)
 
 func Run() error {
 	config, err := cfg.LoadConfig()
@@ -45,37 +82,110 @@ func Run() error {
 	}
 
 	m := NewModel(config)
+	defer m.closeWifi()
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
 }
 
+func (m *Model) closeWifi() {
+	m.wifiModel = nil
+	if m.wifiClient != nil {
+		_ = m.wifiClient.Close()
+		m.wifiClient = nil
+	}
+}
+
+// ensureWifiClient lazily opens a single ConnMan dbus connection shared by
+// the WiFi power toggle and the wifi sub-screen. Returns nil + sets status
+// on failure (e.g. dbus unavailable).
+func (m *Model) ensureWifiClient() *wifi.Client {
+	if m.wifiClient != nil {
+		return m.wifiClient
+	}
+	c, err := wifi.NewClient()
+	if err != nil {
+		m.status = "wifi: " + err.Error()
+		return nil
+	}
+	m.wifiClient = c
+	return c
+}
+
+func (m *Model) queryWifiPowered() tea.Cmd {
+	c := m.ensureWifiClient()
+	if c == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		on, err := c.WifiPowered()
+		return wifiPoweredMsg{on: on, err: err}
+	}
+}
+
+func (m *Model) toggleWifiPowered() tea.Cmd {
+	c := m.ensureWifiClient()
+	if c == nil {
+		return nil
+	}
+	want := true
+	if m.wifiPowered != nil {
+		want = !*m.wifiPowered
+	}
+	return func() tea.Msg {
+		if err := c.SetWifiPowered(want); err != nil {
+			return wifiPoweredMsg{err: err}
+		}
+		// Re-query after the change so the displayed state reflects what
+		// ConnMan actually settled on (it may reject e.g. when rfkill blocks).
+		on, err := c.WifiPowered()
+		return wifiPoweredMsg{on: on, err: err}
+	}
+}
+
 func NewModel(config cfg.Config) *Model {
 	kbModes := cfg.KeyboardModes()
-	kbModeIndex := indexOf(kbModes, config.KeyboardMode)
-
 	kbLayouts := cfg.KeyboardLayouts()
-	kbLayoutIndex := indexOf(kbLayouts, cfg.NormalizeKeyboardLayout(config.KeyboardLayout))
-
 	kbViews := cfg.KeyboardViews()
-	kbViewIndex := indexOf(kbViews, cfg.NormalizeKeyboardView(config.KeyboardView))
-
 	sttModes := cfg.STTModes()
-	sttModeIndex := indexOf(sttModes, cfg.NormalizeSTTMode(config.STTMode))
+	timezones := cfg.Timezones()
 
-	return &Model{
+	m := &Model{
 		config:        config,
 		kbModes:       kbModes,
-		kbModeIndex:   kbModeIndex,
+		kbModeIndex:   indexOf(kbModes, config.KeyboardMode),
 		kbLayouts:     kbLayouts,
-		kbLayoutIndex: kbLayoutIndex,
+		kbLayoutIndex: indexOf(kbLayouts, cfg.NormalizeKeyboardLayout(config.KeyboardLayout)),
 		kbViews:       kbViews,
-		kbViewIndex:   kbViewIndex,
+		kbViewIndex:   indexOf(kbViews, cfg.NormalizeKeyboardView(config.KeyboardView)),
 		sttModes:      sttModes,
-		sttModeIndex:  sttModeIndex,
+		sttModeIndex:  indexOf(sttModes, cfg.NormalizeSTTMode(config.STTMode)),
+		timezones:     timezones,
+		tzIndex:       indexOf(timezones, cfg.NormalizeTimezone(config.Timezone)),
 		defaultVoice:  config.DefaultVoice,
 		rexOnBoot:     rexEnabledOnBoot(),
 	}
+	m.rows = []row{
+		{kind: rowHeader, label: "Keyboard"},
+		{kind: rowValue, id: idKeyboardMode, label: "Chording mode"},
+		{kind: rowValue, id: idKeyboardLayout, label: "Keyboard layout"},
+		{kind: rowValue, id: idKeyboardView, label: "Keyboard view"},
+		{kind: rowValue, id: idDefaultVoice, label: "Default voice mode"},
+		{kind: rowValue, id: idSTTMode, label: "STT mode"},
+		{kind: rowHeader, label: "System Settings"},
+		{kind: rowValue, id: idRexOnBoot, label: "Start Rex on boot"},
+		{kind: rowValue, id: idTimezone, label: "Timezone"},
+		{kind: rowValue, id: idWifiOn, label: "Wifi On"},
+		{kind: rowValue, id: idWifi, label: "Wifi Network"},
+	}
+	// Cursor starts on the first value row.
+	for i, r := range m.rows {
+		if r.kind == rowValue {
+			m.cursor = i
+			break
+		}
+	}
+	return m
 }
 
 func rexEnabledOnBoot() bool {
@@ -101,6 +211,28 @@ func setRexOnBoot(enable bool) error {
 	return nil
 }
 
+// applyTimezone repoints /etc/localtime at the chosen IANA zone and updates
+// /etc/timezone. glibc rereads /etc/localtime per-call, so the tmux clock
+// updates without restarting anything. Skipped in unit tests via REX_SKIP_TZ_APPLY.
+func applyTimezone(tz string) error {
+	if os.Getenv("REX_SKIP_TZ_APPLY") == "1" {
+		return nil
+	}
+	src := "/usr/share/zoneinfo/" + tz
+	if _, err := os.Stat(src); err != nil {
+		return fmt.Errorf("zoneinfo missing for %s", tz)
+	}
+	if out, err := exec.Command("sudo", "ln", "-sf", src, "/etc/localtime").CombinedOutput(); err != nil {
+		return fmt.Errorf("set localtime: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	cmd := exec.Command("sudo", "tee", "/etc/timezone")
+	cmd.Stdin = strings.NewReader(tz + "\n")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("set timezone file: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func indexOf(values []string, target string) int {
 	for i, v := range values {
 		if v == target {
@@ -111,37 +243,137 @@ func indexOf(values []string, target string) int {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return nil
+	return m.queryWifiPowered()
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if sz, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = sz.Width
+		m.height = sz.Height
+		// Forward to the wifi submodel too so its View renders at the right
+		// size whether or not it's currently on-screen.
+		if m.wifiModel != nil {
+			nm, _ := m.wifiModel.Update(msg)
+			if w, ok := nm.(*wifi.Model); ok {
+				m.wifiModel = w
+			}
+		}
+		return m, nil
+	}
+
+	if pm, ok := msg.(wifiPoweredMsg); ok {
+		if pm.err != nil {
+			m.status = "wifi: " + pm.err.Error()
+		} else {
+			on := pm.on
+			m.wifiPowered = &on
+		}
+		return m, nil
+	}
+
+	if m.screen == screenWifi {
+		return m.updateWifi(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q", "esc", "b":
 			return m, tea.Quit
 		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
+			m.moveCursor(-1)
 		case "down", "j":
-			if m.cursor < rowCount-1 {
-				m.cursor++
-			}
+			m.moveCursor(1)
 		case "left", "h":
+			if r := m.rows[m.cursor]; r.kind == rowValue && r.id == idWifiOn {
+				return m, m.toggleWifiPowered()
+			}
 			m.cycleMode(-1)
 		case "right", "l", "enter", "a":
+			if r := m.rows[m.cursor]; r.kind == rowValue {
+				switch r.id {
+				case idWifi:
+					return m, m.openWifi()
+				case idWifiOn:
+					return m, m.toggleWifiPowered()
+				}
+			}
 			m.cycleMode(1)
 		}
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
 	}
 	return m, nil
 }
 
+// updateWifi routes input to the wifi submodel while on the wifi sub-screen.
+// esc/q/b return to the settings list (instead of quitting); ctrl+c still
+// quits the whole program. Other keys (incl. wifi's own bindings — r, d, x,
+// enter) pass through unchanged.
+func (m *Model) updateWifi(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "esc", "q", "b":
+			m.screen = screenSettings
+			return m, nil
+		}
+	}
+	if m.wifiModel == nil {
+		return m, nil
+	}
+	nm, cmd := m.wifiModel.Update(msg)
+	if w, ok := nm.(*wifi.Model); ok {
+		m.wifiModel = w
+	}
+	return m, cmd
+}
+
+// openWifi lazily constructs the wifi submodel (reusing the shared dbus
+// client) and switches to the wifi screen. On dbus failure it surfaces the
+// error in the status line and stays on the settings screen.
+func (m *Model) openWifi() tea.Cmd {
+	if m.wifiModel == nil {
+		c := m.ensureWifiClient()
+		if c == nil {
+			return nil
+		}
+		m.wifiModel = wifi.NewModel(c)
+		// Seed the submodel with the current window size so its first render
+		// has correct dimensions before any subsequent WindowSizeMsg.
+		if m.width > 0 || m.height > 0 {
+			nm, _ := m.wifiModel.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+			if w, ok := nm.(*wifi.Model); ok {
+				m.wifiModel = w
+			}
+		}
+	}
+	m.screen = screenWifi
+	return m.wifiModel.Init()
+}
+
+// moveCursor advances by `direction`, skipping header rows and wrapping
+// around at either end (up at top → last value row, down at bottom → first).
+func (m *Model) moveCursor(direction int) {
+	n := len(m.rows)
+	if n == 0 {
+		return
+	}
+	i := m.cursor
+	for step := 0; step < n; step++ {
+		i = (i + direction + n) % n
+		if m.rows[i].kind == rowValue {
+			m.cursor = i
+			return
+		}
+	}
+}
+
 func (m *Model) View() string {
+	if m.screen == screenWifi && m.wifiModel != nil {
+		return m.wifiModel.View()
+	}
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	rowStyle := lipgloss.NewStyle()
 	selectedRowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("4"))
 	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
@@ -165,41 +397,28 @@ func (m *Model) View() string {
 		innerWidth = 20
 	}
 
-	defaultVoiceStr := "off"
-	if m.defaultVoice {
-		defaultVoiceStr = "on"
-	}
-	rexOnBootStr := "off"
-	if m.rexOnBoot {
-		rexOnBootStr = "on"
-	}
-
-	rows := []struct {
-		label string
-		value string
-	}{
-		{"Chording mode", m.kbModes[m.kbModeIndex]},
-		{"Keyboard layout", m.kbLayouts[m.kbLayoutIndex]},
-		{"Keyboard view", m.kbViews[m.kbViewIndex]},
-		{"Keyboard Default Voice Mode", defaultVoiceStr},
-		{"STT mode", m.sttModes[m.sttModeIndex]},
-		{"Start Rex on boot", rexOnBootStr},
-	}
-
 	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
 
 	var top strings.Builder
 	top.WriteString(titleStyle.Render("Settings"))
 	top.WriteString("\n\n")
-	for i, r := range rows {
-		line := m.formatRow(r.label, r.value, innerWidth)
+	for i, r := range m.rows {
+		if i > 0 {
+			top.WriteString("\n")
+		}
+		if r.kind == rowHeader {
+			// Blank line above each section header (except the first row).
+			if i > 0 {
+				top.WriteString("\n")
+			}
+			top.WriteString(sectionStyle.Render(r.label))
+			continue
+		}
+		line := m.formatRow(r.label, m.valueFor(r.id), innerWidth)
 		if m.cursor == i {
 			line = selectedRowStyle.Render(line)
 		} else {
 			line = rowStyle.Render(line)
-		}
-		if i > 0 {
-			top.WriteString("\n")
 		}
 		top.WriteString(line)
 	}
@@ -233,32 +452,70 @@ func (m *Model) View() string {
 	return box
 }
 
+func (m *Model) valueFor(id string) string {
+	switch id {
+	case idKeyboardMode:
+		return m.kbModes[m.kbModeIndex]
+	case idKeyboardLayout:
+		return m.kbLayouts[m.kbLayoutIndex]
+	case idKeyboardView:
+		return m.kbViews[m.kbViewIndex]
+	case idDefaultVoice:
+		return onOff(m.defaultVoice)
+	case idSTTMode:
+		return m.sttModes[m.sttModeIndex]
+	case idRexOnBoot:
+		return onOff(m.rexOnBoot)
+	case idTimezone:
+		return m.timezones[m.tzIndex]
+	case idWifiOn:
+		if m.wifiPowered == nil {
+			return "…"
+		}
+		return onOff(*m.wifiPowered)
+	case idWifi:
+		return "→"
+	}
+	return ""
+}
+
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
 func (m *Model) cycleMode(direction int) {
-	switch m.cursor {
-	case rowKeyboardMode:
+	r := m.rows[m.cursor]
+	if r.kind != rowValue {
+		return
+	}
+	switch r.id {
+	case idKeyboardMode:
 		if n := len(m.kbModes); n > 0 {
 			m.kbModeIndex = (m.kbModeIndex + direction + n) % n
 			m.config.KeyboardMode = m.kbModes[m.kbModeIndex]
 		}
-	case rowKeyboardLayout:
+	case idKeyboardLayout:
 		if n := len(m.kbLayouts); n > 0 {
 			m.kbLayoutIndex = (m.kbLayoutIndex + direction + n) % n
 			m.config.KeyboardLayout = m.kbLayouts[m.kbLayoutIndex]
 		}
-	case rowKeyboardView:
+	case idKeyboardView:
 		if n := len(m.kbViews); n > 0 {
 			m.kbViewIndex = (m.kbViewIndex + direction + n) % n
 			m.config.KeyboardView = m.kbViews[m.kbViewIndex]
 		}
-	case rowSTTMode:
+	case idSTTMode:
 		if n := len(m.sttModes); n > 0 {
 			m.sttModeIndex = (m.sttModeIndex + direction + n) % n
 			m.config.STTMode = m.sttModes[m.sttModeIndex]
 		}
-	case rowDefaultVoice:
+	case idDefaultVoice:
 		m.defaultVoice = !m.defaultVoice
 		m.config.DefaultVoice = m.defaultVoice
-	case rowRexOnBoot:
+	case idRexOnBoot:
 		want := !m.rexOnBoot
 		if err := setRexOnBoot(want); err != nil {
 			m.status = err.Error()
@@ -271,6 +528,17 @@ func (m *Model) cycleMode(direction int) {
 			m.status = "rex disabled on boot"
 		}
 		return
+	case idTimezone:
+		if n := len(m.timezones); n > 0 {
+			next := (m.tzIndex + direction + n) % n
+			tz := m.timezones[next]
+			if err := applyTimezone(tz); err != nil {
+				m.status = err.Error()
+				return
+			}
+			m.tzIndex = next
+			m.config.Timezone = tz
+		}
 	default:
 		return
 	}

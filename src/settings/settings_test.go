@@ -42,7 +42,7 @@ func TestSettingsCycling(t *testing.T) {
 
 	var m tea.Model = NewModel(loaded)
 
-	// Cursor starts on row 0 (keyboard mode). Cycle right once.
+	// Cursor starts on the first value row (chording mode). Cycle right once.
 	m, _ = m.Update(keyMsg("right"))
 	// Move down to keyboard layout row and cycle right (4x8 -> 3-row).
 	m, _ = m.Update(keyMsg("down"))
@@ -50,6 +50,8 @@ func TestSettingsCycling(t *testing.T) {
 	// Move down to keyboard view row and cycle right (grid -> fan).
 	m, _ = m.Update(keyMsg("down"))
 	m, _ = m.Update(keyMsg("right"))
+	// Default voice row (skip).
+	m, _ = m.Update(keyMsg("down"))
 	// Move down to STT row, cycle right (sherpa -> parakeet).
 	m, _ = m.Update(keyMsg("down"))
 	m, _ = m.Update(keyMsg("right"))
@@ -89,25 +91,86 @@ func TestSettingsCycling(t *testing.T) {
 	}
 }
 
-func TestSettingsCursorBounds(t *testing.T) {
+func TestSettingsCursorWrap(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("REX_CONFIG_PATH", filepath.Join(dir, "config.yaml"))
+	t.Setenv("REX_SKIP_TZ_APPLY", "1")
 
 	m := NewModel(cfg.Config{})
 
-	// Cursor starts at 0; up should keep it at 0.
-	var model tea.Model = m
-	model, _ = model.Update(keyMsg("up"))
-	if m.cursor != 0 {
-		t.Errorf("up at top: cursor=%d, want 0", m.cursor)
+	firstValue := m.cursor
+	if m.rows[firstValue].kind != rowValue {
+		t.Fatalf("starting cursor not on value row: kind=%v", m.rows[firstValue].kind)
+	}
+	lastValue := -1
+	for i, r := range m.rows {
+		if r.kind == rowValue {
+			lastValue = i
+		}
 	}
 
-	// Down should advance to the last row, further down should stop at rowCount-1.
-	for i := 0; i < rowCount+1; i++ {
-		model, _ = model.Update(keyMsg("down"))
+	// Up from the first value row wraps to the last.
+	var model tea.Model = m
+	model, _ = model.Update(keyMsg("up"))
+	if m.cursor != lastValue {
+		t.Errorf("up at top: cursor=%d, want %d (wrap to last)", m.cursor, lastValue)
 	}
-	if m.cursor != rowCount-1 {
-		t.Errorf("down past end: cursor=%d, want %d", m.cursor, rowCount-1)
+
+	// Down from the last wraps back to the first.
+	model, _ = model.Update(keyMsg("down"))
+	if m.cursor != firstValue {
+		t.Errorf("down at bottom: cursor=%d, want %d (wrap to first)", m.cursor, firstValue)
+	}
+
+	// Cursor must always land on a value row, never a header, even after
+	// many wraps in either direction.
+	for i := 0; i < 3*len(m.rows); i++ {
+		model, _ = model.Update(keyMsg("down"))
+		if m.rows[m.cursor].kind != rowValue {
+			t.Fatalf("cursor on header at step %d (idx %d)", i, m.cursor)
+		}
+	}
+	for i := 0; i < 3*len(m.rows); i++ {
+		model, _ = model.Update(keyMsg("up"))
+		if m.rows[m.cursor].kind != rowValue {
+			t.Fatalf("cursor on header at step %d (idx %d)", i, m.cursor)
+		}
+	}
+	_ = model
+}
+
+func TestTimezoneCycling(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	t.Setenv("REX_CONFIG_PATH", path)
+	t.Setenv("REX_SKIP_TZ_APPLY", "1")
+
+	if err := cfg.SaveConfig(cfg.Config{}); err != nil {
+		t.Fatalf("seed save: %v", err)
+	}
+	loaded, err := cfg.LoadConfig()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	m := NewModel(loaded)
+	// Move cursor to the timezone row.
+	for i, r := range m.rows {
+		if r.kind == rowValue && r.id == idTimezone {
+			m.cursor = i
+			break
+		}
+	}
+	var model tea.Model = m
+	model, _ = model.Update(keyMsg("right"))
+
+	got, err := cfg.LoadConfig()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	want := cfg.Timezones()[1] // one cycle right from index 0
+	if got.Timezone != want {
+		t.Errorf("timezone: got %q, want %q", got.Timezone, want)
 	}
 	_ = model
 }

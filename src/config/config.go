@@ -23,6 +23,8 @@ const (
 	STTModeSherpa    = "sherpa"    // on-device STT via sherpa-onnx, NeMo Conformer-Small (Brick default)
 	STTModeParakeet  = "parakeet"  // on-device STT via sherpa-onnx, Parakeet-TDT-CTC 110M (Brick, with punctuation + casing)
 	STTModeCompanion = "companion" // iOS companion app STT (R36S)
+
+	TimezoneDefault = "UTC"
 )
 
 type App struct {
@@ -52,6 +54,7 @@ type Config struct {
 	DictWords            int      `yaml:"dict_words,omitempty"`
 	STTMode              string   `yaml:"stt_mode,omitempty"`      // "sherpa" (default), "parakeet", or "companion"
 	DefaultVoice         bool     `yaml:"default_voice,omitempty"` // open keyboard in voice mode by default
+	Timezone             string   `yaml:"timezone,omitempty"`      // IANA zone, e.g. "America/Los_Angeles"
 }
 
 func LoadConfig() (Config, error) {
@@ -235,4 +238,31 @@ func KeyboardLayouts() []string {
 		KeyboardLayout4x8,
 		KeyboardLayout3Row,
 	}
+}
+
+// Timezones returns a curated list of IANA zones for the settings picker.
+// Kept short on purpose — the device cycles one-at-a-time. Users who need
+// something else can edit config.yaml directly.
+func Timezones() []string {
+	return []string{
+		"UTC",
+		"America/Los_Angeles",
+		"America/Denver",
+		"America/Chicago",
+		"America/New_York",
+		"Europe/London",
+		"Europe/Paris",
+		"Europe/Berlin",
+		"Asia/Tokyo",
+		"Asia/Shanghai",
+		"Asia/Kolkata",
+		"Australia/Sydney",
+	}
+}
+
+func NormalizeTimezone(tz string) string {
+	if tz == "" {
+		return TimezoneDefault
+	}
+	return tz
 }

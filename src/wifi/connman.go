@@ -115,6 +115,30 @@ func (c *Client) ScanWifi() error {
 	return obj.Call(techIface+".Scan", 0).Err
 }
 
+// WifiPowered reads the WiFi technology's Powered property.
+func (c *Client) WifiPowered() (bool, error) {
+	obj := c.conn.Object(busName, wifiTechPath)
+	var props map[string]dbus.Variant
+	if err := obj.Call(techIface+".GetProperties", 0).Store(&props); err != nil {
+		return false, fmt.Errorf("GetProperties: %w", err)
+	}
+	v, ok := props["Powered"]
+	if !ok {
+		return false, fmt.Errorf("Powered property missing")
+	}
+	var on bool
+	if err := v.Store(&on); err != nil {
+		return false, fmt.Errorf("decode Powered: %w", err)
+	}
+	return on, nil
+}
+
+// SetWifiPowered toggles the WiFi technology on/off via ConnMan.
+func (c *Client) SetWifiPowered(on bool) error {
+	obj := c.conn.Object(busName, wifiTechPath)
+	return obj.Call(techIface+".SetProperty", 0, "Powered", dbus.MakeVariant(on)).Err
+}
+
 func (c *Client) Connect(path dbus.ObjectPath) error {
 	obj := c.conn.Object(busName, path)
 	// Long timeout: ConnMan blocks here for the entire association/DHCP flow.

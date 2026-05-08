@@ -32,10 +32,18 @@ func Run() error {
 	}
 	defer c.Close()
 
-	m := &Model{client: c}
+	m := NewModel(c)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
+}
+
+// NewModel constructs a wifi Model around an already-open ConnMan dbus
+// client. The caller retains ownership of the client and is responsible for
+// closing it. Useful when embedding the wifi screen inside another bubbletea
+// program (e.g. settings) that wants to reuse the same connection.
+func NewModel(c *Client) *Model {
+	return &Model{client: c}
 }
 
 // List prints wifi services to stdout (non-interactive). Useful for scripts and smoke tests.
