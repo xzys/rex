@@ -43,6 +43,9 @@ type Keyboard struct {
 	paneHeight   int
 	// voice companion mode
 	sttMode string // "sherpa" or "companion"
+	// when true, voice/text toggles are written back to config so the next
+	// keyboard launch resumes in the same mode
+	stickyVoice bool
 }
 
 type RuntimeError error
@@ -88,7 +91,7 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 	return NewVoiceModel(defaultSTTProvider(sttMode))
 }
 
-func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool, keyboardView string, keyboardLayout string) *Keyboard {
+func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool, stickyVoice bool, keyboardView string, keyboardLayout string) *Keyboard {
 	layout := keyboardLayoutForName(keyboardLayout)
 	k := &Keyboard{
 		keyboard:     layout.keys,
@@ -99,6 +102,7 @@ func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete 
 		minKeyWidth:  layout.minKeyWidth,
 		paneHeight:   cfg.KeyboardPaneHeightForLayout(compact, autocomplete, keyboardLayout),
 		sttMode:      sttMode,
+		stickyVoice:  stickyVoice,
 	}
 	if defaultVoice {
 		// Start in voice mode; save the normal model so Fn can toggle back
@@ -297,6 +301,7 @@ func (k *Keyboard) toggleVoiceMode() tea.Cmd {
 			k.priorModel = nil
 			resizeKeyboardPane(k.paneHeight)
 			slog.Info("voice mode off")
+			k.persistVoiceState(false)
 		}
 		return nil
 	}
@@ -306,7 +311,29 @@ func (k *Keyboard) toggleVoiceMode() tea.Cmd {
 	k.model = vm
 	resizeKeyboardPane(1)
 	slog.Info("voice mode on")
+	k.persistVoiceState(true)
 	return vm.DrainCmd()
+}
+
+// persistVoiceState writes the current voice/text mode back to config when
+// the user enabled "sticky" in Settings, so the next keyboard launch resumes
+// in the same mode. No-op when sticky is off or the value is already correct.
+func (k *Keyboard) persistVoiceState(voiceOn bool) {
+	if !k.stickyVoice {
+		return
+	}
+	fresh, err := cfg.LoadConfig()
+	if err != nil {
+		slog.Warn("sticky voice: load config failed", "err", err)
+		return
+	}
+	if fresh.DefaultVoice == voiceOn {
+		return
+	}
+	fresh.DefaultVoice = voiceOn
+	if err := cfg.SaveConfig(fresh); err != nil {
+		slog.Warn("sticky voice: save config failed", "err", err)
+	}
 }
 
 func resizeKeyboardPane(height int) {

@@ -68,6 +68,7 @@ func main() {
 		fs := flag.NewFlagSet("keyboard", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex keyboard [options]\n\n"); fs.PrintDefaults() }
 		keyboardMode := fs.String("mode", "chorded", "keyboard mode (simple, chorded, chorded-simultaneous, front-chorded)")
+		voice := fs.Bool("voice", false, "open in voice mode regardless of default_voice config")
 		fs.Parse(args)
 
 		config, _ := cfg.LoadConfig()
@@ -83,7 +84,8 @@ func main() {
 			dw = cfg.DefaultDictWords
 		}
 		sttMode := cfg.NormalizeSTTMode(config.STTMode)
-		err = keyboard.NewKeyboard(mode, dw, config.KeyboardCompact, config.KeyboardAutocomplete, sttMode, config.DefaultVoice, config.KeyboardView, config.KeyboardLayout).Run()
+		defaultVoice := config.DefaultVoice || *voice
+		err = keyboard.NewKeyboard(mode, dw, config.KeyboardCompact, config.KeyboardAutocomplete, sttMode, defaultVoice, config.DefaultVoiceSticky, config.KeyboardView, config.KeyboardLayout).Run()
 	case "menu":
 		fs := flag.NewFlagSet("menu", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex menu [options]\n\n"); fs.PrintDefaults() }

@@ -53,8 +53,9 @@ type Config struct {
 	KeyboardAutocomplete bool     `yaml:"keyboard_autocomplete,omitempty"`
 	DictWords            int      `yaml:"dict_words,omitempty"`
 	STTMode              string   `yaml:"stt_mode,omitempty"`      // "sherpa" (default), "parakeet", or "companion"
-	DefaultVoice         bool     `yaml:"default_voice,omitempty"` // open keyboard in voice mode by default
-	Timezone             string   `yaml:"timezone,omitempty"`      // IANA zone, e.g. "America/Los_Angeles"
+	DefaultVoice         bool     `yaml:"default_voice,omitempty"`        // open keyboard in voice mode by default
+	DefaultVoiceSticky   bool     `yaml:"default_voice_sticky,omitempty"` // persist voice/text toggle across keyboard launches
+	Timezone             string   `yaml:"timezone,omitempty"`             // IANA zone, e.g. "America/Los_Angeles"
 }
 
 func LoadConfig() (Config, error) {

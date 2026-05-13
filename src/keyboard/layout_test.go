@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewKeyboardUsesConfiguredLayout(t *testing.T) {
-	k := NewKeyboard(cfg.KeyboardModeSimple, cfg.DefaultDictWords, true, false, cfg.STTModeSherpa, false, cfg.KeyboardViewGrid, cfg.KeyboardLayout3Row)
+	k := NewKeyboard(cfg.KeyboardModeSimple, cfg.DefaultDictWords, true, false, cfg.STTModeSherpa, false, false, cfg.KeyboardViewGrid, cfg.KeyboardLayout3Row)
 
 	if got, want := len(k.keyboard), 3; got != want {
 		t.Fatalf("row count: got %d, want %d", got, want)
