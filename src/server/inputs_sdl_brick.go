@@ -50,9 +50,9 @@ func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 //   b0 (hw "A") → KeyB (east), b1 (hw "B") → KeyA (south)
 //   b2 (hw "X") → KeyY (north), b3 (hw "Y") → KeyX (west)
 // b4=L1, b5=R1, b6=L2, b7=R2
-// b8=Select, b9=Start, b10=Mode/Menu/Guide
-// b11 = ThumbL click (unmapped)
-// b12 = ThumbR / R3 click — types '/'
+// b8=Select, b9=Start, b10=Mode/Menu/Guide (KeyFn)
+// b11 = left function button (KeyL3 — the Brick's left "FN" key, paired with b12)
+// b12 = right function button (KeyR3 — the Brick's right "FN" key; types '/' globally)
 // D-pad: hat 0 (SDL_JOYHATMOTION)
 // TODO: joystick axis scroll (KeyScrollUp/KeyScrollDown via left-stick Y) is not yet
 // implemented on Brick — the device has a left joystick but the axis handler used on
@@ -70,6 +70,7 @@ var brickButtonMap = map[uint8]int{
 	8:  protocol.KeySelect,
 	9:  protocol.KeyStart,
 	10: protocol.KeyFn,
+	11: protocol.KeyL3,
 	12: protocol.KeyR3,
 }
 

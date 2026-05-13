@@ -19,6 +19,16 @@ apps:
       color: "5"
       command: pi --no-tools
       exclusive: false
+    - name: lazygit
+      icon: ¥
+      color: "3"
+      command: lazygit
+      exclusive: false
+    - name: lf
+      icon: ≠
+      color: "4"
+      command: lf
+      exclusive: false
     - name: ssh
       icon: "~"
       color: "6"

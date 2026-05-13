@@ -49,6 +49,10 @@ KEY_CODES = {
     "select":    12,
     "start":     13,
     "fn":        14,
+    "scrollup":   15,
+    "scrolldown": 16,
+    "r3":         17,
+    "l3":         18,
 }
 
 DEFAULT_SOCKET = "/tmp/rex-control.sock"

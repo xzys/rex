@@ -38,6 +38,8 @@ var pluginKeyConstants = map[string]int{
 	"KEY_SELECT":     protocol.KeySelect,
 	"KEY_START":      protocol.KeyStart,
 	"KEY_FN":         protocol.KeyFn,
+	"KEY_L3":         protocol.KeyL3,
+	"KEY_R3":         protocol.KeyR3,
 }
 
 func NewScriptOperator(name, script string) (*ScriptOperator, error) {

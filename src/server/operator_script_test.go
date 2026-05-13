@@ -94,6 +94,43 @@ function handleKey(key) {
 	}
 }
 
+func TestScriptOperatorLazygit(t *testing.T) {
+	script := `
+function handleKey(key) {
+  switch (key) {
+    case KEY_L3: return "-";
+    case KEY_R3: return "+";
+  }
+  return null;
+}
+`
+	op, err := NewScriptOperator("lazygit", script)
+	if err != nil {
+		t.Fatalf("NewScriptOperator: %v", err)
+	}
+	defer op.Close()
+
+	cases := []struct {
+		name    string
+		key     int
+		wantKey string
+		wantOK  bool
+	}{
+		{"L3 -> -", protocol.KeyL3, "-", true},
+		{"R3 -> +", protocol.KeyR3, "+", true},
+		{"A falls through", protocol.KeyA, "", false},
+		{"L1 falls through", protocol.KeyL1, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotKey, gotOK := op.evalKey(tc.key)
+			if gotKey != tc.wantKey || gotOK != tc.wantOK {
+				t.Fatalf("evalKey(%d) = (%q, %v), want (%q, %v)", tc.key, gotKey, gotOK, tc.wantKey, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestScriptOperatorMissingHandleKey(t *testing.T) {
 	_, err := NewScriptOperator("bad", `const x = 1;`)
 	if err == nil {

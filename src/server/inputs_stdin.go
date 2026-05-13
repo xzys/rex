@@ -101,6 +101,8 @@ var stdinKeyMap = map[string]int{
 	"r1":       protocol.KeyR1,
 	"l2":       protocol.KeyL2,
 	"r2":       protocol.KeyR2,
+	"l3":       protocol.KeyL3,
+	"r3":       protocol.KeyR3,
 	"select":   protocol.KeySelect,
 	"start":    protocol.KeyStart,
 	"fn":       protocol.KeyFn,

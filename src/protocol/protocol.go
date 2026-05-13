@@ -48,6 +48,7 @@ const (
 	KeyScrollUp
 	KeyScrollDown
 	KeyR3
+	KeyL3
 )
 
 // Special key constants (non-printable control codes to avoid collisions)
