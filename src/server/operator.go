@@ -274,8 +274,10 @@ func (o *GlobalOperator) openMenu() error {
 	}
 
 	slog.Info("opening menu")
-	// Create a new window running the menu command
-	return execute("tmux", "new-window", "-n", "menu", binaryName, "menu")
+	// -c inherits the active pane's cwd so apps launched from the menu start
+	// where the user was (e.g. opening claude from ~/notes lands in ~/notes,
+	// not /home/rex). tmux expands #{pane_current_path} at command time.
+	return execute("tmux", "new-window", "-c", "#{pane_current_path}", "-n", "menu", binaryName, "menu")
 }
 
 // set active operator based on the currently focused window name
