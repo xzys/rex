@@ -3,6 +3,7 @@ package wifi
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,6 +27,11 @@ type Model struct {
 }
 
 func Run() error {
+	// Best-effort: mirror any SSID/key that EmulationStation has set in
+	// batocera.conf into the persistent ConnMan provisioning file so it
+	// auto-reconnects on next boot. Don't fail the TUI if this errors.
+	_, _ = CaptureBatocera()
+
 	c, err := NewClient()
 	if err != nil {
 		return err
@@ -48,6 +54,8 @@ func NewModel(c *Client) *Model {
 
 // List prints wifi services to stdout (non-interactive). Useful for scripts and smoke tests.
 func List() error {
+	_, _ = CaptureBatocera()
+
 	c, err := NewClient()
 	if err != nil {
 		return err
@@ -118,13 +126,22 @@ func (m *Model) disconnect(path dbus.ObjectPath) tea.Cmd {
 	}
 }
 
-func (m *Model) remove(path dbus.ObjectPath) tea.Cmd {
+func (m *Model) remove(s Service) tea.Cmd {
 	return func() tea.Msg {
-		if err := m.client.Remove(path); err != nil {
+		// Always drop the persistent provisioning entry first so the network
+		// doesn't come back on next boot. ConnMan.Remove fails for Immutable
+		// services (Batocera-provisioned), which is fine — once we delete the
+		// provisioning entry the service won't reappear.
+		_, _ = Forget(s.Name)
+		if err := m.client.Remove(s.Path); err != nil && !isImmutableErr(err) {
 			return errMsg{err}
 		}
 		return doneMsg{verb: "forget"}
 	}
+}
+
+func isImmutableErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Not supported")
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -186,7 +203,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if s, ok := m.current(); ok && s.Favorite {
 				m.busy = "forgetting"
 				m.status = "forgetting " + s.Name + "…"
-				return m, m.remove(s.Path)
+				return m, m.remove(s)
 			}
 		}
 	}

@@ -17,6 +17,14 @@ if [ -f "$APP/connman-rex.conf" ] && [ ! -f /etc/dbus-1/system.d/connman-rex.con
         org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
 fi
 
+# Snapshot whatever wifi credentials ES has left in batocera.conf into the
+# persistent ConnMan provisioning file (/userdata/system/network-connman.config).
+# /var/lib/connman is on the volatile rootfs and only the current batocera.conf
+# SSID gets re-provisioned at boot; this accumulates every network the user has
+# ever connected to via ES so they auto-reconnect across reboots. Must run as
+# root because /userdata/system is root-owned. Best-effort.
+"$APP/debian-enter.sh" --root /home/rex/bin/rex wifi capture >>/tmp/rex-launch.log 2>&1 || true
+
 # Stop ES (reclaims RAM). init.d is the same path Rex.sh uses from the ES menu.
 /etc/init.d/S31emulationstation stop >/dev/null 2>&1
 sleep 1

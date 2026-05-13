@@ -125,12 +125,19 @@ func main() {
 	case "wifi":
 		fs := flag.NewFlagSet("wifi", flag.ExitOnError)
 		fs.Usage = func() {
-			fmt.Fprintf(os.Stderr, "usage: rex wifi [list]\n\nManage WiFi via ConnMan. With no args, opens the TUI; 'list' prints services to stdout.\n")
+			fmt.Fprintf(os.Stderr, "usage: rex wifi [list|capture]\n\nManage WiFi via ConnMan. With no args, opens the TUI; 'list' prints services to stdout; 'capture' mirrors wifi credentials from batocera.conf into the persistent ConnMan provisioning file (for auto-reconnect across reboots).\n")
 		}
 		fs.Parse(args)
-		if fs.NArg() > 0 && fs.Arg(0) == "list" {
+		switch fs.Arg(0) {
+		case "list":
 			err = wifi.List()
-		} else {
+		case "capture":
+			var n int
+			n, err = wifi.CaptureBatocera()
+			if err == nil {
+				fmt.Fprintf(os.Stdout, "captured %d network(s) into %s\n", n, wifi.ConfigPath)
+			}
+		default:
 			err = wifi.Run()
 		}
 	case "exclusive":
