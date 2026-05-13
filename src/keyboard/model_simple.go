@@ -32,24 +32,32 @@ func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
 	case protocol.KeyDPadUp:
 		if m.selectedRow > 0 {
 			m.selectedRow--
-			if m.selectedCol >= m.rowWidths[m.selectedRow] {
-				m.selectedCol = m.rowWidths[m.selectedRow] - 1
-			}
+		} else {
+			m.selectedRow = len(m.rowWidths) - 1
+		}
+		if m.selectedCol >= m.rowWidths[m.selectedRow] {
+			m.selectedCol = m.rowWidths[m.selectedRow] - 1
 		}
 	case protocol.KeyDPadDown:
 		if m.selectedRow < len(m.rowWidths)-1 {
 			m.selectedRow++
-			if m.selectedCol >= m.rowWidths[m.selectedRow] {
-				m.selectedCol = m.rowWidths[m.selectedRow] - 1
-			}
+		} else {
+			m.selectedRow = 0
+		}
+		if m.selectedCol >= m.rowWidths[m.selectedRow] {
+			m.selectedCol = m.rowWidths[m.selectedRow] - 1
 		}
 	case protocol.KeyDPadLeft:
 		if m.selectedCol > 0 {
 			m.selectedCol--
+		} else {
+			m.selectedCol = m.rowWidths[m.selectedRow] - 1
 		}
 	case protocol.KeyDPadRight:
 		if m.selectedCol < m.rowWidths[m.selectedRow]-1 {
 			m.selectedCol++
+		} else {
+			m.selectedCol = 0
 		}
 	case protocol.KeyA:
 		// Return the currently selected key
