@@ -7,19 +7,12 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/xrfr/t-rex/v2/protocol"
 	"github.com/xrfr/t-rex/v2/utils"
 )
-
-type chordTestCase struct {
-	modifier int
-	trigger  int
-	expected string
-}
 
 type inputEvent struct {
 	key       int
@@ -30,46 +23,6 @@ type keyboardCase struct {
 	name     string
 	inputs   []inputEvent
 	expected []string
-}
-
-var chordTestCases = []chordTestCase{
-	// Base chord map (letters), used across modes.
-	// R2 modifier - DPad triggers
-	{protocol.KeyR2, protocol.KeyDPadLeft, "a"},
-	{protocol.KeyR2, protocol.KeyDPadUp, "s"},
-	{protocol.KeyR2, protocol.KeyDPadDown, "d"},
-	{protocol.KeyR2, protocol.KeyDPadRight, "f"},
-	// R2 modifier - Face button triggers
-	{protocol.KeyR2, protocol.KeyY, "h"},
-	{protocol.KeyR2, protocol.KeyX, "j"},
-	{protocol.KeyR2, protocol.KeyB, "k"},
-	{protocol.KeyR2, protocol.KeyA, "l"},
-
-	// L1 modifier - DPad triggers
-	{protocol.KeyL1, protocol.KeyDPadLeft, "q"},
-	{protocol.KeyL1, protocol.KeyDPadUp, "w"},
-	{protocol.KeyL1, protocol.KeyDPadDown, "e"},
-	{protocol.KeyL1, protocol.KeyDPadRight, "r"},
-	// L1 modifier - Face button triggers
-	{protocol.KeyL1, protocol.KeyY, "u"},
-	{protocol.KeyL1, protocol.KeyX, "i"},
-	{protocol.KeyL1, protocol.KeyB, "o"},
-	{protocol.KeyL1, protocol.KeyA, "p"},
-
-	// R1 modifier - DPad triggers
-	{protocol.KeyR1, protocol.KeyDPadLeft, "z"},
-	{protocol.KeyR1, protocol.KeyDPadUp, "x"},
-	{protocol.KeyR1, protocol.KeyDPadDown, "c"},
-	{protocol.KeyR1, protocol.KeyDPadRight, "v"},
-	// R1 modifier - Face button triggers
-	{protocol.KeyR1, protocol.KeyY, "g"},
-	{protocol.KeyR1, protocol.KeyX, "b"},
-	{protocol.KeyR1, protocol.KeyB, "n"},
-	{protocol.KeyR1, protocol.KeyA, "m"},
-
-	// L2 modifier - DPad triggers (only up/down produce letters)
-	{protocol.KeyL2, protocol.KeyDPadUp, "t"},
-	{protocol.KeyL2, protocol.KeyDPadDown, "y"},
 }
 
 var simpleLayout = [][]string{
@@ -88,193 +41,34 @@ var simpleSpecialKeyOutputs = map[string]string{
 	"123": string(protocol.SpecialKeyNumbers),
 }
 
-var chordedNumberCases = []chordTestCase{
-	{protocol.KeyR2, protocol.KeyDPadLeft, "1"},
-	{protocol.KeyR2, protocol.KeyDPadUp, "2"},
-	{protocol.KeyR2, protocol.KeyDPadDown, "3"},
-	{protocol.KeyR2, protocol.KeyDPadRight, "4"},
-	{protocol.KeyR2, protocol.KeyY, "5"},
-	{protocol.KeyR2, protocol.KeyX, "6"},
-	{protocol.KeyR2, protocol.KeyB, "7"},
-	{protocol.KeyR2, protocol.KeyA, "8"},
-}
-
-var chordedSpecialCases = []chordTestCase{
-	{protocol.KeyL2, protocol.KeyDPadRight, string(protocol.SpecialKeySpace)},
-	{protocol.KeyL2, protocol.KeyX, string(protocol.SpecialKeyEnter)},
-	{protocol.KeyL2, protocol.KeyY, string(protocol.SpecialKeyDelete)},
-}
-
-// TestKeyboardModes verifies chorded (toggle and simultaneous) and simple layouts,
-// covering letters, digits 1-8, and special keys (space/enter/delete/close/shift/numbers).
-func TestKeyboardModes(t *testing.T) {
-	modeSuites := []struct {
-		name  string
-		mode  string
-		cases []keyboardCase
-	}{
-		{
-			name: "chorded-toggle",
-			mode: "chorded",
-			cases: append(append(append(append(
-				buildChordedCases(false),
-				buildChordedNumberCases(false)...),
-				buildChordedSpecialCases(false)...),
-				buildChordedShiftCases(false)...),
-				keyboardCase{
-					name: "double_modifier_clears",
-					inputs: []inputEvent{
-						keyDown(protocol.KeyL1),
-						keyDown(protocol.KeyL1),
-						keyDown(protocol.KeyDPadUp),
-					},
-				},
-			),
+// TestSimpleKeyboard verifies the simple (cursor-driven) layout: letters and
+// special keys (space/enter/delete/shift/numbers).
+func TestSimpleKeyboard(t *testing.T) {
+	cases := append(append(
+		buildSimpleLetterCases(),
+		buildSimpleSpecialCases()...),
+		keyboardCase{
+			name: "select_enter",
+			inputs: []inputEvent{
+				keyDown(protocol.KeyDPadDown),
+				keyDown(protocol.KeyDPadDown),
+				keyDown(protocol.KeyDPadDown),
+				keyDown(protocol.KeyDPadRight),
+				keyDown(protocol.KeyDPadRight),
+				keyDown(protocol.KeyDPadRight),
+				keyDown(protocol.KeyDPadRight),
+				keyDown(protocol.KeyDPadRight),
+				keyDown(protocol.KeyA),
+			},
+			expected: []string{"\n"},
 		},
-		{
-			name: "chorded-simultaneous",
-			mode: "chorded-simultaneous",
-			cases: append(append(append(append(
-				buildChordedCases(true),
-				buildChordedNumberCases(true)...),
-				buildChordedSpecialCases(true)...),
-				buildChordedShiftCases(true)...),
-				keyboardCase{
-					name: "modifier_keyup_clears",
-					inputs: []inputEvent{
-						keyDown(protocol.KeyL1),
-						keyUp(protocol.KeyL1),
-						keyDown(protocol.KeyDPadUp),
-					},
-				},
-			),
-		},
-		{
-			name: "simple",
-			mode: "simple",
-			cases: append(append(
-				buildSimpleLetterCases(),
-				buildSimpleSpecialCases()...),
-				keyboardCase{
-					name: "select_enter",
-					inputs: []inputEvent{
-						keyDown(protocol.KeyDPadDown),
-						keyDown(protocol.KeyDPadDown),
-						keyDown(protocol.KeyDPadDown),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyDPadRight),
-						keyDown(protocol.KeyA),
-					},
-					expected: []string{"\n"},
-				},
-			),
-		},
-	}
+	)
 
-	for _, suite := range modeSuites {
-		suite := suite
-		t.Run(suite.name, func(t *testing.T) {
-			for _, tc := range suite.cases {
-				tc := tc
-				t.Run(tc.name, func(t *testing.T) {
-					runKeyboardCase(t, suite.mode, tc)
-				})
-			}
-		})
-	}
-}
-
-func buildChordedCases(includeKeyUp bool) []keyboardCase {
-	cases := make([]keyboardCase, 0, len(chordTestCases))
-	for _, tc := range chordTestCases {
-		inputs := []inputEvent{
-			keyDown(tc.modifier),
-			keyDown(tc.trigger),
-		}
-		if includeKeyUp {
-			inputs = append(inputs, keyUp(tc.modifier))
-		}
-		cases = append(cases, keyboardCase{
-			name:     fmt.Sprintf("mod%d_key%d_%s", tc.modifier, tc.trigger, tc.expected),
-			inputs:   inputs,
-			expected: []string{tc.expected},
-		})
-	}
-	return cases
-}
-
-func buildChordedNumberCases(includeKeyUp bool) []keyboardCase {
-	return buildChordedModeCases("numbers", chordedNumberCases, includeKeyUp, func() []inputEvent {
-		inputs := []inputEvent{
-			keyDown(protocol.KeyL2),
-			keyDown(protocol.KeyB),
-		}
-		if includeKeyUp {
-			inputs = append(inputs, keyUp(protocol.KeyL2))
-		}
-		return inputs
-	})
-}
-
-func buildChordedSpecialCases(includeKeyUp bool) []keyboardCase {
-	return buildChordedModeCases("special", chordedSpecialCases, includeKeyUp, nil)
-}
-
-func buildChordedShiftCases(includeKeyUp bool) []keyboardCase {
-	var inputs []inputEvent
-	inputs = append(inputs, keyDown(protocol.KeyL2), keyDown(protocol.KeyDPadLeft))
-	if includeKeyUp {
-		inputs = append(inputs, keyUp(protocol.KeyL2))
-	}
-
-	expected := make([]string, 0, len(chordTestCases))
-	for _, tc := range chordTestCases {
-		inputs = append(inputs, keyDown(tc.modifier), keyDown(tc.trigger))
-		if includeKeyUp {
-			inputs = append(inputs, keyUp(tc.modifier))
-		}
-		expected = append(expected, strings.ToUpper(tc.expected))
-	}
-
-	inputs = append(inputs, keyDown(protocol.KeyL2), keyDown(protocol.KeyDPadLeft))
-	if includeKeyUp {
-		inputs = append(inputs, keyUp(protocol.KeyL2))
-	}
-
-	return []keyboardCase{
-		{
-			name:     "shift_mode_letters",
-			inputs:   inputs,
-			expected: expected,
-		},
-	}
-}
-
-func buildChordedModeCases(prefix string, cases []chordTestCase, includeKeyUp bool, preface func() []inputEvent) []keyboardCase {
-	var inputs []inputEvent
-	if preface != nil {
-		inputs = append(inputs, preface()...)
-	}
-
-	// Flatten multiple chords into one input stream to validate order and state.
-	expected := make([]string, 0, len(cases))
 	for _, tc := range cases {
-		inputs = append(inputs, keyDown(tc.modifier), keyDown(tc.trigger))
-		if includeKeyUp {
-			inputs = append(inputs, keyUp(tc.modifier))
-		}
-		expected = append(expected, tc.expected)
-	}
-
-	return []keyboardCase{
-		{
-			name:     fmt.Sprintf("%s_mode_chords", prefix),
-			inputs:   inputs,
-			expected: expected,
-		},
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			runKeyboardCase(t, "simple", tc)
+		})
 	}
 }
 
@@ -586,42 +380,4 @@ func keyDown(key int) inputEvent {
 
 func keyUp(key int) inputEvent {
 	return inputEvent{key: key, isKeyDown: false}
-}
-
-// TestRapidInputNoPanic sends many chords with no delay between messages to
-// reproduce the concurrent json.Decoder access bug (json decoder out of sync).
-// The keyboard process must survive and produce correct output for every chord.
-func TestRapidInputNoPanic(t *testing.T) {
-	encoder, decoder, outputConn, cleanup := setupKeyboard(t, "chorded")
-	defer cleanup()
-
-	// 30 rapid R2+A chords sent with no inter-message delay
-	const n = 30
-	go func() {
-		for i := 0; i < n; i++ {
-			for _, msg := range []protocol.KeyInputMessage{
-				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyR2, IsKeyDown: true},
-				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyA, IsKeyDown: true},
-				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyA, IsKeyDown: false},
-				{BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeKeyInput}, KeyInput: protocol.KeyR2, IsKeyDown: false},
-			} {
-				if err := encoder.Encode(msg); err != nil {
-					return
-				}
-			}
-		}
-	}()
-
-	for i := 0; i < n; i++ {
-		got, ok, err := readPressKey(decoder, outputConn, 5*time.Second)
-		if err != nil {
-			t.Fatalf("chord %d: read key press: %v", i, err)
-		}
-		if !ok {
-			t.Fatalf("chord %d: expected key press 'l', got none (keyboard may have panicked)", i)
-		}
-		if got != "l" {
-			t.Fatalf("chord %d: expected 'l', got %q", i, got)
-		}
-	}
 }

@@ -67,7 +67,7 @@ func main() {
 	case "keyboard":
 		fs := flag.NewFlagSet("keyboard", flag.ExitOnError)
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex keyboard [options]\n\n"); fs.PrintDefaults() }
-		keyboardMode := fs.String("mode", "chorded", "keyboard mode (simple, chorded, chorded-simultaneous, front-chorded)")
+		keyboardMode := fs.String("mode", "", "keyboard mode (front-chorded, simple)")
 		voice := fs.Bool("voice", false, "open in voice mode regardless of default_voice config")
 		fs.Parse(args)
 
@@ -77,7 +77,7 @@ func main() {
 			mode = *keyboardMode
 		}
 		if mode == "" {
-			mode = cfg.KeyboardModeChorded
+			mode = cfg.KeyboardModeFrontChorded
 		}
 		dw := config.DictWords
 		if dw <= 0 {

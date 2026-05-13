@@ -41,9 +41,9 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 
 	// L1/R1 always drive pane/window navigation, regardless of whether a
 	// keyboard pane is active. The front-chorded and voice models don't use
-	// L1/R1 as modifiers (only the legacy chorded model does), so hoisting
-	// this above the keyboardActive check lets the user navigate panes while
-	// voice is recording or front-chorded is open.
+	// L1/R1 as modifiers, so hoisting this above the keyboardActive check
+	// lets the user navigate panes while voice is recording or the keyboard
+	// is open.
 	switch event.Key {
 	case protocol.KeyL1:
 		if event.IsDown {
@@ -204,7 +204,7 @@ func (o *GlobalOperator) openKeyboardPane() error {
 		return nil
 	}
 
-	mode := cfg.KeyboardModeChorded
+	mode := cfg.KeyboardModeFrontChorded
 	layout := cfg.KeyboardLayout4x8
 	compact := true
 	autocomplete := false

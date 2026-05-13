@@ -30,7 +30,7 @@ func TestSettingsCycling(t *testing.T) {
 	path := filepath.Join(dir, "config.yaml")
 	t.Setenv("REX_CONFIG_PATH", path)
 
-	start := cfg.Config{KeyboardMode: cfg.KeyboardModeChorded, STTMode: cfg.STTModeSherpa}
+	start := cfg.Config{KeyboardMode: cfg.KeyboardModeFrontChorded, STTMode: cfg.STTModeSherpa}
 	if err := cfg.SaveConfig(start); err != nil {
 		t.Fatalf("seed save: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestSettingsCycling(t *testing.T) {
 	if got.STTMode != cfg.STTModeCompanion {
 		t.Errorf("stt_mode: got %q, want %q", got.STTMode, cfg.STTModeCompanion)
 	}
-	if got.KeyboardMode == cfg.KeyboardModeChorded {
+	if got.KeyboardMode == cfg.KeyboardModeFrontChorded {
 		t.Errorf("keyboard_mode did not advance from initial %q", got.KeyboardMode)
 	}
 	if got.KeyboardLayout != cfg.KeyboardLayout3Row {

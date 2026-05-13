@@ -9,10 +9,8 @@ import (
 )
 
 const (
-	KeyboardModeSimple              = "simple"
-	KeyboardModeChorded             = "chorded"
-	KeyboardModeChordedSimultaneous = "chorded-simultaneous"
-	KeyboardModeFrontChorded        = "front-chorded"
+	KeyboardModeSimple       = "simple"
+	KeyboardModeFrontChorded = "front-chorded"
 	KeyboardViewGrid                = "grid"
 	KeyboardViewFan                 = "fan"
 	KeyboardLayout4x8               = "4x8"
@@ -33,6 +31,7 @@ type App struct {
 	Color     string `yaml:"color"`
 	Command   string `yaml:"command"`
 	Exclusive bool   `yaml:"exclusive"`
+	Voice     bool   `yaml:"voice,omitempty"` // auto-open keyboard pane in voice mode on launch
 }
 
 type Layout struct {
@@ -89,15 +88,21 @@ func loadConfigFromPath(path string) (Config, error) {
 		return Config{}, err
 	}
 
-	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
 	config.KeyboardLayout = NormalizeKeyboardLayout(config.KeyboardLayout)
 	config.KeyboardView = NormalizeKeyboardView(config.KeyboardView)
+	normalizedMode := NormalizeKeyboardMode(config.KeyboardMode)
+	if normalizedMode != config.KeyboardMode {
+		config.KeyboardMode = normalizedMode
+		// Migrate stale/invalid keyboard_mode values (e.g. "chorded" from
+		// older configs) by rewriting the file. Best-effort: ignore errors.
+		_ = saveConfigToPath(path, config)
+	}
 	return config, nil
 }
 
 func defaultConfig() Config {
 	return Config{
-		KeyboardMode:    KeyboardModeChorded,
+		KeyboardMode:    KeyboardModeFrontChorded,
 		KeyboardLayout:  KeyboardLayout4x8,
 		KeyboardView:    KeyboardViewGrid,
 		KeyboardCompact: true,
@@ -105,7 +110,6 @@ func defaultConfig() Config {
 }
 
 func saveConfigToPath(path string, config Config) error {
-	config.KeyboardMode = NormalizeKeyboardMode(config.KeyboardMode)
 	config.KeyboardLayout = NormalizeKeyboardLayout(config.KeyboardLayout)
 	config.KeyboardView = NormalizeKeyboardView(config.KeyboardView)
 	config.STTMode = NormalizeSTTMode(config.STTMode)
@@ -159,10 +163,10 @@ func NormalizeSTTMode(mode string) string {
 
 func NormalizeKeyboardMode(mode string) string {
 	switch mode {
-	case KeyboardModeSimple, KeyboardModeChorded, KeyboardModeChordedSimultaneous, KeyboardModeFrontChorded:
+	case KeyboardModeFrontChorded, KeyboardModeSimple:
 		return mode
 	default:
-		return KeyboardModeChorded
+		return KeyboardModeSimple
 	}
 }
 
@@ -220,10 +224,8 @@ func STTModes() []string {
 
 func KeyboardModes() []string {
 	return []string{
-		KeyboardModeSimple,
-		KeyboardModeChorded,
-		KeyboardModeChordedSimultaneous,
 		KeyboardModeFrontChorded,
+		KeyboardModeSimple,
 	}
 }
 

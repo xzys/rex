@@ -7,6 +7,23 @@ import (
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
+// encodeChord packs (modifier, trigger) into a single int key for the chord
+// lookup maps. modifier occupies the low 4 bits, trigger the upper bits.
+func encodeChord(modifier, trigger int) int {
+	return modifier | (trigger << 4)
+}
+
+// specialKeyMap maps on-screen key labels (used by the simple and front-chorded
+// models) to the special-key runes the server understands.
+var specialKeyMap = map[string]rune{
+	"SPC": protocol.SpecialKeySpace,
+	"SFT": protocol.SpecialKeyShift,
+	"DEL": protocol.SpecialKeyDelete,
+	"123": protocol.SpecialKeyNumbers,
+	"MIC": protocol.SpecialKeyMic,
+	"ENT": protocol.SpecialKeyEnter,
+}
+
 type KeyboardModelFrontChorded struct {
 	// Current modifier state
 	modifier       int

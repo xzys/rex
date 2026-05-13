@@ -52,10 +52,6 @@ type RuntimeError error
 
 func (k *Keyboard) getKeyboardModel(mode string) KeyboardModel {
 	switch mode {
-	case "chorded":
-		return NewKeyboardModelChorded(k.keyboard, false)
-	case "chorded-simultaneous":
-		return NewKeyboardModelChorded(k.keyboard, true)
 	case "simple":
 		return NewKeyboardModelSimple(k.keyboard)
 	case "front-chorded":
@@ -63,7 +59,8 @@ func (k *Keyboard) getKeyboardModel(mode string) KeyboardModel {
 	case "voice":
 		return k.createVoiceModel()
 	default:
-		panic("invalid keyboard mode")
+		slog.Warn("unknown keyboard mode, falling back to simple", "mode", mode)
+		return NewKeyboardModelSimple(k.keyboard)
 	}
 }
 
