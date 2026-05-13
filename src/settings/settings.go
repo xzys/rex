@@ -552,6 +552,7 @@ func (m *Model) cycleMode(direction int) {
 		}
 	case idMenuMargin:
 		m.config.Layout.MarginX = clamp(m.config.Layout.MarginX+direction, menuMarginMin, menuMarginMax)
+		m.config.Layout.MarginY = m.config.Layout.MarginX
 	case idIconSize:
 		m.config.Layout.SquareSize = clamp(m.config.Layout.SquareSize+direction, iconSizeMin, iconSizeMax)
 	case idDefaultVoice:

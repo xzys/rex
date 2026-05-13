@@ -11,18 +11,21 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	cfg "github.com/xrfr/t-rex/v2/config"
+	"github.com/xrfr/t-rex/v2/server"
 )
 
 type Menu struct {
-	config      cfg.Config
-	cursor      int
-	width       int
-	height      int
-	itemsPerRow int
-	rowsFit     int
-	rowOffset   int
-	selected    bool
-	sshHost     *string
+	config         cfg.Config
+	cursor         int
+	width          int
+	height         int
+	itemsPerRow    int
+	rowsFit        int
+	rowOffset      int
+	selected       bool
+	sshHost        *string
+	confirmInstall *cfg.App // when non-nil, render an install-prompt modal
+	runInstall     *cfg.App // set when the user confirms; consumed by Run()
 }
 
 func NewMenu(sshHost *string) (*Menu, error) {
@@ -47,6 +50,9 @@ func (m *Menu) Run() error {
 	if _, err := p.Run(); err != nil {
 		return err
 	}
+	if m.runInstall != nil {
+		return m.runInstallScript(m.runInstall.Name)
+	}
 	if m.selected {
 		app := m.SelectedApp()
 
@@ -58,12 +64,20 @@ func (m *Menu) Run() error {
 			slog.Warn("failed to rename window", "name", app.Name, "err", err)
 		}
 
+		// Apps flagged `voice: true` (e.g. codex, pi) auto-open the keyboard pane
+		// in voice mode. Done via server so keyboardActive state stays in sync.
+		if app.Voice {
+			if err := server.SendOpenKeyboard(true); err != nil {
+				slog.Warn("failed to auto-open voice keyboard", "name", app.Name, "err", err)
+			}
+		}
+
 		if app.Command == "__tmux__" && m.sshHost != nil {
 			return m.runSSHTmux()
 		}
 
 		if app.Command == "__new_window__" {
-			return exec.Command("tmux", "new-window").Run()
+			return exec.Command("tmux", "new-window", "-c", "#{pane_current_path}").Run()
 		}
 
 		if m.sshHost != nil {
@@ -130,13 +144,59 @@ func (m *Menu) runExclusive(args []string) error {
 	return syscall.Exec(rexPath, rexArgs, os.Environ())
 }
 
+// runInstallScript extracts the embedded install script for `name` and execs
+// bash with it, replacing the menu process. The script runs in the menu's
+// tmux window so the user can see progress; when it exits, the window closes.
+func (m *Menu) runInstallScript(name string) error {
+	path, err := writeInstallScript(name)
+	if err != nil {
+		return err
+	}
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		return fmt.Errorf("bash not found: %w", err)
+	}
+	return syscall.Exec(bash, []string{bash, path}, os.Environ())
+}
+
 func (m *Menu) effectiveApps() []cfg.App {
+	var apps []cfg.App
 	if m.sshHost != nil {
 		tmuxApp := cfg.App{Name: "tmux", Icon: "▪", Color: "3", Command: "__tmux__"}
-		return append([]cfg.App{tmuxApp}, m.config.Apps...)
+		apps = append([]cfg.App{tmuxApp}, m.config.Apps...)
+	} else {
+		shellApp := cfg.App{Name: "shell", Icon: "$", Color: "8", Command: "__new_window__"}
+		apps = append([]cfg.App{shellApp}, m.config.Apps...)
 	}
-	shellApp := cfg.App{Name: "shell", Icon: "$", Color: "8", Command: "__new_window__"}
-	return append([]cfg.App{shellApp}, m.config.Apps...)
+	// Stable partition: installed first, missing last. Skip when SSHing since
+	// LookPath checks the local host, not the remote.
+	if m.sshHost != nil {
+		return apps
+	}
+	installed := make([]cfg.App, 0, len(apps))
+	missing := make([]cfg.App, 0)
+	for _, a := range apps {
+		if isAppInstalled(a) {
+			installed = append(installed, a)
+		} else {
+			missing = append(missing, a)
+		}
+	}
+	return append(installed, missing...)
+}
+
+// firstMissingIdx returns the index of the first uninstalled app in the
+// (already-partitioned) effectiveApps slice, or -1 if all are installed.
+func (m *Menu) firstMissingIdx(apps []cfg.App) int {
+	if m.sshHost != nil {
+		return -1
+	}
+	for i, a := range apps {
+		if !isAppInstalled(a) {
+			return i
+		}
+	}
+	return -1
 }
 
 func (m *Menu) Init() tea.Cmd {
@@ -146,6 +206,18 @@ func (m *Menu) Init() tea.Cmd {
 func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Install-confirm modal intercepts input until dismissed.
+		if m.confirmInstall != nil {
+			switch msg.String() {
+			case "enter":
+				m.runInstall = m.confirmInstall
+				m.confirmInstall = nil
+				return m, tea.Quit
+			case "esc", "b", "q":
+				m.confirmInstall = nil
+			}
+			return m, nil
+		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -170,7 +242,17 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.scrollToCursor()
 		case "enter":
-			if m.cursor < len(m.effectiveApps()) {
+			apps := m.effectiveApps()
+			if m.cursor < len(apps) {
+				app := apps[m.cursor]
+				if !isAppInstalled(app) {
+					if _, ok := installScript(app.Name); ok {
+						m.confirmInstall = &app
+						return m, nil
+					}
+					// no install script — fall through and try to launch; the
+					// exec.LookPath in Run() will surface the failure.
+				}
 				m.selected = true
 				return m, tea.Quit
 			}
@@ -199,9 +281,9 @@ func (m *Menu) calculateLayout() {
 
 	cardHeight := layout.SquareSize/2 + 2 // content + top/bottom border
 	rowHeight := cardHeight + layout.Gap/2
-	gridArea := m.height
+	gridArea := m.height - (layout.MarginY * 2)
 	if m.sshHost != nil {
-		gridArea = m.height - 1
+		gridArea -= 1
 	}
 	if rowHeight > 0 {
 		m.rowsFit = gridArea / rowHeight
@@ -251,8 +333,16 @@ func (m *Menu) View() string {
 
 	var rows []string
 	var currentRow []string
+	missingStart := m.firstMissingIdx(apps)
 
 	for i, app := range apps {
+		// Force a row break before the first uninstalled app so missing tiles
+		// start on a fresh row below the installed ones.
+		if missingStart >= 0 && i == missingStart && len(currentRow) > 0 {
+			rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, currentRow...))
+			currentRow = nil
+		}
+
 		style := baseStyle.
 			BorderForeground(lipgloss.Color(app.Color)).
 			Foreground(lipgloss.Color(app.Color))
@@ -262,9 +352,20 @@ func (m *Menu) View() string {
 			style = style.MarginRight(layout.Gap)
 		}
 
-		if i == m.cursor {
+		missing := !isAppInstalled(app)
+		if missing {
 			style = style.
-				Background(lipgloss.Color(app.Color)).
+				BorderForeground(lipgloss.Color("8")).
+				Foreground(lipgloss.Color("8"))
+		}
+
+		if i == m.cursor {
+			bg := lipgloss.Color(app.Color)
+			if missing {
+				bg = lipgloss.Color("8")
+			}
+			style = style.
+				Background(bg).
 				Foreground(lipgloss.Color("#000000"))
 		}
 
@@ -308,7 +409,19 @@ func (m *Menu) View() string {
 	if m.sshHost != nil {
 		gridHeight = m.height - 1
 	}
-	centered := lipgloss.Place(m.width, gridHeight, lipgloss.Center, lipgloss.Center, grid)
+	innerW := m.width - 2*layout.MarginX
+	innerH := gridHeight - 2*layout.MarginY
+	if innerW < 1 {
+		innerW = 1
+	}
+	if innerH < 1 {
+		innerH = 1
+	}
+	placed := lipgloss.Place(innerW, innerH, lipgloss.Center, lipgloss.Center, grid)
+	if m.confirmInstall != nil {
+		placed = lipgloss.Place(innerW, innerH, lipgloss.Center, lipgloss.Center, m.renderConfirmModal())
+	}
+	centered := lipgloss.NewStyle().Padding(layout.MarginY, layout.MarginX).Render(placed)
 
 	if m.sshHost != nil {
 		barStyle := lipgloss.NewStyle().
@@ -324,6 +437,19 @@ func (m *Menu) View() string {
 	}
 
 	return centered
+}
+
+func (m *Menu) renderConfirmModal() string {
+	app := m.confirmInstall
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(app.Color)).Render(app.Name + " is not installed")
+	body := lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Render("install it now?")
+	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("A: install   B: cancel")
+	content := lipgloss.JoinVertical(lipgloss.Center, title, "", body, "", hint)
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(app.Color)).
+		Padding(1, 3).
+		Render(content)
 }
 
 func (m *Menu) SelectedApp() *cfg.App {
