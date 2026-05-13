@@ -39,10 +39,21 @@ const (
 	idKeyboardView   = "keyboard_view"
 	idDefaultVoice   = "default_voice"
 	idSTTMode        = "stt_mode"
+	idMenuMargin     = "menu_margin"
+	idIconSize       = "icon_size"
 	idRexOnBoot      = "rex_on_boot"
 	idTimezone       = "timezone"
 	idWifiOn         = "wifi_on"
 	idWifi           = "wifi"
+)
+
+// Bounds for the numeric menu-layout rows. Step 1 in each direction with
+// clamping (no wrap), since extreme values would render an unusable grid.
+const (
+	menuMarginMin = 0
+	menuMarginMax = 12
+	iconSizeMin   = 6
+	iconSizeMax   = 16
 )
 
 type wifiPoweredMsg struct {
@@ -172,6 +183,9 @@ func NewModel(config cfg.Config) *Model {
 		{kind: rowValue, id: idKeyboardView, label: "Keyboard view"},
 		{kind: rowValue, id: idDefaultVoice, label: "Default voice mode"},
 		{kind: rowValue, id: idSTTMode, label: "STT mode"},
+		{kind: rowHeader, label: "Menu"},
+		{kind: rowValue, id: idMenuMargin, label: "Menu margin"},
+		{kind: rowValue, id: idIconSize, label: "Icon size"},
 		{kind: rowHeader, label: "System Settings"},
 		{kind: rowValue, id: idRexOnBoot, label: "Start Rex on boot"},
 		{kind: rowValue, id: idTimezone, label: "Timezone"},
@@ -231,6 +245,16 @@ func applyTimezone(tz string) error {
 		return fmt.Errorf("set timezone file: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func clamp(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func indexOf(values []string, target string) int {
@@ -461,9 +485,13 @@ func (m *Model) valueFor(id string) string {
 	case idKeyboardView:
 		return m.kbViews[m.kbViewIndex]
 	case idDefaultVoice:
-		return onOff(m.defaultVoice)
+		return defaultVoiceLabel(m.defaultVoice, m.config.DefaultVoiceSticky)
 	case idSTTMode:
 		return m.sttModes[m.sttModeIndex]
+	case idMenuMargin:
+		return fmt.Sprintf("%d", m.config.Layout.MarginX)
+	case idIconSize:
+		return fmt.Sprintf("%d", m.config.Layout.SquareSize)
 	case idRexOnBoot:
 		return onOff(m.rexOnBoot)
 	case idTimezone:
@@ -484,6 +512,16 @@ func onOff(b bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+// defaultVoiceLabel renders the tri-state for the "Default voice mode" row.
+// sticky means: persist the voice/text state across keyboard launches (the
+// keyboard rewrites DefaultVoice whenever the user toggles voice via Fn/MIC).
+func defaultVoiceLabel(defaultVoice, sticky bool) string {
+	if sticky {
+		return "sticky"
+	}
+	return onOff(defaultVoice)
 }
 
 func (m *Model) cycleMode(direction int) {
@@ -512,9 +550,26 @@ func (m *Model) cycleMode(direction int) {
 			m.sttModeIndex = (m.sttModeIndex + direction + n) % n
 			m.config.STTMode = m.sttModes[m.sttModeIndex]
 		}
+	case idMenuMargin:
+		m.config.Layout.MarginX = clamp(m.config.Layout.MarginX+direction, menuMarginMin, menuMarginMax)
+	case idIconSize:
+		m.config.Layout.SquareSize = clamp(m.config.Layout.SquareSize+direction, iconSizeMin, iconSizeMax)
 	case idDefaultVoice:
-		m.defaultVoice = !m.defaultVoice
-		m.config.DefaultVoice = m.defaultVoice
+		// Tri-state cycle: off → on → sticky → off.
+		// "sticky" implies voice-on initially; the keyboard rewrites
+		// DefaultVoice on each Fn toggle so launches resume the last mode.
+		switch {
+		case !m.defaultVoice && !m.config.DefaultVoiceSticky:
+			m.defaultVoice = true
+			m.config.DefaultVoice = true
+			m.config.DefaultVoiceSticky = false
+		case m.defaultVoice && !m.config.DefaultVoiceSticky:
+			m.config.DefaultVoiceSticky = true
+		default:
+			m.defaultVoice = false
+			m.config.DefaultVoice = false
+			m.config.DefaultVoiceSticky = false
+		}
 	case idRexOnBoot:
 		want := !m.rexOnBoot
 		if err := setRexOnBoot(want); err != nil {
