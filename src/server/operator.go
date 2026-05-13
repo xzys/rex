@@ -122,7 +122,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 
 	switch event.Key {
 	case protocol.KeySelect:
-		return o.openKeyboardPane()
+		return o.OpenKeyboardPane(false)
 	case protocol.KeyStart:
 		return o.openMenu()
 	case protocol.KeyA:
@@ -196,8 +196,11 @@ func (o *GlobalOperator) HandlePressString(value string) error {
 	return nil
 }
 
-// creates a horizontal split at the bottom running the keyboard command
-func (o *GlobalOperator) openKeyboardPane() error {
+// OpenKeyboardPane creates a horizontal split at the bottom running the keyboard
+// command. When forceVoice is true, the pane opens in voice mode (single-line
+// height, --voice flag) regardless of the user's DefaultVoice config — used by
+// the menu to auto-open voice for apps flagged `voice: true`.
+func (o *GlobalOperator) OpenKeyboardPane(forceVoice bool) error {
 	// Check if process is already running
 	if err := execute("pgrep", "-f", binaryName+" keyboard"); err == nil {
 		slog.Info("keyboard pane already exists")
@@ -208,31 +211,32 @@ func (o *GlobalOperator) openKeyboardPane() error {
 	layout := cfg.KeyboardLayout4x8
 	compact := true
 	autocomplete := false
-	defaultVoice := false
+	voice := forceVoice
 	if loaded, err := cfg.LoadConfig(); err == nil {
-		mode = cfg.NormalizeKeyboardMode(loaded.KeyboardMode)
+		mode = loaded.KeyboardMode
 		layout = cfg.NormalizeKeyboardLayout(loaded.KeyboardLayout)
 		compact = loaded.KeyboardCompact
 		autocomplete = loaded.KeyboardAutocomplete
-		defaultVoice = loaded.DefaultVoice
+		if loaded.DefaultVoice {
+			voice = true
+		}
 	} else {
 		slog.Warn("failed to load config, using default keyboard mode", "err", err)
 	}
 
-	var paneHeight string
-	if defaultVoice {
-		paneHeight = "1" // voice mode uses a single line
+	args := []string{"split-window"}
+	if voice {
+		args = append(args, "-l", "1") // voice mode uses a single line
 	} else {
-		paneHeight = fmt.Sprintf("%d", cfg.KeyboardPaneHeightForLayout(compact, autocomplete, layout))
+		args = append(args, "-l", fmt.Sprintf("%d", cfg.KeyboardPaneHeightForLayout(compact, autocomplete, layout)))
+	}
+	args = append(args, "-t", "0", binaryName, "keyboard", "--mode", mode)
+	if voice {
+		args = append(args, "--voice")
 	}
 
-	slog.Info("opening keyboard pane", "mode", mode, "layout", layout, "compact", compact, "autocomplete", autocomplete)
-	// Create the split pane
-	if err := execute("tmux", "split-window",
-		"-l", paneHeight,
-		"-t", "0", // target pane 0
-		binaryName, "keyboard", "--mode", mode, // command to run
-	); err != nil {
+	slog.Info("opening keyboard pane", "mode", mode, "layout", layout, "compact", compact, "autocomplete", autocomplete, "voice", voice)
+	if err := execute("tmux", args...); err != nil {
 		return fmt.Errorf("failed to open keyboard pane: %w", err)
 	}
 	o.SetKeyboardActive(true)

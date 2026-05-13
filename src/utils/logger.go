@@ -16,6 +16,11 @@ func setupLogger() {
 	if err != nil {
 		panic(err)
 	}
+	// On Brick, rex runs both as root (wifi capture in start-rex.sh) and as
+	// the unprivileged 'rex' user inside the Debian chroot. The umask drops
+	// the file to 0600, so whichever user creates it first locks out the
+	// other. Force 0666 here so subsequent processes can always append.
+	_ = os.Chmod(logFileName, 0666)
 
 	slog.SetDefault(slog.New(tint.NewHandler(logFile, &tint.Options{
 		Level:     slog.LevelDebug,

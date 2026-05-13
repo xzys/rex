@@ -34,6 +34,7 @@ apps:
       color: "5"
       command: pi --no-tools
       exclusive: false
+      voice: true
     - name: claude
       icon: C
       color: "3"
@@ -44,6 +45,7 @@ apps:
       color: "2"
       command: codex
       exclusive: false
+      voice: true
     - name: ssh
       icon: ≈
       color: "6"

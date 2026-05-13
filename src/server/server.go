@@ -331,6 +331,10 @@ func (s *Server) handleControlConnection(conn net.Conn) {
 			if err := s.operator.HandleInput(InputEvent{Key: m.Key, IsDown: m.IsDown}); err != nil {
 				slog.Error("inject input error", "err", err)
 			}
+		case OpenKeyboardMessage:
+			if err := s.operator.OpenKeyboardPane(m.Voice); err != nil {
+				slog.Error("open keyboard error", "err", err)
+			}
 		}
 	}
 }
