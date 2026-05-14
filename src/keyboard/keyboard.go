@@ -280,6 +280,14 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return k, nil
+	case DPadHoldTickMsg:
+		if sm, ok := k.model.(*KeyboardModelSimple); ok {
+			sm.HandleMsg(msg)
+			if cmd := sm.DrainCmd(); cmd != nil {
+				return k, cmd
+			}
+		}
+		return k, nil
 	}
 
 	// For any other message type (including first message from Init), read from socket
@@ -384,19 +392,32 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 		return vm.DrainCmd()
 	}
 
+	// Simple model queues dpad hold ticks; drain so bubbletea schedules them.
+	var simpleCmd tea.Cmd
+	if sm, ok := k.model.(*KeyboardModelSimple); ok {
+		simpleCmd = sm.DrainCmd()
+	}
+
 	if keyToPress == nil {
-		return nil
+		return simpleCmd
 	}
 
 	// Intercept MIC key to toggle voice mode
 	if len(*keyToPress) == 1 && rune((*keyToPress)[0]) == protocol.SpecialKeyMic {
+		if simpleCmd != nil {
+			return tea.Batch(simpleCmd, k.toggleVoiceMode())
+		}
 		return k.toggleVoiceMode()
 	}
 
 	// Track typed characters for autocomplete
 	k.updateCurrentWord(*keyToPress)
 
-	return k.sendKeyPress(*keyToPress)
+	pressCmd := k.sendKeyPress(*keyToPress)
+	if simpleCmd != nil {
+		return tea.Batch(simpleCmd, pressCmd)
+	}
+	return pressCmd
 }
 
 func (k *Keyboard) sendKeyPress(key string) tea.Cmd {
