@@ -33,13 +33,9 @@ apps:
       icon: "~"
       color: "6"
       command: rex menu --ssh
-    - name: wifi
-      icon: "W"
-      color: "4"
-      command: rex wifi
     - name: settings
       icon: "*"
-      color: "3"
+      color: "8"
       command: rex settings
 ssh_hosts: []
 

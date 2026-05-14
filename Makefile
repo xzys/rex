@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-r36s build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-r36s build-knulli-rex build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -255,3 +255,6 @@ package-brick: ## Build dist/rex-brick-<v>.tar.gz (requires bin/rex-brick + bin/
 
 package-r36s: ## Build dist/rex-r36s-<v>.tar.gz (requires bin/rex; package.sh prints hints if missing)
 	bash scripts/package.sh r36s
+
+build-knulli-rex: package-brick ## Build dist/knulli-rex-brick-<v>.img.gz (needs REX_CHROOT_URL set)
+	bash scripts/knulli/build.sh
