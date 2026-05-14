@@ -3,6 +3,7 @@ package wifi
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,14 +12,18 @@ import (
 )
 
 type tickMsg time.Time
-type servicesMsg []Service
+type servicesMsg struct {
+	visible []Service
+	saved   []Service
+}
 type errMsg struct{ err error }
 type doneMsg struct{ verb string }
 
 type Model struct {
 	client   *Client
-	services []Service
-	cursor   int
+	services []Service // visible from ConnMan
+	saved    []Service // saved profiles not currently visible (Path empty)
+	cursor   int       // index into services++saved
 	width    int
 	height   int
 	status   string
@@ -95,8 +100,36 @@ func (m *Model) refresh() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		return servicesMsg(s)
+		return servicesMsg{visible: s, saved: savedOnly(s)}
 	}
+}
+
+// savedOnly returns synthesized Services for profiles in ConfigPath that
+// aren't represented in `visible`. Empty Path marks them as not-currently-
+// reachable; consumers (View, key handlers) special-case those.
+func savedOnly(visible []Service) []Service {
+	profiles, err := LoadProfiles()
+	if err != nil || len(profiles) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(visible))
+	for _, s := range visible {
+		if s.Name != "" {
+			seen[s.Name] = true
+		}
+	}
+	names := make([]string, 0, len(profiles))
+	for ssid := range profiles {
+		if !seen[ssid] {
+			names = append(names, ssid)
+		}
+	}
+	sort.Strings(names)
+	out := make([]Service, 0, len(names))
+	for _, ssid := range names {
+		out = append(out, Service{Name: ssid, Favorite: true})
+	}
+	return out
 }
 
 func (m *Model) scan() tea.Cmd {
@@ -133,8 +166,10 @@ func (m *Model) remove(s Service) tea.Cmd {
 		// services (Batocera-provisioned), which is fine — once we delete the
 		// provisioning entry the service won't reappear.
 		_, _ = Forget(s.Name)
-		if err := m.client.Remove(s.Path); err != nil && !isImmutableErr(err) {
-			return errMsg{err}
+		if s.Path != "" {
+			if err := m.client.Remove(s.Path); err != nil && !isImmutableErr(err) {
+				return errMsg{err}
+			}
 		}
 		return doneMsg{verb: "forget"}
 	}
@@ -153,9 +188,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.refresh(), tickEvery())
 
 	case servicesMsg:
-		m.services = []Service(msg)
-		if m.cursor >= len(m.services) {
-			m.cursor = max0(len(m.services) - 1)
+		m.services = msg.visible
+		m.saved = msg.saved
+		if total := len(m.services) + len(m.saved); m.cursor >= total {
+			m.cursor = max0(total - 1)
 		}
 
 	case errMsg:
@@ -180,7 +216,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.cursor < len(m.services)-1 {
+			if m.cursor < len(m.services)+len(m.saved)-1 {
 				m.cursor++
 			}
 		case "r":
@@ -188,7 +224,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = "scanning…"
 			return m, m.scan()
 		case "enter":
-			if s, ok := m.current(); ok {
+			if s, ok := m.current(); ok && s.Path != "" {
 				m.busy = "connecting"
 				m.status = "connecting to " + s.Name + "…"
 				return m, m.connect(s.Path)
@@ -212,10 +248,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) current() (Service, bool) {
-	if m.cursor < 0 || m.cursor >= len(m.services) {
+	if m.cursor < 0 {
 		return Service{}, false
 	}
-	return m.services[m.cursor], true
+	if m.cursor < len(m.services) {
+		return m.services[m.cursor], true
+	}
+	idx := m.cursor - len(m.services)
+	if idx < len(m.saved) {
+		return m.saved[idx], true
+	}
+	return Service{}, false
 }
 
 func max0(n int) int {
