@@ -39,7 +39,7 @@ const (
 	idKeyboardView   = "keyboard_view"
 	idDefaultVoice   = "default_voice"
 	idSTTMode        = "stt_mode"
-	idMenuMargin     = "menu_margin"
+	idMenuGap        = "menu_gap"
 	idIconSize       = "icon_size"
 	idRexOnBoot      = "rex_on_boot"
 	idTimezone       = "timezone"
@@ -50,8 +50,8 @@ const (
 // Bounds for the numeric menu-layout rows. Step 1 in each direction with
 // clamping (no wrap), since extreme values would render an unusable grid.
 const (
-	menuMarginMin = 0
-	menuMarginMax = 12
+	menuGapMin = 0
+	menuGapMax = 12
 	iconSizeMin   = 6
 	iconSizeMax   = 16
 )
@@ -184,7 +184,7 @@ func NewModel(config cfg.Config) *Model {
 		{kind: rowValue, id: idDefaultVoice, label: "Default voice mode"},
 		{kind: rowValue, id: idSTTMode, label: "STT mode"},
 		{kind: rowHeader, label: "Menu"},
-		{kind: rowValue, id: idMenuMargin, label: "Menu margin"},
+		{kind: rowValue, id: idMenuGap, label: "Gap"},
 		{kind: rowValue, id: idIconSize, label: "Icon size"},
 		{kind: rowHeader, label: "System Settings"},
 		{kind: rowValue, id: idRexOnBoot, label: "Start Rex on boot"},
@@ -488,7 +488,7 @@ func (m *Model) valueFor(id string) string {
 		return defaultVoiceLabel(m.defaultVoice, m.config.DefaultVoiceSticky)
 	case idSTTMode:
 		return m.sttModes[m.sttModeIndex]
-	case idMenuMargin:
+	case idMenuGap:
 		return fmt.Sprintf("%d", m.config.Layout.MarginX)
 	case idIconSize:
 		return fmt.Sprintf("%d", m.config.Layout.SquareSize)
@@ -550,9 +550,10 @@ func (m *Model) cycleMode(direction int) {
 			m.sttModeIndex = (m.sttModeIndex + direction + n) % n
 			m.config.STTMode = m.sttModes[m.sttModeIndex]
 		}
-	case idMenuMargin:
-		m.config.Layout.MarginX = clamp(m.config.Layout.MarginX+direction, menuMarginMin, menuMarginMax)
+	case idMenuGap:
+		m.config.Layout.MarginX = clamp(m.config.Layout.MarginX+direction, menuGapMin, menuGapMax)
 		m.config.Layout.MarginY = m.config.Layout.MarginX
+		m.config.Layout.Gap = m.config.Layout.MarginX
 	case idIconSize:
 		m.config.Layout.SquareSize = clamp(m.config.Layout.SquareSize+direction, iconSizeMin, iconSizeMax)
 	case idDefaultVoice:
@@ -602,7 +603,6 @@ func (m *Model) cycleMode(direction int) {
 		m.status = fmt.Sprintf("save failed: %v", err)
 		return
 	}
-	m.status = "saved"
 }
 
 func (m *Model) formatRow(name, value string, width int) string {
