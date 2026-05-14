@@ -7,6 +7,12 @@
 
 APP=/userdata/system/apps/rex
 
+# Stage host's brightness binary into the chroot-visible app dir (see Rex.sh
+# for context: LCD brightness is driven by /dev/disp ioctl via this binary).
+if [ -x /usr/bin/brightness ]; then
+    cp -f /usr/bin/brightness "$APP/brightness" && chmod 755 "$APP/brightness"
+fi
+
 # Install ConnMan dbus policy if missing — root /etc is on tmpfs overlay so this
 # is lost on reboot. Lets uid 1000 (rex inside chroot) talk to net.connman for
 # `rex wifi`. No-op if already present or source file missing.
