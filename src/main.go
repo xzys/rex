@@ -17,6 +17,7 @@ import (
 	"github.com/xrfr/t-rex/v2/server"
 	"github.com/xrfr/t-rex/v2/settings"
 	_ "github.com/xrfr/t-rex/v2/utils"
+	"github.com/xrfr/t-rex/v2/volumed"
 	"github.com/xrfr/t-rex/v2/wifi"
 )
 
@@ -31,6 +32,7 @@ func usage() {
        rex menu [options]
        rex settings
        rex wifi
+       rex volumed
        rex exclusive <command> [args...]
 
 Use 'rex <command> --help' for more information about a command.
@@ -142,6 +144,13 @@ func main() {
 		default:
 			err = wifi.Run()
 		}
+	case "volumed":
+		fs := flag.NewFlagSet("volumed", flag.ExitOnError)
+		fs.Usage = func() {
+			fmt.Fprintf(os.Stderr, "usage: rex volumed\n\nListen to the hardware volume rocker (/dev/input/event0) and adjust ALSA 'digital volume' on the brick.\n")
+		}
+		fs.Parse(args)
+		err = volumed.Run()
 	case "exclusive":
 		fs := flag.NewFlagSet("exclusive", flag.ExitOnError)
 		fs.Usage = func() {
@@ -168,20 +177,17 @@ func main() {
 const tmuxSessionName = "rex"
 
 func startOrAttach() error {
-	if exec.Command("tmux", "has-session", "-t", tmuxSessionName).Run() == nil {
-		cmd := exec.Command("tmux", "attach-session", "-t", tmuxSessionName)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		return cmd.Run()
-	}
-
 	rexPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get rex path: %w", err)
 	}
 
-	exec.Command("pkill", "-f", rexPath+" server").Run()
+	// Always start clean: tear down any existing rex tmux session and
+	// background rex processes (server, volumed, stray keyboards, etc.)
+	// before launching fresh. Avoids stacked keyboard spawns that OOM the
+	// brick when memory is tight.
+	exec.Command("tmux", "kill-session", "-t", tmuxSessionName).Run()
+	exec.Command("pkill", "-f", rexPath+" ").Run()
 
 	serverCmd := exec.Command(rexPath, "server")
 	serverCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -190,6 +196,12 @@ func startOrAttach() error {
 	serverCmd.Env = append(os.Environ(), "GOTRACEBACK=all")
 	if err := serverCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	volCmd := exec.Command(rexPath, "volumed")
+	volCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := volCmd.Start(); err != nil {
+		slog.Warn("failed to start volumed", "err", err)
 	}
 
 	tmuxCmd := exec.Command("tmux", "new-session", "-s", tmuxSessionName)
