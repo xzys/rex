@@ -80,6 +80,10 @@ func (m *Menu) Run() error {
 			return m.runSSHTmux()
 		}
 
+		if app.Command == "__shell__" && m.sshHost != nil {
+			return m.runSSHShell()
+		}
+
 		if app.Command == "__new_window__" {
 			return exec.Command("tmux", "new-window", "-c", "#{pane_current_path}").Run()
 		}
@@ -127,6 +131,14 @@ func (m *Menu) runSSHTmux() error {
 		"-t", *m.sshHost,
 		script,
 	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func (m *Menu) runSSHShell() error {
+	cmd := exec.Command("ssh", "-o", "ConnectTimeout=10", "-t", *m.sshHost)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -181,8 +193,9 @@ func (m *Menu) effectiveApps() []cfg.App {
 
 	var apps []cfg.App
 	if m.sshHost != nil {
+		shellApp := cfg.App{Name: "shell", Icon: "$", Color: "8", Command: "__shell__"}
 		tmuxApp := cfg.App{Name: "tmux", Icon: "▪", Color: "3", Command: "__tmux__"}
-		apps = append([]cfg.App{tmuxApp}, m.config.Apps...)
+		apps = append([]cfg.App{shellApp, tmuxApp}, m.config.Apps...)
 	} else {
 		shellApp := cfg.App{Name: "shell", Icon: "$", Color: "8", Command: "__new_window__"}
 		apps = append([]cfg.App{shellApp}, m.config.Apps...)
