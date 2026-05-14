@@ -26,7 +26,11 @@ type Menu struct {
 	sshHost        *string
 	confirmInstall *cfg.App // when non-nil, render an install-prompt modal
 	runInstall     *cfg.App // set when the user confirms; consumed by Run()
+	inMoreView     bool     // when true, show the uninstalled-apps sub-menu
 }
+
+// moreSentinel is the Command used for the "more" tile on the main menu.
+const moreSentinel = "__more__"
 
 func NewMenu(sshHost *string) (*Menu, error) {
 	config, err := cfg.LoadConfig()
@@ -160,6 +164,21 @@ func (m *Menu) runInstallScript(name string) error {
 }
 
 func (m *Menu) effectiveApps() []cfg.App {
+	// "more" sub-menu: only uninstalled config apps that ship an install script.
+	if m.inMoreView {
+		var more []cfg.App
+		for _, a := range m.config.Apps {
+			if isAppInstalled(a) {
+				continue
+			}
+			if _, ok := installScript(a.Name); !ok {
+				continue
+			}
+			more = append(more, a)
+		}
+		return more
+	}
+
 	var apps []cfg.App
 	if m.sshHost != nil {
 		tmuxApp := cfg.App{Name: "tmux", Icon: "▪", Color: "3", Command: "__tmux__"}
@@ -168,27 +187,34 @@ func (m *Menu) effectiveApps() []cfg.App {
 		shellApp := cfg.App{Name: "shell", Icon: "$", Color: "8", Command: "__new_window__"}
 		apps = append([]cfg.App{shellApp}, m.config.Apps...)
 	}
-	// Stable partition: installed first, missing last. Skip when SSHing since
-	// LookPath checks the local host, not the remote.
+	// SSH mode: can't check what's installed on the remote, so show everything as-is.
 	if m.sshHost != nil {
 		return apps
 	}
+	// Local mode: only show installed apps on the main menu; uninstalled apps
+	// live behind the "more" tile.
 	installed := make([]cfg.App, 0, len(apps))
-	missing := make([]cfg.App, 0)
+	hasMore := false
 	for _, a := range apps {
 		if isAppInstalled(a) {
 			installed = append(installed, a)
-		} else {
-			missing = append(missing, a)
+			continue
+		}
+		if _, ok := installScript(a.Name); ok {
+			hasMore = true
 		}
 	}
-	return append(installed, missing...)
+	if hasMore {
+		installed = append(installed, cfg.App{Name: "more", Icon: "+", Color: "6", Command: moreSentinel})
+	}
+	return installed
 }
 
-// firstMissingIdx returns the index of the first uninstalled app in the
-// (already-partitioned) effectiveApps slice, or -1 if all are installed.
+// firstMissingIdx returns the index of the first uninstalled app, or -1 when
+// no row break is needed. Used in SSH mode (where we can't check installed
+// state) and elsewhere now that installed/missing live in separate views.
 func (m *Menu) firstMissingIdx(apps []cfg.App) int {
-	if m.sshHost != nil {
+	if m.sshHost != nil || m.inMoreView {
 		return -1
 	}
 	for i, a := range apps {
@@ -221,6 +247,13 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "b":
+			if m.inMoreView {
+				m.inMoreView = false
+				m.cursor = 0
+				m.rowOffset = 0
+				return m, nil
+			}
 		case "left", "h":
 			if m.cursor > 0 {
 				m.cursor--
@@ -245,6 +278,12 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			apps := m.effectiveApps()
 			if m.cursor < len(apps) {
 				app := apps[m.cursor]
+				if app.Command == moreSentinel {
+					m.inMoreView = true
+					m.cursor = 0
+					m.rowOffset = 0
+					return m, nil
+				}
 				if !isAppInstalled(app) {
 					if _, ok := installScript(app.Name); ok {
 						m.confirmInstall = &app
