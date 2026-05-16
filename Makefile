@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-r36s build-knulli-rex build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-deb package-deb-brick package-deb-r36s build-knulli-rex build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -248,13 +248,30 @@ install-systemd:
 	sudo systemctl daemon-reload; \
 	rm -rf /tmp/systemd'
 
-package: package-brick package-r36s ## Build install tarballs for both targets
+package: package-brick ## Build install tarball for Brick (used by the overlay image)
 
-package-brick: ## Build dist/rex-brick-<v>.tar.gz (requires bin/rex-brick + bin/termsp; package.sh prints hints if missing)
+package-brick: ## Build dist/rex-brick-<v>.tar.gz (requires bin/rex-brick + bin/termsp)
 	bash scripts/package.sh brick
 
-package-r36s: ## Build dist/rex-r36s-<v>.tar.gz (requires bin/rex; package.sh prints hints if missing)
-	bash scripts/package.sh r36s
-
-build-knulli-rex: package-brick ## Build dist/knulli-rex-brick-<v>.img.gz (needs REX_CHROOT_URL set)
+build-knulli-rex: package-brick bin/brick-debian.tar.gz ## Build dist/knulli-rex-brick-<v>.img.gz with chroot bundled
 	bash scripts/knulli/build.sh
+
+bin/brick-debian.tar.gz:
+	@echo "bin/brick-debian.tar.gz missing — running 'make bootstrap-debian'..."
+	$(MAKE) bootstrap-debian
+
+package-deb-brick: ## Build dist/rex-brick_<v>_arm64.deb (needs nfpm: brew install nfpm)
+	@command -v nfpm >/dev/null 2>&1 || { echo "nfpm not found — install with: brew install nfpm"; exit 1; }
+	@test -f bin/rex-brick || { echo "bin/rex-brick missing — run 'make build-docker-brick' first"; exit 1; }
+	@mkdir -p dist
+	REX_VERSION=$$(git rev-parse --short HEAD 2>/dev/null || echo dev) \
+		nfpm pkg --config packaging/nfpm.brick.yaml --packager deb --target dist/
+
+package-deb-r36s: ## Build dist/rex-r36s_<v>_arm64.deb (needs nfpm: brew install nfpm)
+	@command -v nfpm >/dev/null 2>&1 || { echo "nfpm not found — install with: brew install nfpm"; exit 1; }
+	@test -f bin/rex || { echo "bin/rex missing — run 'make build-docker-r36s' first"; exit 1; }
+	@mkdir -p dist
+	REX_VERSION=$$(git rev-parse --short HEAD 2>/dev/null || echo dev) \
+		nfpm pkg --config packaging/nfpm.r36s.yaml --packager deb --target dist/
+
+package-deb: package-deb-brick package-deb-r36s ## Build both .deb artifacts

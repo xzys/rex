@@ -29,8 +29,13 @@ if [ ! -d /userdata ]; then
     exit 1
 fi
 
-# Chroot rootfs URL — override via env if you've published a different release.
-# When unset, the installer expects the chroot to already exist at /userdata/debian.
+# Chroot sources, in order of preference:
+#   1. Local tarball at /userdata/rex-bundle/brick-debian.tar.gz (bundled at
+#      image-build time by scripts/knulli/build.sh).
+#   2. REX_CHROOT_URL env (legacy fallback — for installs without the
+#      bundled overlay image).
+#   3. Existing /userdata/debian if /etc/debian_version is present.
+CHROOT_BUNDLE=/userdata/rex-bundle/brick-debian.tar.gz
 CHROOT_URL="${REX_CHROOT_URL:-}"
 
 APP=/userdata/system/apps/rex
@@ -56,28 +61,33 @@ chmod +x "$TOOLS/Rex.sh"
 
 # --- 2. ensure Debian chroot exists -----------------------------------------
 if [ ! -e "$DEBIAN_ROOT/etc/debian_version" ]; then
-    if [ -z "$CHROOT_URL" ]; then
-        cat >&2 <<EOF
-error: Debian chroot not found at $DEBIAN_ROOT and no REX_CHROOT_URL set.
-
-Either:
-  - set REX_CHROOT_URL to a Debian arm64 rootfs tarball (.tar.gz), or
-  - build one with 'make bootstrap-debian' on a host, scp bin/brick-debian.tar.gz
-    to /userdata/, extract it to /userdata/debian, and re-run this script.
-EOF
-        exit 1
-    fi
-    echo "==> downloading Debian rootfs from $CHROOT_URL"
     mkdir -p "$DEBIAN_ROOT"
-    if ! [ -z "$(ls -A "$DEBIAN_ROOT" 2>/dev/null)" ]; then
+    if [ -n "$(ls -A "$DEBIAN_ROOT" 2>/dev/null)" ]; then
         echo "error: $DEBIAN_ROOT exists and is non-empty but missing /etc/debian_version" >&2
         echo "       refusing to overwrite — inspect manually" >&2
         exit 1
     fi
-    tmp=$(mktemp -p /userdata)
-    curl -fL --progress-bar -o "$tmp" "$CHROOT_URL"
-    tar xzf "$tmp" -C "$DEBIAN_ROOT"
-    rm -f "$tmp"
+
+    if [ -f "$CHROOT_BUNDLE" ]; then
+        echo "==> extracting bundled Debian rootfs from $CHROOT_BUNDLE"
+        tar xzf "$CHROOT_BUNDLE" -C "$DEBIAN_ROOT"
+    elif [ -n "$CHROOT_URL" ]; then
+        echo "==> downloading Debian rootfs from $CHROOT_URL"
+        tmp=$(mktemp -p /userdata)
+        curl -fL --progress-bar -o "$tmp" "$CHROOT_URL"
+        tar xzf "$tmp" -C "$DEBIAN_ROOT"
+        rm -f "$tmp"
+    else
+        cat >&2 <<EOF
+error: Debian chroot not found at $DEBIAN_ROOT.
+
+Expected one of:
+  - bundled rootfs at $CHROOT_BUNDLE (rex-edition image)
+  - REX_CHROOT_URL set to a Debian arm64 rootfs tarball (.tar.gz)
+  - existing /userdata/debian/ (manually staged)
+EOF
+        exit 1
+    fi
 fi
 
 # --- 3. drop chroot helper scripts and rex binary into the chroot -----------

@@ -1,32 +1,24 @@
 #!/usr/bin/env bash
 # build.sh — produce a rex-edition KNULLI SD image for the TrimUI Brick.
 #
-# Takes an upstream KNULLI Brick .img.gz, mounts its BATOCERA (FAT32) partition,
-# drops in:
-#   - rex-payload.tar.gz (the existing scripts/package.sh brick output)
-#   - postshare.sh        (BATOCERA's /boot/postshare.sh hook; runs once)
-#   - rex-firstboot.sh    (invoked from generated /userdata/system/custom.sh)
-# then repackages.
+# Takes an upstream KNULLI Brick .img.gz, grows the SHARE partition (ext4)
+# to fit the rex payload + Debian chroot, drops both into
+# /userdata/rex-bundle/, and writes the overlay scripts to BATOCERA
+# (FAT32). On first boot, postshare.sh extracts the payload and wires up
+# rex-firstboot.sh, which runs install-brick.sh. No network needed at
+# first boot — the chroot is already on the card.
 #
-# postshare.sh extracts the payload into /userdata/rex-install/ on first boot
-# and wires /userdata/system/custom.sh -> /boot/rex-firstboot.sh. ES still
-# boots normally so the user can configure wifi; once network is up,
-# rex-firstboot.sh runs install-brick.sh (which fetches the chroot from
-# REX_CHROOT_URL), marks installed, and execs start-rex.sh. Subsequent boots
-# go straight to rex.
-#
-# Runs on macOS — uses hdiutil. SHARE is ext4 initially and gets reformatted
-# on first boot anyway, so we don't touch it; BATOCERA is FAT32 and stable.
+# Runs the partition-level work inside a privileged Linux Docker container
+# so this works from a macOS host (no native ext4 mount).
 #
 # Usage:
-#   REX_CHROOT_URL=https://... scripts/knulli/build.sh
+#   make build-knulli-rex      (calls this)
 #
 # Env:
-#   REX_CHROOT_URL  required; baked into rex-firstboot.sh so the device can
-#                   fetch the Debian arm64 rootfs on first boot
 #   KNULLI_IMG_URL  override the upstream KNULLI Brick .img.gz URL
-#   KNULLI_IMG_SHA  override the expected sha256
+#   KNULLI_IMG_SHA  override the expected sha256 (skips download of .sha256)
 #   PAYLOAD         override the rex-brick install tarball path
+#   CHROOT          override the brick-debian rootfs tarball path
 
 set -euo pipefail
 
@@ -39,18 +31,16 @@ OVERLAY="$REPO_ROOT/scripts/knulli/overlay"
 KNULLI_IMG_URL="${KNULLI_IMG_URL:-https://github.com/knulli-cfw/distribution/releases/download/20250813/knulli-a133-trimui-brick-gladiator-ii-20250812.img.gz}"
 KNULLI_IMG_SHA_URL="${KNULLI_IMG_URL}.sha256"
 
-REX_CHROOT_URL="${REX_CHROOT_URL:-}"
-if [ -z "$REX_CHROOT_URL" ]; then
-    echo "error: REX_CHROOT_URL is required" >&2
-    echo "  point it at a Debian arm64 rootfs tarball (see 'make bootstrap-debian')" >&2
-    exit 1
-fi
-
 VERSION="${VERSION:-$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)}"
 PAYLOAD="${PAYLOAD:-$DIST_DIR/rex-brick-${VERSION}.tar.gz}"
+CHROOT="${CHROOT:-$REPO_ROOT/bin/brick-debian.tar.gz}"
 
 if [ ! -f "$PAYLOAD" ]; then
     echo "error: $PAYLOAD missing — run 'make package-brick' first" >&2
+    exit 1
+fi
+if [ ! -f "$CHROOT" ]; then
+    echo "error: $CHROOT missing — run 'make bootstrap-debian' first" >&2
     exit 1
 fi
 
@@ -86,55 +76,66 @@ echo "==> decompressing to $(basename "$work_img")"
 rm -f "$work_img"
 gunzip -c "$img_gz" > "$work_img"
 
-# --- 3. attach + locate BATOCERA mount --------------------------------------
-echo "==> attaching image"
-attach_out="$(hdiutil attach -nobrowse -noverify "$work_img")"
-echo "$attach_out"
+# --- 3. hand to Docker for partition + filesystem work ----------------------
+# Size budget: chroot tarball + payload + slack. Add 1.5GB to be safe.
+echo "==> growing image + bundling chroot/payload via Docker"
 
-mount_point="$(printf '%s\n' "$attach_out" | awk -F'\t' '/\/Volumes\/BATOCERA/ {print $NF}' | head -n1)"
-disk_id="$(printf '%s\n' "$attach_out" | awk '/\/dev\/disk[0-9]+ / {print $1; exit}')"
+stage="$(mktemp -d)"
+cp "$PAYLOAD" "$stage/rex-payload.tar.gz"
+cp "$CHROOT" "$stage/brick-debian.tar.gz"
+cp "$OVERLAY/postshare.sh" "$stage/postshare.sh"
+cp "$OVERLAY/rex-firstboot.sh" "$stage/rex-firstboot.sh"
+cp "$work_img" "$stage/work.img"
 
-if [ -z "$mount_point" ] || [ -z "$disk_id" ]; then
-    echo "error: could not find BATOCERA mount in hdiutil output" >&2
-    hdiutil detach "$disk_id" 2>/dev/null || true
-    exit 1
-fi
-
-cleanup() {
-    hdiutil detach "$disk_id" >/dev/null 2>&1 || true
-}
+cleanup() { rm -rf "$stage"; }
 trap cleanup EXIT
 
-echo "==> BATOCERA mounted at $mount_point (disk: $disk_id)"
+docker run --rm --privileged \
+    -v "$stage:/work" \
+    debian:bookworm-slim bash -eux <<'DOCKER_EOF'
+apt-get update -qq
+apt-get install -y -qq --no-install-recommends parted e2fsprogs dosfstools util-linux
 
-# --- 4. inject overlay ------------------------------------------------------
-echo "==> injecting rex payload"
-cp "$PAYLOAD" "$mount_point/rex-payload.tar.gz"
-cp "$OVERLAY/postshare.sh" "$mount_point/postshare.sh"
+cd /work
 
-# Substitute REX_CHROOT_URL into rex-firstboot.sh
-sed "s|__REX_CHROOT_URL__|$REX_CHROOT_URL|" "$OVERLAY/rex-firstboot.sh" \
-    > "$mount_point/rex-firstboot.sh"
+# Grow .img by 1.5GB
+truncate -s +1536M work.img
 
-# FAT32 doesn't carry the exec bit — that's fine, postshare.sh is invoked by
-# Batocera's init via /bin/sh, and rex-firstboot.sh is invoked via custom.sh
-# which we'll make exec on the userdata (ext/exFAT) side.
+# Grow last partition to fill the image
+parted -s work.img resizepart 2 100%
 
-# Flush to disk before detach.
+# Loopback with partition scan
+loop=$(losetup --show -fP work.img)
+trap "losetup -d $loop" EXIT
+
+# Check + resize ext4 partition 2 (SHARE / userdata)
+e2fsck -fy "${loop}p2"
+resize2fs "${loop}p2"
+
+# Mount both partitions
+mkdir -p /mnt/boot /mnt/share
+mount -t vfat "${loop}p1" /mnt/boot
+mount -t ext4 "${loop}p2" /mnt/share
+
+# Overlay scripts onto BATOCERA (FAT32)
+cp postshare.sh rex-firstboot.sh /mnt/boot/
+
+# Bundle onto SHARE — survives first-boot resize2fs/Batocera /userdata setup
+mkdir -p /mnt/share/rex-bundle
+cp rex-payload.tar.gz brick-debian.tar.gz /mnt/share/rex-bundle/
+
 sync
+umount /mnt/share /mnt/boot
+DOCKER_EOF
 
-# --- 5. detach + recompress -------------------------------------------------
-echo "==> detaching"
-hdiutil detach "$disk_id"
-trap - EXIT
+# --- 4. recompress + cleanup ------------------------------------------------
+cp "$stage/work.img" "$work_img"
 
 out="$DIST_DIR/knulli-rex-brick-${VERSION}.img.gz"
 echo "==> compressing to $(basename "$out")"
 rm -f "$out"
 gzip -c "$work_img" > "$out"
 
-# Working .img is large — leave it cached for incremental rebuilds? No, it's
-# 4GB+. Delete it.
 rm -f "$work_img"
 
 size=$(du -h "$out" | cut -f1)

@@ -1,0 +1,73 @@
+# nfpm config for rex-r36s — R36S dArkOSRE native install.
+#
+# Build:
+#   make package-deb-r36s
+# Output:
+#   dist/rex-r36s_<version>_arm64.deb
+#
+# Target: Anbernic R36S running dArkOSRE (Debian trixie). Ships the
+# systemd service, /opt scripts, and templates. Postinst runs
+# daemon-reload but does not enable the service automatically.
+
+name: rex-r36s
+arch: arm64
+platform: linux
+version: ${REX_VERSION}
+section: utils
+priority: optional
+maintainer: xzys <sachin.rudraraju@gmail.com>
+description: |
+  Handheld coding/terminal environment for the Anbernic R36S.
+  Targets dArkOSRE (Debian trixie). Provides menu, keyboard, settings,
+  voice, and tmux-based session management. Installs a systemd service
+  (rex.service) which the user enables explicitly.
+homepage: https://github.com/xzys/rex
+license: see source
+
+depends:
+  - tmux (>= 3.5)
+  - sudo
+  - locales
+  - systemd
+
+recommends:
+  - nodejs (>= 20)
+  - alsa-utils
+  - openssh-server
+
+contents:
+  - src: bin/rex
+    dst: /usr/bin/rex
+    file_info:
+      mode: 0755
+
+  - src: config/dot/tmux.conf
+    dst: /usr/share/rex/tmux.conf
+    type: config
+
+  - src: config/dot/tmux-wifi.sh
+    dst: /usr/share/rex/tmux-wifi.sh
+    file_info:
+      mode: 0755
+    type: config
+
+  - src: config.yaml
+    dst: /usr/share/rex/config.yaml.example
+    type: config
+
+  - src: config/systemd/rex.service
+    dst: /lib/systemd/system/rex.service
+    type: config
+
+  - src: config/system/opt/system/Switch to Rex.sh
+    dst: /opt/system/Switch to Rex.sh
+    file_info:
+      mode: 0755
+
+  - src: config/system/opt/system/Switch to Rex Permanently.sh
+    dst: /opt/system/Switch to Rex Permanently.sh
+    file_info:
+      mode: 0755
+
+scripts:
+  postinstall: packaging/postinstall-r36s.sh

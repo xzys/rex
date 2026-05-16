@@ -3,13 +3,17 @@
 # auto-generated /userdata/system/custom.sh on every boot.
 #
 # Two modes:
-#   1. First run (no /userdata/.rex-installed): wait for network, run the
-#      install-brick.sh installer (which fetches the Debian chroot via
-#      REX_CHROOT_URL), drop the marker, then fall through to launch rex.
-#   2. Subsequent runs: just exec start-rex.sh.
+#   1. First run (no /userdata/.rex-installed): run install-brick.sh.
+#      install-brick.sh extracts /userdata/rex-bundle/brick-debian.tar.gz
+#      into /userdata/debian, sets up the chroot, and the chroot setup
+#      stage runs apt + npm (which DO need network).
+#   2. Subsequent runs: exec start-rex.sh.
 #
-# ES is up while this runs, so the user can configure wifi via the ES menu
-# before the installer succeeds.
+# The chroot tarball lives on the card already (bundled at image build), so
+# the chroot extract itself does not need network. The apt/npm part of
+# install-brick.sh does — if no network, that stage fails and retries
+# next boot. ES is up the whole time so the user can configure wifi via
+# the ES menu before retrying.
 
 set -u
 
@@ -24,8 +28,8 @@ fi
 
 [ -d "$STAGE" ] || { echo "$(date -Iseconds): no stage dir $STAGE" >&2; exit 1; }
 
-# Wait for network — up to 5 min, polling every 5s. User configures wifi via ES
-# in the meantime. Skip wait once we see a default route.
+# Wait for network — up to 5 min. install-brick.sh needs net for the apt +
+# npm step. User can configure wifi via ES while we wait.
 echo "$(date -Iseconds): waiting for network"
 for _ in $(seq 1 60); do
     ip route show default 2>/dev/null | grep -q . && break
@@ -36,11 +40,6 @@ if ! ip route show default 2>/dev/null | grep -q .; then
     echo "$(date -Iseconds): no network after 5min, giving up — try again next boot"
     exit 1
 fi
-
-# Run the installer. REX_CHROOT_URL must be baked into this script at image-build
-# time (build.sh substitutes it); otherwise install-brick.sh will refuse to
-# proceed without an existing /userdata/debian.
-export REX_CHROOT_URL="__REX_CHROOT_URL__"
 
 echo "$(date -Iseconds): running installer"
 if "$STAGE/install.sh" 2>&1; then

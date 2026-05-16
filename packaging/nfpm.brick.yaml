@@ -1,0 +1,58 @@
+# nfpm config for rex-brick — Brick Debian chroot.
+#
+# Build:
+#   make package-deb-brick
+# Output:
+#   dist/rex-brick_<version>_arm64.deb
+#
+# Target: Debian arm64 chroot at /userdata/debian on TrimUI Brick (Knulli).
+# Termsp and Knulli-host glue (apps-rex/, custom.sh wiring) live in the
+# overlay image build, not here.
+
+name: rex-brick
+arch: arm64
+platform: linux
+version: ${REX_VERSION}
+section: utils
+priority: optional
+maintainer: xzys <sachin.rudraraju@gmail.com>
+description: |
+  Handheld coding/terminal environment for the TrimUI Brick.
+  Runs inside the Debian chroot at /userdata/debian on Knulli.
+  Provides menu, keyboard, settings, voice, and tmux-based session
+  management.
+homepage: https://github.com/xzys/rex
+license: see source
+
+depends:
+  - tmux (>= 3.5)
+  - sudo
+  - locales
+
+recommends:
+  - nodejs (>= 20)
+  - alsa-utils
+  - openssh-server
+
+contents:
+  - src: bin/rex-brick
+    dst: /usr/bin/rex
+    file_info:
+      mode: 0755
+
+  - src: config/dot/tmux.conf
+    dst: /usr/share/rex/tmux.conf
+    type: config
+
+  - src: config/dot/tmux-wifi.sh
+    dst: /usr/share/rex/tmux-wifi.sh
+    file_info:
+      mode: 0755
+    type: config
+
+  - src: config.yaml.brick.example
+    dst: /usr/share/rex/config.yaml.example
+    type: config
+
+scripts:
+  postinstall: packaging/postinstall-brick.sh
