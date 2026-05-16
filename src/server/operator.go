@@ -265,10 +265,13 @@ func (o *GlobalOperator) killKeyboardIfActive() {
 
 // opens the menu in a new window
 func (o *GlobalOperator) openMenu() error {
-	// Check if menu is already running and kill it if it is
-	if err := execute("pgrep", "-f", binaryName+" menu"); err == nil {
+	// Anchor with $ so we only match the bare `rex menu` process, not apps
+	// launched from the menu like `rex menu --ssh` (which would otherwise
+	// get pkilled here and could take down the last tmux window with them).
+	menuPattern := binaryName + " menu$"
+	if err := execute("pgrep", "-f", menuPattern); err == nil {
 		slog.Info("menu already exists, killing it first")
-		if err := execute("pkill", "-f", binaryName+" menu"); err != nil {
+		if err := execute("pkill", "-f", menuPattern); err != nil {
 			return err
 		}
 	}
