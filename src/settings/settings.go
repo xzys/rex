@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,6 +43,7 @@ const (
 	idSTTMode        = "stt_mode"
 	idMenuGap        = "menu_gap"
 	idIconSize       = "icon_size"
+	idBrightness     = "brightness"
 	idRexOnBoot      = "rex_on_boot"
 	idTimezone       = "timezone"
 	idWifiOn         = "wifi_on"
@@ -54,6 +57,13 @@ const (
 	menuGapMax = 12
 	iconSizeMin   = 6
 	iconSizeMax   = 16
+)
+
+// Brightness adjusts in 10% steps.
+const (
+	brightnessStep = 10
+	brightnessMin  = 0
+	brightnessMax  = 100
 )
 
 type wifiPoweredMsg struct {
@@ -84,6 +94,90 @@ type Model struct {
 	wifiClient    *wifi.Client
 	wifiModel     *wifi.Model
 	wifiPowered   *bool // nil = not yet queried
+	backlight     *backlight
+	brightnessPct int // 0..100, only meaningful when backlight != nil
+}
+
+// backlight is the discovered LCD brightness backend. Two backends are probed:
+//
+//   - Standard LED backlight class: /sys/class/backlight/<dev>/{brightness,
+//     max_brightness}. Writes go through `sudo tee` (root-owned on R36S and
+//     most mainline kernels).
+//   - TrimUI Brick: the vendor /dev/disp ioctl, reached by shelling out to a
+//     copy of /usr/bin/brightness staged at /userdata/system/apps/rex/brightness
+//     (Rex.sh copies it from the host on each launch — the host binary lives
+//     outside the Debian chroot but /userdata is bind-mounted in). The sysfs
+//     entry /sys/class/led/tg5040_exterme_brightness looks tempting but is a
+//     memo only — writes there do not change the panel.
+type backlight struct {
+	file string // sysfs path, set for the LED-class backend
+	max  int    // raw range upper bound for both backends
+	cmd  string // brightness binary path, set for the brick backend
+}
+
+const brickBrightnessBin = "/userdata/system/apps/rex/brightness"
+
+func discoverBacklight() *backlight {
+	if entries, err := os.ReadDir("/sys/class/backlight"); err == nil {
+		for _, e := range entries {
+			p := filepath.Join("/sys/class/backlight", e.Name())
+			raw, err := os.ReadFile(filepath.Join(p, "max_brightness"))
+			if err != nil {
+				continue
+			}
+			max, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+			if err != nil || max <= 0 {
+				continue
+			}
+			return &backlight{file: filepath.Join(p, "brightness"), max: max}
+		}
+	}
+	if _, err := os.Stat("/dev/disp"); err == nil {
+		if _, err := os.Stat(brickBrightnessBin); err == nil {
+			return &backlight{cmd: brickBrightnessBin, max: 255}
+		}
+	}
+	return nil
+}
+
+func (b *backlight) readPercent() int {
+	var raw string
+	if b.cmd != "" {
+		out, err := exec.Command("sudo", "-n", b.cmd, "get").Output()
+		if err != nil {
+			return brightnessMax
+		}
+		raw = string(out)
+	} else {
+		bs, err := os.ReadFile(b.file)
+		if err != nil {
+			return brightnessMax
+		}
+		raw = string(bs)
+	}
+	v, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return brightnessMax
+	}
+	pct := v * 100 / b.max
+	return clamp(pct, brightnessMin, brightnessMax)
+}
+
+func (b *backlight) writePercent(pct int) error {
+	raw := b.max * pct / 100
+	if b.cmd != "" {
+		out, err := exec.Command("sudo", "-n", b.cmd, "set", strconv.Itoa(raw)).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("set brightness: %v: %s", err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	cmd := exec.Command("sudo", "-n", "tee", b.file)
+	cmd.Stdin = strings.NewReader(strconv.Itoa(raw) + "\n")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("set brightness: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func Run() error {
@@ -175,18 +269,23 @@ func NewModel(config cfg.Config) *Model {
 		tzIndex:       indexOf(timezones, cfg.NormalizeTimezone(config.Timezone)),
 		defaultVoice:  config.DefaultVoice,
 		rexOnBoot:     rexEnabledOnBoot(),
+		backlight:     discoverBacklight(),
+	}
+	if m.backlight != nil {
+		m.brightnessPct = m.backlight.readPercent()
 	}
 	m.rows = []row{
 		{kind: rowHeader, label: "Keyboard"},
 		{kind: rowValue, id: idKeyboardMode, label: "Chording mode"},
 		{kind: rowValue, id: idKeyboardLayout, label: "Keyboard layout"},
 		{kind: rowValue, id: idKeyboardView, label: "Keyboard view"},
-		{kind: rowValue, id: idDefaultVoice, label: "Default voice mode"},
+		{kind: rowValue, id: idDefaultVoice, label: "Default mode"},
 		{kind: rowValue, id: idSTTMode, label: "STT mode"},
 		{kind: rowHeader, label: "Menu"},
 		{kind: rowValue, id: idMenuGap, label: "Gap"},
 		{kind: rowValue, id: idIconSize, label: "Icon size"},
 		{kind: rowHeader, label: "System Settings"},
+		{kind: rowValue, id: idBrightness, label: "Brightness"},
 		{kind: rowValue, id: idRexOnBoot, label: "Start Rex on boot"},
 		{kind: rowValue, id: idTimezone, label: "Timezone"},
 		{kind: rowValue, id: idWifiOn, label: "Wifi On"},
@@ -421,50 +520,77 @@ func (m *Model) View() string {
 		innerWidth = 20
 	}
 
-	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
-
-	var top strings.Builder
-	top.WriteString(titleStyle.Render("Settings"))
-	top.WriteString("\n\n")
+	// Render each settings row to a line (and a blank separator above each
+	// section header). Track the line index that holds the cursor so we can
+	// scroll to keep it visible when the list outgrows the viewport.
+	var rowLines []string
+	cursorLine := -1
 	for i, r := range m.rows {
-		if i > 0 {
-			top.WriteString("\n")
-		}
 		if r.kind == rowHeader {
-			// Blank line above each section header (except the first row).
 			if i > 0 {
-				top.WriteString("\n")
+				rowLines = append(rowLines, "")
 			}
-			top.WriteString(sectionStyle.Render(r.label))
+			rowLines = append(rowLines, sectionStyle.Render(r.label))
 			continue
 		}
 		line := m.formatRow(r.label, m.valueFor(r.id), innerWidth)
 		if m.cursor == i {
 			line = selectedRowStyle.Render(line)
+			cursorLine = len(rowLines)
 		} else {
 			line = rowStyle.Render(line)
 		}
-		top.WriteString(line)
+		rowLines = append(rowLines, line)
 	}
-	if m.status != "" {
-		top.WriteString("\n\n")
-		top.WriteString(statusStyle.Render(m.status))
-	}
-	topContent := top.String()
-	topLines := strings.Count(topContent, "\n") + 1
 
+	titleLines := 2 // "Settings" + blank
 	helpLines := 1
-	spacerLines := viewHeight - borderLines - verticalPadding - topLines - helpLines
-	if spacerLines < 1 {
-		spacerLines = 1
+	statusBlock := 0
+	if m.status != "" {
+		statusBlock = 2 // blank + status line
 	}
+	available := viewHeight - borderLines - verticalPadding - titleLines - helpLines - statusBlock
+	if available < 1 {
+		available = 1
+	}
+
+	// Pick a window of rowLines that contains the cursor. Center it when
+	// possible, then clamp so we don't scroll past either end.
+	start := 0
+	if len(rowLines) > available && cursorLine >= 0 {
+		start = cursorLine - available/2
+		if start < 0 {
+			start = 0
+		}
+		if start+available > len(rowLines) {
+			start = len(rowLines) - available
+		}
+	}
+	end := start + available
+	if end > len(rowLines) {
+		end = len(rowLines)
+	}
+	visible := rowLines[start:end]
+
+	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
 
 	var content strings.Builder
-	content.WriteString(topContent)
-	content.WriteString("\n")
-	for i := 0; i < spacerLines; i++ {
+	content.WriteString(titleStyle.Render("Settings"))
+	content.WriteString("\n\n")
+	for i, l := range visible {
+		if i > 0 {
+			content.WriteString("\n")
+		}
+		content.WriteString(l)
+	}
+	for i := len(visible); i < available; i++ {
 		content.WriteString("\n")
 	}
+	if m.status != "" {
+		content.WriteString("\n\n")
+		content.WriteString(statusStyle.Render(m.status))
+	}
+	content.WriteString("\n")
 	content.WriteString(help)
 
 	box := lipgloss.NewStyle().
@@ -492,6 +618,11 @@ func (m *Model) valueFor(id string) string {
 		return fmt.Sprintf("%d", m.config.Layout.MarginX)
 	case idIconSize:
 		return fmt.Sprintf("%d", m.config.Layout.SquareSize)
+	case idBrightness:
+		if m.backlight == nil {
+			return "n/a"
+		}
+		return fmt.Sprintf("%d%%", m.brightnessPct)
 	case idRexOnBoot:
 		return onOff(m.rexOnBoot)
 	case idTimezone:
@@ -514,14 +645,17 @@ func onOff(b bool) string {
 	return "off"
 }
 
-// defaultVoiceLabel renders the tri-state for the "Default voice mode" row.
+// defaultVoiceLabel renders the tri-state for the "Default mode" row.
 // sticky means: persist the voice/text state across keyboard launches (the
 // keyboard rewrites DefaultVoice whenever the user toggles voice via Fn/MIC).
 func defaultVoiceLabel(defaultVoice, sticky bool) string {
 	if sticky {
 		return "sticky"
 	}
-	return onOff(defaultVoice)
+	if defaultVoice {
+		return "voice"
+	}
+	return "qwerty"
 }
 
 func (m *Model) cycleMode(direction int) {
@@ -572,6 +706,20 @@ func (m *Model) cycleMode(direction int) {
 			m.config.DefaultVoice = false
 			m.config.DefaultVoiceSticky = false
 		}
+	case idBrightness:
+		if m.backlight == nil {
+			return
+		}
+		next := clamp(m.brightnessPct+direction*brightnessStep, brightnessMin, brightnessMax)
+		if next == m.brightnessPct {
+			return
+		}
+		if err := m.backlight.writePercent(next); err != nil {
+			m.status = err.Error()
+			return
+		}
+		m.brightnessPct = next
+		return
 	case idRexOnBoot:
 		want := !m.rexOnBoot
 		if err := setRexOnBoot(want); err != nil {
