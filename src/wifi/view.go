@@ -35,18 +35,24 @@ func (m *Model) View() string {
 
 	borderLines := 2
 	horizontalPadding := 4 // Padding(1, 2)
-	verticalPadding := 2   // Padding(1, 2)
 
 	innerWidth := viewWidth - borderLines - horizontalPadding
 	if innerWidth < 20 {
 		innerWidth = 20
 	}
 
-	help := dimSt.Render(truncate("↑/↓ select • ⏎ connect • d disc • x forget • r scan • esc", innerWidth))
+	help := dimSt.Render(truncate("↑/↓ • A conn • X disc • Y refr • R3 forget • B back", innerWidth))
+	if m.pwTarget.Path != "" {
+		help = dimSt.Render(truncate("type passphrase • ⏎ connect • tab show/hide • esc cancel", innerWidth))
+	}
 
 	var top strings.Builder
 	top.WriteString(titleStyle.Render("Wifi"))
 	top.WriteString("\n\n")
+	if m.pwTarget.Path != "" {
+		top.WriteString(m.renderPasswordPrompt(innerWidth))
+		return finalizeBox(top.String(), help, viewHeight)
+	}
 	top.WriteString(sectionStyle.Render("Networks"))
 	top.WriteString("\n")
 
@@ -95,9 +101,13 @@ func (m *Model) View() string {
 		top.WriteString(st.Render(m.status))
 	}
 
-	topContent := top.String()
-	topLines := strings.Count(topContent, "\n") + 1
+	return finalizeBox(top.String(), help, viewHeight)
+}
 
+func finalizeBox(topContent, help string, viewHeight int) string {
+	borderLines := 2
+	verticalPadding := 2
+	topLines := strings.Count(topContent, "\n") + 1
 	helpLines := 1
 	spacerLines := viewHeight - borderLines - verticalPadding - topLines - helpLines
 	if spacerLines < 1 {
@@ -112,13 +122,43 @@ func (m *Model) View() string {
 	}
 	content.WriteString(help)
 
-	box := lipgloss.NewStyle().
+	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("4")).
 		Padding(1, 2).
 		Render(content.String())
+}
 
-	return box
+func (m *Model) renderPasswordPrompt(width int) string {
+	var b strings.Builder
+	b.WriteString(sectionStyle.Render("Passphrase"))
+	b.WriteString("\n")
+	b.WriteString(dimSt.Render(truncate("connecting to "+m.pwTarget.Name, width)))
+	b.WriteString("\n\n")
+
+	display := m.pwBuf
+	if !m.pwShow {
+		display = strings.Repeat("•", len([]rune(m.pwBuf)))
+	}
+	if display == "" {
+		display = dimSt.Render("(enter passphrase)")
+	}
+	box := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("6")).
+		Padding(0, 1).
+		Render(display + "▏")
+	b.WriteString(box)
+
+	if m.status != "" {
+		st := statusSt
+		if strings.HasPrefix(m.status, "err:") {
+			st = errSt
+		}
+		b.WriteString("\n\n")
+		b.WriteString(st.Render(m.status))
+	}
+	return b.String()
 }
 
 // formatRow renders a service row. `savedOnly` rows have no strength/security

@@ -3,6 +3,7 @@ package wifi
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -29,9 +30,20 @@ type Model struct {
 	status   string
 	busy     string
 	quitting bool
+
+	// password entry: when pwTarget is non-zero we render a passphrase
+	// prompt instead of the list. Submit (enter) calls ConnectWithPassphrase
+	// and persists via Remember; esc cancels.
+	pwTarget Service
+	pwBuf    string
+	pwShow   bool // mask off — show plaintext (for verification)
 }
 
 func Run() error {
+	// Rename our tmux window so the wifi.js plugin engages (server keys the
+	// active operator on window name). No-op when not running inside tmux.
+	renameTmuxWindow("wifi")
+
 	// Best-effort: mirror any SSID/key that EmulationStation has set in
 	// batocera.conf into the persistent ConnMan provisioning file so it
 	// auto-reconnects on next boot. Don't fail the TUI if this errors.
@@ -137,7 +149,7 @@ func (m *Model) scan() tea.Cmd {
 		if err := m.client.ScanWifi(); err != nil {
 			return errMsg{err}
 		}
-		return doneMsg{verb: "scan"}
+		return doneMsg{verb: "refresh"}
 	}
 }
 
@@ -145,6 +157,23 @@ func (m *Model) connect(path dbus.ObjectPath) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.client.Connect(path); err != nil {
 			return errMsg{err}
+		}
+		return doneMsg{verb: "connect"}
+	}
+}
+
+// connectWithPassphrase runs the agent-mediated Connect on the wifi
+// service at `path` and, on success, persists the passphrase to
+// ConfigPath so the network auto-reconnects on the next boot.
+func (m *Model) connectWithPassphrase(s Service, passphrase string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.client.ConnectWithPassphrase(s.Path, passphrase); err != nil {
+			return errMsg{err}
+		}
+		// Best-effort persistence — failure here doesn't break the live
+		// connection, but we want to surface it via the status line.
+		if _, err := Remember(s.Name, passphrase); err != nil {
+			return errMsg{fmt.Errorf("connected but persist failed: %w", err)}
 		}
 		return doneMsg{verb: "connect"}
 	}
@@ -207,6 +236,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.busy != "" && msg.String() != "ctrl+c" {
 			return m, nil
 		}
+		if m.pwTarget.Path != "" {
+			return m.handlePasswordKey(msg)
+		}
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			m.quitting = true
@@ -219,23 +251,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.services)+len(m.saved)-1 {
 				m.cursor++
 			}
-		case "r":
-			m.busy = "scanning"
-			m.status = "scanning…"
+		case "r", "f5":
+			m.busy = "refreshing"
+			m.status = "refreshing…"
 			return m, m.scan()
 		case "enter":
 			if s, ok := m.current(); ok && s.Path != "" {
+				if needsPassphrase(s) {
+					m.pwTarget = s
+					m.pwBuf = ""
+					m.pwShow = false
+					m.status = ""
+					return m, nil
+				}
 				m.busy = "connecting"
 				m.status = "connecting to " + s.Name + "…"
 				return m, m.connect(s.Path)
 			}
-		case "d":
+		case "d", "f4":
 			if s, ok := m.current(); ok && isConnected(s.State) {
 				m.busy = "disconnecting"
 				m.status = "disconnecting " + s.Name + "…"
 				return m, m.disconnect(s.Path)
 			}
-		case "x":
+		case "f6":
 			if s, ok := m.current(); ok && s.Favorite {
 				m.busy = "forgetting"
 				m.status = "forgetting " + s.Name + "…"
@@ -245,6 +284,69 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handlePasswordKey processes key events while the passphrase prompt is
+// active. Most printable input arrives via the rex keyboard injecting
+// `tmux send-keys -t 0 X`, so we need to accept the full visible-ASCII
+// range, not just lowercase letters.
+func (m *Model) handlePasswordKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		m.pwTarget = Service{}
+		m.pwBuf = ""
+		m.status = "cancelled"
+		return m, nil
+	case tea.KeyEnter:
+		if m.pwBuf == "" {
+			m.status = "passphrase required"
+			return m, nil
+		}
+		s := m.pwTarget
+		pw := m.pwBuf
+		m.pwTarget = Service{}
+		m.pwBuf = ""
+		m.busy = "connecting"
+		m.status = "connecting to " + s.Name + "…"
+		return m, m.connectWithPassphrase(s, pw)
+	case tea.KeyBackspace, tea.KeyDelete:
+		if len(m.pwBuf) > 0 {
+			r := []rune(m.pwBuf)
+			m.pwBuf = string(r[:len(r)-1])
+		}
+		return m, nil
+	case tea.KeyTab:
+		m.pwShow = !m.pwShow
+		return m, nil
+	case tea.KeySpace:
+		m.pwBuf += " "
+		return m, nil
+	case tea.KeyRunes:
+		for _, r := range msg.Runes {
+			if r >= 0x20 && r != 0x7f {
+				m.pwBuf += string(r)
+			}
+		}
+		return m, nil
+	}
+	return m, nil
+}
+
+// needsPassphrase reports whether attempting to Connect to `s` will
+// require a fresh passphrase. Favorite services already have a stored
+// passphrase (ConnMan or our provisioning file); open networks need
+// nothing.
+func needsPassphrase(s Service) bool {
+	if s.Favorite {
+		return false
+	}
+	for _, sec := range s.Security {
+		switch sec {
+		case "psk", "wpa", "wpa2", "wpa3", "ieee8021x":
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) current() (Service, bool) {
@@ -266,4 +368,15 @@ func max0(n int) int {
 		return 0
 	}
 	return n
+}
+
+// renameTmuxWindow sets the current tmux window name to `name`. Best
+// effort — silently no-ops outside tmux. Used so the server's per-window
+// plugin loader picks up the wifi gamepad bindings even when the TUI is
+// launched directly (not via the menu, which already renames the window).
+func renameTmuxWindow(name string) {
+	if os.Getenv("TMUX") == "" {
+		return
+	}
+	_ = exec.Command("tmux", "rename-window", name).Run()
 }
