@@ -73,6 +73,77 @@ func TestSimpleNumbersToggle(t *testing.T) {
 	}
 }
 
+func TestSimpleSymbolsPage2(t *testing.T) {
+	m := NewKeyboardModelSimple(simpleTestLayout)
+	pressAt(m, 0, 0) // 123 -> num1
+	if got := pressAt(m, 0, 1); got == nil || *got != "1" { // q -> 1
+		t.Fatalf("expected 1 on page1, got %v", got)
+	}
+	// SFT on the numbers page flips to the extended symbols page.
+	if got := pressAt(m, 1, 0); got != nil {
+		t.Fatalf("SFT page toggle should emit nil, got %v", *got)
+	}
+	if got := pressAt(m, 0, 1); got == nil || *got != "`" { // q -> `
+		t.Fatalf("expected backtick on page2, got %v", got)
+	}
+	if got := pressAt(m, 1, 1); got == nil || *got != "|" { // a -> |
+		t.Fatalf("expected pipe on page2, got %v", got)
+	}
+	// Inert key on page2 emits nothing.
+	if got := pressAt(m, 1, 7); got != nil { // j has no page2 mapping
+		t.Fatalf("inert page2 key should emit nil, got %v", *got)
+	}
+	// SFT flips back to page1.
+	pressAt(m, 1, 0)
+	if got := pressAt(m, 0, 1); got == nil || *got != "1" { // q -> 1
+		t.Fatalf("expected 1 back on page1, got %v", got)
+	}
+	// 123 from a numbers page returns to letters.
+	pressAt(m, 0, 0)
+	if got := pressAt(m, 0, 1); got == nil || *got != "q" { // q -> q
+		t.Fatalf("expected q back in letters, got %v", got)
+	}
+}
+
+// TestSimpleLayersOn4x8 proves the layer behavior is layout-agnostic: the same
+// shift/numbers/symbols logic works on the 4-row 4x8 grid, where the toggle
+// keys and several letters sit in different positions than the 3-row layout.
+func TestSimpleLayersOn4x8(t *testing.T) {
+	find := func(layout [][]string, label string) (int, int) {
+		for i, row := range layout {
+			for j, k := range row {
+				if k == label {
+					return i, j
+				}
+			}
+		}
+		t.Fatalf("label %q not in 4x8 layout", label)
+		return 0, 0
+	}
+	m := NewKeyboardModelSimple(keyboardLayout4x8.keys)
+	press := func(label string) *string {
+		r, c := find(keyboardLayout4x8.keys, label)
+		return pressAt(m, r, c)
+	}
+
+	if got := press("a"); got == nil || *got != "a" {
+		t.Fatalf("letters: expected a, got %v", got)
+	}
+	press("SFT") // sticky caps
+	if got := press("a"); got == nil || *got != "A" {
+		t.Fatalf("shift: expected A, got %v", got)
+	}
+	press("SFT")  // caps off
+	press("123")  // -> page1
+	if got := press("t"); got == nil || *got != "5" { // t is on the bottom row here
+		t.Fatalf("page1: expected 5, got %v", got)
+	}
+	press("SFT") // page1 -> page2
+	if got := press("t"); got == nil || *got != "=" {
+		t.Fatalf("page2: expected =, got %v", got)
+	}
+}
+
 func TestSimpleNeverEmitsControlCodes(t *testing.T) {
 	// The server rejects SpecialKeyShift/SpecialKeyNumbers; the simple model
 	// must consume those toggles locally and never send them.
