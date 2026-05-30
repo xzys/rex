@@ -33,12 +33,13 @@ var simpleLayout = [][]string{
 	{"123", "SFT", "g", "t", "y", "ENT", "DEL", "SPC"},
 }
 
+// SFT and 123 are layer toggles consumed locally by the keyboard — they emit
+// nothing to the server — so they're absent here. Layer behavior is covered by
+// the model unit tests (TestSimpleNumbersToggle, TestSimpleShiftSticky).
 var simpleSpecialKeyOutputs = map[string]string{
 	"SPC": string(protocol.SpecialKeySpace),
 	"ENT": string(protocol.SpecialKeyEnter),
 	"DEL": string(protocol.SpecialKeyDelete),
-	"SFT": string(protocol.SpecialKeyShift),
-	"123": string(protocol.SpecialKeyNumbers),
 }
 
 // TestSimpleKeyboard verifies the simple (cursor-driven) layout: letters and

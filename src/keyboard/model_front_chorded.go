@@ -2,35 +2,28 @@ package keyboard
 
 import (
 	"log/slog"
-	"strings"
 
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
 // encodeChord packs (modifier, trigger) into a single int key for the chord
-// lookup maps. modifier occupies the low 4 bits, trigger the upper bits.
+// lookup map. modifier occupies the low 4 bits, trigger the upper bits.
 func encodeChord(modifier, trigger int) int {
 	return modifier | (trigger << 4)
 }
 
-// specialKeyMap maps on-screen key labels (used by the simple and front-chorded
-// models) to the special-key runes the server understands.
-var specialKeyMap = map[string]rune{
-	"SPC": protocol.SpecialKeySpace,
-	"SFT": protocol.SpecialKeyShift,
-	"DEL": protocol.SpecialKeyDelete,
-	"123": protocol.SpecialKeyNumbers,
-	"MIC": protocol.SpecialKeyMic,
-	"ENT": protocol.SpecialKeyEnter,
-}
-
 type KeyboardModelFrontChorded struct {
 	// Current modifier state
-	modifier       int
-	modeNumbers    bool
-	layoutNumbers  [][]rune
-	chordMap       map[int]rune
-	chordAltMap    map[int]rune
+	modifier int
+	layers   layerState
+	// chordMap maps a packed (modifier, trigger) chord to the base on-screen
+	// key label it selects (a letter like "q" or a special label like "SPC"/
+	// "123"/"SFT"). Layer transforms (numbers/shift) are applied afterward by
+	// layerState, so the chord set itself is layer-agnostic.
+	chordMap map[int]string
+	// chordActiveMap drives visual feedback: modifier -> packedKey(row,col) ->
+	// trigger name, so RenderKey can highlight the keys reachable from the held
+	// modifier and color them by which trigger reaches them.
 	chordActiveMap []map[int]string
 }
 
@@ -41,14 +34,8 @@ func packKey(row, col int) int {
 }
 
 func NewKeyboardModelFrontChorded(keyboardLayout [][]string) *KeyboardModelFrontChorded {
-	// Modifiers are the 8 front keys
-	modifiers := []int{
-		protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight,
-		protocol.KeyX, protocol.KeyA, protocol.KeyY, protocol.KeyB,
-	}
-
-	// Triggers can be any of the 8 front keys
-	triggers := []int{
+	// Modifiers and triggers are the 8 front keys.
+	frontKeys := []int{
 		protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight,
 		protocol.KeyX, protocol.KeyA, protocol.KeyY, protocol.KeyB,
 	}
@@ -64,53 +51,23 @@ func NewKeyboardModelFrontChorded(keyboardLayout [][]string) *KeyboardModelFront
 		protocol.KeyB:         "b",
 	}
 
-	chordMap, chordAltMap := getFrontChordMaps()
+	chordMap := frontChordLabels()
 
-	// Initialize chordActiveMap for visual feedback
-	// Map: modifier -> packedKey(row,col) -> triggerName
-	chordActiveMap := make([]map[int]string, 256) // Using 256 to cover key codes safely
-
-	// Pre-fill numbers layout with spaces
-	layoutNumbers := make([][]rune, len(keyboardLayout))
-	for i, row := range keyboardLayout {
-		layoutNumbers[i] = make([]rune, len(row))
-		for j := range row {
-			layoutNumbers[i][j] = ' '
-		}
-	}
-
-	// Populate chordActiveMap and layoutNumbers
-	for _, mod := range modifiers {
+	// Map each chord onto its visual key so RenderKey can highlight reachable
+	// keys while a modifier is held. Indexed by raw key code (256 covers all
+	// front-key codes safely).
+	chordActiveMap := make([]map[int]string, 256)
+	for _, mod := range frontKeys {
 		chordActiveMap[mod] = make(map[int]string)
-
-		for _, trigger := range triggers {
-			// Skip if modifier and trigger are on the same hand (simplified check)
-			// Actually, let's just iterate all valid chords
-
-			// encode the chord key
-			chordMapKey := encodeChord(mod, trigger)
-
-			// Check if this chord exists
-			chordKey, exists := chordMap[chordMapKey]
-			chordAltKey, chordAltExists := chordAltMap[chordMapKey]
-
-			if !exists && !chordAltExists {
+		for _, trigger := range frontKeys {
+			label, ok := chordMap[encodeChord(mod, trigger)]
+			if !ok {
 				continue
 			}
-
-			// Find which key on the visual keyboard corresponds to this chord
 			for i, row := range keyboardLayout {
 				for j, key := range row {
-					if exists && string(chordKey) == strings.ToLower(key) {
+					if key == label {
 						chordActiveMap[mod][packKey(i, j)] = triggerNames[trigger]
-						if chordAltExists {
-							layoutNumbers[i][j] = chordAltKey
-						}
-					} else if specialKey, ok := specialKeyMap[key]; ok && exists && chordKey == specialKey {
-						chordActiveMap[mod][packKey(i, j)] = triggerNames[trigger]
-						if chordAltExists {
-							layoutNumbers[i][j] = chordAltKey
-						}
 					}
 				}
 			}
@@ -119,84 +76,68 @@ func NewKeyboardModelFrontChorded(keyboardLayout [][]string) *KeyboardModelFront
 
 	return &KeyboardModelFrontChorded{
 		modifier:       frontModifierNone,
-		layoutNumbers:  layoutNumbers,
 		chordMap:       chordMap,
-		chordAltMap:    chordAltMap,
 		chordActiveMap: chordActiveMap,
 	}
 }
 
-func getFrontChordMaps() (map[int]rune, map[int]rune) {
-	chordMap := make(map[int]rune)
-	chordAltMap := make(map[int]rune)
-
-	// The 4x8 front-chorded grid is two 4x4 matrices.
-	// Left matrix: D-pad modifiers (left, up, down, right) + XYBA triggers.
-	// Right matrix: XYBA modifiers + D-pad triggers (left, up, down, right).
+// frontChordLabels returns the chord -> base-label map. The 4x8 front-chorded
+// grid is two 4x4 matrices: the left matrix uses D-pad modifiers + XYBA
+// triggers, the right matrix uses XYBA modifiers + D-pad triggers.
+func frontChordLabels() map[int]string {
+	m := make(map[int]string)
 
 	// Left hand modifiers, XYBA trigger columns.
 	modLeft := protocol.KeyDPadLeft
-	chordMap[encodeChord(modLeft, protocol.KeyX)] = 'q'
-	chordMap[encodeChord(modLeft, protocol.KeyY)] = 'w'
-	chordMap[encodeChord(modLeft, protocol.KeyB)] = 'e'
-	chordMap[encodeChord(modLeft, protocol.KeyA)] = 'r'
+	m[encodeChord(modLeft, protocol.KeyX)] = "q"
+	m[encodeChord(modLeft, protocol.KeyY)] = "w"
+	m[encodeChord(modLeft, protocol.KeyB)] = "e"
+	m[encodeChord(modLeft, protocol.KeyA)] = "r"
 
 	modUp := protocol.KeyDPadUp
-	chordMap[encodeChord(modUp, protocol.KeyX)] = 'a'
-	chordMap[encodeChord(modUp, protocol.KeyY)] = 's'
-	chordMap[encodeChord(modUp, protocol.KeyB)] = 'd'
-	chordMap[encodeChord(modUp, protocol.KeyA)] = 'f'
+	m[encodeChord(modUp, protocol.KeyX)] = "a"
+	m[encodeChord(modUp, protocol.KeyY)] = "s"
+	m[encodeChord(modUp, protocol.KeyB)] = "d"
+	m[encodeChord(modUp, protocol.KeyA)] = "f"
 
 	modDown := protocol.KeyDPadDown
-	chordMap[encodeChord(modDown, protocol.KeyX)] = 'z'
-	chordMap[encodeChord(modDown, protocol.KeyY)] = 'x'
-	chordMap[encodeChord(modDown, protocol.KeyB)] = 'c'
-	chordMap[encodeChord(modDown, protocol.KeyA)] = 'v'
+	m[encodeChord(modDown, protocol.KeyX)] = "z"
+	m[encodeChord(modDown, protocol.KeyY)] = "x"
+	m[encodeChord(modDown, protocol.KeyB)] = "c"
+	m[encodeChord(modDown, protocol.KeyA)] = "v"
 
 	modRight := protocol.KeyDPadRight
-	chordMap[encodeChord(modRight, protocol.KeyX)] = protocol.SpecialKeyNumbers
-	chordMap[encodeChord(modRight, protocol.KeyY)] = protocol.SpecialKeyShift
-	chordMap[encodeChord(modRight, protocol.KeyB)] = 'g'
-	chordMap[encodeChord(modRight, protocol.KeyA)] = 't'
+	m[encodeChord(modRight, protocol.KeyX)] = "123"
+	m[encodeChord(modRight, protocol.KeyY)] = "SFT"
+	m[encodeChord(modRight, protocol.KeyB)] = "g"
+	m[encodeChord(modRight, protocol.KeyA)] = "t"
 
 	// Right hand modifiers, D-pad trigger columns.
 	modX := protocol.KeyX
-	chordMap[encodeChord(modX, protocol.KeyDPadLeft)] = 'u'
-	chordMap[encodeChord(modX, protocol.KeyDPadUp)] = 'i'
-	chordMap[encodeChord(modX, protocol.KeyDPadDown)] = 'o'
-	chordMap[encodeChord(modX, protocol.KeyDPadRight)] = 'p'
+	m[encodeChord(modX, protocol.KeyDPadLeft)] = "u"
+	m[encodeChord(modX, protocol.KeyDPadUp)] = "i"
+	m[encodeChord(modX, protocol.KeyDPadDown)] = "o"
+	m[encodeChord(modX, protocol.KeyDPadRight)] = "p"
 
 	modY := protocol.KeyY
-	chordMap[encodeChord(modY, protocol.KeyDPadLeft)] = 'h'
-	chordMap[encodeChord(modY, protocol.KeyDPadUp)] = 'j'
-	chordMap[encodeChord(modY, protocol.KeyDPadDown)] = 'k'
-	chordMap[encodeChord(modY, protocol.KeyDPadRight)] = 'l'
+	m[encodeChord(modY, protocol.KeyDPadLeft)] = "h"
+	m[encodeChord(modY, protocol.KeyDPadUp)] = "j"
+	m[encodeChord(modY, protocol.KeyDPadDown)] = "k"
+	m[encodeChord(modY, protocol.KeyDPadRight)] = "l"
 
 	modB := protocol.KeyB
-	chordMap[encodeChord(modB, protocol.KeyDPadLeft)] = 'b'
-	chordMap[encodeChord(modB, protocol.KeyDPadUp)] = 'n'
-	chordMap[encodeChord(modB, protocol.KeyDPadDown)] = 'm'
-	chordMap[encodeChord(modB, protocol.KeyDPadRight)] = protocol.SpecialKeyMic
+	m[encodeChord(modB, protocol.KeyDPadLeft)] = "b"
+	m[encodeChord(modB, protocol.KeyDPadUp)] = "n"
+	m[encodeChord(modB, protocol.KeyDPadDown)] = "m"
+	m[encodeChord(modB, protocol.KeyDPadRight)] = "MIC"
 
 	modA := protocol.KeyA
-	chordMap[encodeChord(modA, protocol.KeyDPadLeft)] = 'y'
-	chordMap[encodeChord(modA, protocol.KeyDPadUp)] = protocol.SpecialKeyEnter
-	chordMap[encodeChord(modA, protocol.KeyDPadDown)] = protocol.SpecialKeyDelete
-	chordMap[encodeChord(modA, protocol.KeyDPadRight)] = protocol.SpecialKeySpace
+	m[encodeChord(modA, protocol.KeyDPadLeft)] = "y"
+	m[encodeChord(modA, protocol.KeyDPadUp)] = "ENT"
+	m[encodeChord(modA, protocol.KeyDPadDown)] = "DEL"
+	m[encodeChord(modA, protocol.KeyDPadRight)] = "SPC"
 
-	// Numbers mode follows the QWERTY number row: qwertyuiop -> 1234567890.
-	chordAltMap[encodeChord(modLeft, protocol.KeyX)] = '1'      // q
-	chordAltMap[encodeChord(modLeft, protocol.KeyY)] = '2'      // w
-	chordAltMap[encodeChord(modLeft, protocol.KeyB)] = '3'      // e
-	chordAltMap[encodeChord(modLeft, protocol.KeyA)] = '4'      // r
-	chordAltMap[encodeChord(modRight, protocol.KeyA)] = '5'     // t
-	chordAltMap[encodeChord(modA, protocol.KeyDPadLeft)] = '6'  // y
-	chordAltMap[encodeChord(modX, protocol.KeyDPadLeft)] = '7'  // u
-	chordAltMap[encodeChord(modX, protocol.KeyDPadUp)] = '8'    // i
-	chordAltMap[encodeChord(modX, protocol.KeyDPadDown)] = '9'  // o
-	chordAltMap[encodeChord(modX, protocol.KeyDPadRight)] = '0' // p
-
-	return chordMap, chordAltMap
+	return m
 }
 
 func (m *KeyboardModelFrontChorded) HandleKey(key int, isKeyDown bool) *string {
@@ -223,92 +164,56 @@ func (m *KeyboardModelFrontChorded) HandleKey(key int, isKeyDown bool) *string {
 		return nil
 	}
 
-	// Modifier is already held, this is a trigger
-	trigger := key
-	result := m.getChord(trigger)
-
-	// Clear modifier after successful chord so next key starts fresh
-	// (keyboard input device only sends key-down, no key-up to clear)
-	if result != nil {
+	// Modifier is already held, this is a trigger.
+	out, handled := m.getChord(key)
+	if handled {
+		// Clear modifier after a recognized chord so the next key starts fresh
+		// (the input device only sends key-down, no key-up to clear).
 		m.modifier = frontModifierNone
 	}
-
-	return result
+	return out
 }
 
-func (m *KeyboardModelFrontChorded) getChord(triggerKey int) *string {
-	chordKey := encodeChord(m.modifier, triggerKey)
-
-	var char rune
-	var exists bool
-	if m.modeNumbers {
-		char, exists = m.chordAltMap[chordKey]
-		// Fallback to normal map if not in alt map
-		if !exists {
-			char, exists = m.chordMap[chordKey]
-		}
-	} else {
-		char, exists = m.chordMap[chordKey]
+// getChord resolves the chord for the held modifier + `trigger` to the bytes
+// sent to the server. The bool reports whether the chord was recognized (so
+// the caller can clear the modifier) — distinct from a recognized chord that
+// produces no output, like the "123"/"SFT" layer toggles.
+func (m *KeyboardModelFrontChorded) getChord(trigger int) (*string, bool) {
+	label, ok := m.chordMap[encodeChord(m.modifier, trigger)]
+	if !ok {
+		slog.Debug("chord not found", "modifier", m.modifier, "trigger", trigger)
+		return nil, false
 	}
-
-	if !exists {
-		slog.Debug("chord not found", "modifier", m.modifier, "trigger", triggerKey)
-		return nil
+	out := m.layers.resolve(label)
+	if out != nil {
+		slog.Info("send chord", "chord", *out)
 	}
-
-	// Update local state based on chord
-	switch char {
-	case protocol.SpecialKeyShift: // Used as Shift/Numbers toggle in plan?
-		// Plan says "Shift/Numbers". Let's assume it toggles numbers mode?
-		// Or maybe Shift for caps?
-		// Let's make it toggle Numbers for now as per "Shift/Numbers" label.
-		// Or maybe it's Shift AND Numbers?
-		// Let's implement Numbers toggle.
-		slog.Debug("toggling numbers mode", "mode", m.modeNumbers)
-		m.modeNumbers = !m.modeNumbers
-		return nil
-	case protocol.SpecialKeyNumbers:
-		slog.Debug("toggling numbers mode", "mode", m.modeNumbers)
-		m.modeNumbers = !m.modeNumbers
-		return nil
-	}
-
-	s := string(char)
-	// Simple Shift logic if we had a separate Shift key, but here we might just output uppercase if needed?
-	// For now, let's just output the char.
-
-	slog.Info("send chord", "chord", s)
-	return &s
+	return out, true
 }
 
 func (m *KeyboardModelFrontChorded) RenderKey(i, j int, key string) (string, string, string) {
-	// Check if any modifiers are active
-	if len(key) == 1 {
-		if m.modeNumbers {
-			key = string(m.layoutNumbers[i][j])
-		}
-		// else if m.modeShift {
-		// 	key = strings.ToUpper(key)
-		// }
-	}
+	glyph := m.layers.glyph(key)
 
 	if m.modifier != frontModifierNone {
 		if triggerName, exists := m.chordActiveMap[m.modifier][packKey(i, j)]; exists {
 			// Highlight keys based on trigger
 			switch triggerName {
 			case "x":
-				return "4", "4", key // Blue/Green
+				return "4", "4", glyph // Blue/Green
 			case "y":
-				return "2", "2", key // Yellow/Orange
+				return "2", "2", glyph // Yellow/Orange
 			case "a":
-				return "1", "1", key // Red
+				return "1", "1", glyph // Red
 			case "b":
-				return "3", "3", key // Purple/Blue
+				return "3", "3", glyph // Purple/Blue
 			case "up", "down", "left", "right":
-				return "7", "7", key // White
+				return "7", "7", glyph // White
 			}
 		}
 	}
 
-	return "7", "0", key
+	if m.layers.active(key) {
+		return "3", "3", glyph
+	}
+	return "7", "0", glyph
 }

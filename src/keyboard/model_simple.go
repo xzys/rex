@@ -13,9 +13,13 @@ const (
 )
 
 // DPadHoldTickMsg fires while a dpad direction is held in simple mode so the
-// cursor keeps moving in that direction without the user re-tapping.
+// cursor keeps moving in that direction without the user re-tapping. Gen
+// guards against stale ticks from a prior press: tea.Tick can't be cancelled,
+// so a tick scheduled for an earlier press would otherwise fire later and
+// nudge the cursor an extra step (the "skipped letters" bug).
 type DPadHoldTickMsg struct {
 	Key int
+	Gen int
 }
 
 type KeyboardModelSimple struct {
@@ -24,6 +28,8 @@ type KeyboardModelSimple struct {
 	selectedCol int
 	rowWidths   []int
 	heldDPad    int // -1 when nothing held
+	holdGen     int // bumped on every dpad down/up to invalidate stale ticks
+	layers      layerState
 	pendingCmd  tea.Cmd
 }
 
@@ -51,16 +57,16 @@ func (m *KeyboardModelSimple) DrainCmd() tea.Cmd {
 // HandleMsg processes hold ticks queued by HandleKey.
 func (m *KeyboardModelSimple) HandleMsg(msg tea.Msg) {
 	if t, ok := msg.(DPadHoldTickMsg); ok {
-		if m.heldDPad == t.Key && isDPad(t.Key) {
+		if t.Gen == m.holdGen && m.heldDPad == t.Key && isDPad(t.Key) {
 			m.moveDPad(t.Key)
-			m.pendingCmd = dpadHoldTick(t.Key, dpadHoldRepeatMs)
+			m.pendingCmd = dpadHoldTick(t.Key, m.holdGen, dpadHoldRepeatMs)
 		}
 	}
 }
 
-func dpadHoldTick(key, ms int) tea.Cmd {
+func dpadHoldTick(key, gen, ms int) tea.Cmd {
 	return tea.Tick(time.Duration(ms)*time.Millisecond, func(time.Time) tea.Msg {
-		return DPadHoldTickMsg{Key: key}
+		return DPadHoldTickMsg{Key: key, Gen: gen}
 	})
 }
 
@@ -112,9 +118,11 @@ func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
 		if isKeyDown {
 			m.moveDPad(key)
 			m.heldDPad = key
-			m.pendingCmd = dpadHoldTick(key, dpadHoldInitialMs)
+			m.holdGen++
+			m.pendingCmd = dpadHoldTick(key, m.holdGen, dpadHoldInitialMs)
 		} else if m.heldDPad == key {
 			m.heldDPad = -1
+			m.holdGen++ // invalidate any in-flight repeat tick for this hold
 		}
 		return nil
 	}
@@ -124,20 +132,20 @@ func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
 	if key == protocol.KeyA {
 		if m.selectedRow >= 0 && m.selectedRow < len(m.layout) &&
 			m.selectedCol >= 0 && m.selectedCol < len(m.layout[m.selectedRow]) {
-			k := m.layout[m.selectedRow][m.selectedCol]
-			if mapped, ok := specialKeyMap[k]; ok {
-				mappedString := string(mapped)
-				return &mappedString
-			}
-			return &k
+			return m.layers.resolve(m.layout[m.selectedRow][m.selectedCol])
 		}
 	}
 	return nil
 }
 
 func (m KeyboardModelSimple) RenderKey(i, j int, key string) (string, string, string) {
+	glyph := m.layers.glyph(key)
 	if i == m.selectedRow && j == m.selectedCol {
-		return "2", "2", key
+		return "2", "2", glyph
 	}
-	return "7", "0", key
+	// Highlight the active layer toggles so the current mode is visible.
+	if m.layers.active(key) {
+		return "3", "3", glyph
+	}
+	return "7", "0", glyph
 }

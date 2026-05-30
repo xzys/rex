@@ -130,8 +130,9 @@ func buildRexBinary(ctx context.Context) error {
 		return fmt.Errorf("failed to get current file path")
 	}
 
+	// currentFileDir is <repo>/src/utils; the Makefile lives at <repo>.
 	currentFileDir := filepath.Dir(filename)
-	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(currentFileDir)))
+	projectRoot := filepath.Dir(filepath.Dir(currentFileDir))
 
 	cmd := exec.CommandContext(ctx, "make", "build-local")
 	cmd.Dir = projectRoot
