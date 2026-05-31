@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/lmittmann/tint"
@@ -21,6 +22,15 @@ func setupLogger() {
 	// the file to 0600, so whichever user creates it first locks out the
 	// other. Force 0666 here so subsequent processes can always append.
 	_ = os.Chmod(logFileName, 0666)
+
+	// Mirror panic/fatal tracebacks (including CGo-triggered SIGSEGV fatals,
+	// e.g. inside sherpa-onnx) into the log file. Without this they go only to
+	// the process's stderr, which for the keyboard is a transient tmux pane
+	// that vanishes on crash — so crashes left no trace. Normal stderr is
+	// untouched, so CLI usage/error messages still reach the terminal.
+	if err := debug.SetCrashOutput(logFile, debug.CrashOptions{}); err != nil {
+		slog.Warn("failed to set crash output", "err", err)
+	}
 
 	slog.SetDefault(slog.New(tint.NewHandler(logFile, &tint.Options{
 		Level:     slog.LevelDebug,
