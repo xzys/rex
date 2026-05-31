@@ -79,6 +79,13 @@ func (p *SherpaOnnxProvider) Transcribe(audio []byte, sampleRate int) (string, e
 	stream.AcceptWaveform(sampleRate, floats)
 	p.recognizer.Decode(stream)
 	result := stream.GetResult()
+	// GetResult returns nil when the decoder produced zero tokens (e.g. silence
+	// / no speech). Dereferencing it here used to segfault and take down the
+	// whole keyboard. Treat it as an empty transcription — the voice model
+	// surfaces that as "no speech detected".
+	if result == nil {
+		return "", nil
+	}
 	return result.Text, nil
 }
 
