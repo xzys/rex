@@ -12,7 +12,7 @@ build-docker-r36s: ## Build for R36S using Docker
 	# runnable linux/amd64 image into the local image store.
 	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t r36s-keyboard-builder src/
 	docker run --rm --platform linux/amd64 \
-		-v go-mod-cache:/go/pkg/mod \
+		-v go-mod-cache:/root/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
 		-v $$(pwd)/src:/app \
 		-v $$(pwd)/bin:/output \
@@ -40,7 +40,7 @@ sync-auth-r36s: ## Sync Codex, pi, and Claude auth to r36s
 build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+brick tags)
 	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t brick-rex-builder src/
 	docker run --rm --platform linux/amd64 \
-		-v go-mod-cache:/go/pkg/mod \
+		-v go-mod-cache:/root/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
 		-v $$(pwd)/src:/app \
 		-v $$(pwd)/bin:/output \
@@ -213,9 +213,8 @@ setup-debian-extras: ## Install curated extras into the chroot (ncmpcpp+mpd, btm
 build-docker-ext-%: ## Build program from ext/
 	docker buildx build --platform linux/amd64 --load -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
 	docker run --rm --platform linux/amd64 \
-		-v go-mod-cache:/go/pkg/mod \
+		-v go-mod-cache:/root/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
-		-e GOPATH=/root/go \
 		-v $$(pwd)/bin:/output \
 		-v $$(pwd)/ext/$*:/app \
 		-w /app \
