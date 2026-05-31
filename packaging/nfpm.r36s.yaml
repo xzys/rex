@@ -5,7 +5,7 @@
 # Output:
 #   dist/rex-r36s_<version>_arm64.deb
 #
-# Target: Anbernic R36S running dArkOSRE (Debian trixie). Ships the
+# Target: Boyhom R36S running dArkOSRE (Debian trixie). Ships the
 # systemd service, /opt scripts, and templates. Postinst runs
 # daemon-reload but does not enable the service automatically.
 
@@ -17,7 +17,7 @@ section: utils
 priority: optional
 maintainer: xzys <sachin.rudraraju@gmail.com>
 description: |
-  Handheld coding/terminal environment for the Anbernic R36S.
+  Handheld coding/terminal environment for the Boyhom R36S.
   Targets dArkOSRE (Debian trixie). Provides menu, keyboard, settings,
   voice, and tmux-based session management. Installs a systemd service
   (rex.service) which the user enables explicitly.

@@ -84,13 +84,15 @@ make docker-build-ext-<name>  # Build external program from ext/
 make install-system-files     # Install dotfiles and systemd services
 ```
 
+## Installation
+
+See [docs/installation.md](docs/installation.md) for install paths
+(TrimUI Brick overlay image / .deb, R36S dArkOSRE .deb).
+
 ## Documentation
 
-- `notes/architecture.md` - System design, components, data flow
-- `notes/protocol.md` - Socket protocol specification
-- `notes/keyboard-modes.md` - Chorded and simple keyboard mappings
-- `notes/testing.md` - Testing patterns and utilities
-- `notes/bugs/` - Known issues and investigations
+- `docs/installation.md` - Install paths per device
+- `ARCHITECTURE.md` - System design, components, data flow
 
 ## Dependencies
 
