@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -69,6 +70,16 @@ const (
 type wifiPoweredMsg struct {
 	on  bool
 	err error
+}
+
+// settingsTickMsg drives a periodic re-query of live system state (currently
+// the WiFi power row) so the screen reflects changes that happen out of band
+// — e.g. ConnMan settling a power toggle asynchronously, or WiFi being flipped
+// elsewhere.
+type settingsTickMsg time.Time
+
+func settingsTick() tea.Cmd {
+	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return settingsTickMsg(t) })
 }
 
 type Model struct {
@@ -366,7 +377,7 @@ func indexOf(values []string, target string) int {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return m.queryWifiPowered()
+	return tea.Batch(m.queryWifiPowered(), settingsTick())
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -382,6 +393,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	}
+
+	if _, ok := msg.(settingsTickMsg); ok {
+		// Re-query WiFi power while on the settings list so the row self-
+		// corrects after a toggle ConnMan applied asynchronously. The wifi
+		// sub-screen runs its own refresh loop, so skip there. Always re-arm
+		// the tick so it resumes when we return to the list.
+		var q tea.Cmd
+		if m.screen == screenSettings && m.wifiClient != nil {
+			q = m.queryWifiPowered()
+		}
+		return m, tea.Batch(q, settingsTick())
 	}
 
 	if pm, ok := msg.(wifiPoweredMsg); ok {
