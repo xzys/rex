@@ -106,7 +106,8 @@ type Model struct {
 	wifiModel     *wifi.Model
 	wifiPowered   *bool // nil = not yet queried
 	backlight     *backlight
-	brightnessPct int // 0..100, only meaningful when backlight != nil
+	brightnessPct int    // 0..100, only meaningful when backlight != nil
+	prevWindow    string // tmux window name before entering wifi sub-screen
 }
 
 // backlight is the discovered LCD brightness backend. Two backends are probed:
@@ -460,7 +461,7 @@ func (m *Model) updateWifi(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "esc", "q", "b":
-			m.screen = screenSettings
+			m.leaveWifi()
 			return m, nil
 		}
 	}
@@ -493,8 +494,36 @@ func (m *Model) openWifi() tea.Cmd {
 			}
 		}
 	}
+	// Rename the tmux window to "wifi" so the wifi.js plugin engages and
+	// gamepad Y/X/R3 map to F5/F4/F6 (refresh/disconnect/forget). Save the
+	// previous name so we can restore it on exit.
+	if prev, err := getTmuxWindowName(); err == nil {
+		m.prevWindow = prev
+	}
+	_ = exec.Command("tmux", "rename-window", "wifi").Run()
 	m.screen = screenWifi
 	return m.wifiModel.Init()
+}
+
+// leaveWifi restores the tmux window name to whatever it was before the wifi
+// sub-screen was opened, then returns to the settings list.
+func (m *Model) leaveWifi() {
+	if m.prevWindow != "" {
+		_ = exec.Command("tmux", "rename-window", m.prevWindow).Run()
+		m.prevWindow = ""
+	}
+	m.screen = screenSettings
+}
+
+func getTmuxWindowName() (string, error) {
+	if os.Getenv("TMUX") == "" {
+		return "", fmt.Errorf("not in tmux")
+	}
+	out, err := exec.Command("tmux", "display-message", "-p", "#{window_name}").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // moveCursor advances by `direction`, skipping header rows and wrapping
