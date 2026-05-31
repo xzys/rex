@@ -51,7 +51,7 @@ func (m *Model) View() string {
 	top.WriteString("\n\n")
 	if m.pwTarget.Path != "" {
 		top.WriteString(m.renderPasswordPrompt(innerWidth))
-		return finalizeBox(top.String(), help, viewHeight)
+		return finalizeBox(top.String(), help, viewWidth, viewHeight)
 	}
 	top.WriteString(sectionStyle.Render("Networks"))
 	top.WriteString("\n")
@@ -101,10 +101,10 @@ func (m *Model) View() string {
 		top.WriteString(st.Render(m.status))
 	}
 
-	return finalizeBox(top.String(), help, viewHeight)
+	return finalizeBox(top.String(), help, viewWidth, viewHeight)
 }
 
-func finalizeBox(topContent, help string, viewHeight int) string {
+func finalizeBox(topContent, help string, viewWidth, viewHeight int) string {
 	borderLines := 2
 	verticalPadding := 2
 	topLines := strings.Count(topContent, "\n") + 1
@@ -122,10 +122,15 @@ func finalizeBox(topContent, help string, viewHeight int) string {
 	}
 	content.WriteString(help)
 
+	// Pin the box to the full pane width so it doesn't collapse to the widest
+	// content line when there are few/no networks (WiFi off). lipgloss Width
+	// covers content+padding but not the border, so subtract the 2 border
+	// columns to land at exactly viewWidth.
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("4")).
 		Padding(1, 2).
+		Width(viewWidth - borderLines).
 		Render(content.String())
 }
 
