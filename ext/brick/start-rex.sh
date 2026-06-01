@@ -55,7 +55,7 @@ nohup bash -c '
         PATH="$APP:$PATH" \
         TERM=xterm-256color \
         SHELL=/bin/bash \
-        "$APP/termsp" -s 24 \
+        "$APP/termsp" -c 0 -s 24 \
         -f "$APP/fonts/JetBrainsMono-Regular.ttf" \
         -b "$APP/fonts/JetBrainsMono-Bold.ttf" \
         -e "$APP/debian-rex.sh"
