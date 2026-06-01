@@ -156,8 +156,8 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-
 		} && \
 		[ -f /etc/apt/sources.list.d/nodesource.list ] || \
 			echo \"deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main\" > /etc/apt/sources.list.d/nodesource.list"'
-	@echo "Installing apt packages + claude-code inside chroot..."
-	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code 2>&1 | tail -5 && which claude && claude --version && node --version && npm --version && tmux -V"'
+	@echo "Installing apt packages + claude-code + pi inside chroot..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code @earendil-works/pi-coding-agent 2>&1 | tail -5 && which claude && claude --version && which pi && pi --version && node --version && npm --version && tmux -V"'
 	@echo "Generating en_US.UTF-8 locale in chroot..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
