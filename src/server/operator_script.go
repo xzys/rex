@@ -20,6 +20,7 @@ type ScriptOperator struct {
 	ctx       *quickjs.Context
 	globals   *quickjs.Value
 	handleKey *quickjs.Value
+	repeatKeys []int // populated from JS repeatKeys array, nil if absent
 }
 
 var pluginKeyConstants = map[string]int{
@@ -70,17 +71,42 @@ func NewScriptOperator(name, script string) (*ScriptOperator, error) {
 		return nil, fmt.Errorf("plugin %q: global handleKey() function not defined", name)
 	}
 
+	// Parse optional repeatKeys array for auto-repeat hints.
+	var repeatKeys []int
+	repeatKeysVal := globals.Get("repeatKeys")
+	if !repeatKeysVal.IsUndefined() {
+		if repeatKeysVal.IsArray() {
+			length := repeatKeysVal.Len()
+			repeatKeys = make([]int, 0, length)
+			for i := int64(0); i < length; i++ {
+				elem := repeatKeysVal.GetIdx(i)
+				if elem.IsNumber() {
+					repeatKeys = append(repeatKeys, int(elem.Int32()))
+				}
+				elem.Free()
+			}
+		}
+	}
+	repeatKeysVal.Free()
+
 	return &ScriptOperator{
-		name:      name,
-		runtime:   rt,
-		ctx:       ctx,
-		globals:   globals,
-		handleKey: handleKey,
+		name:       name,
+		runtime:    rt,
+		ctx:        ctx,
+		globals:    globals,
+		handleKey:  handleKey,
+		repeatKeys: repeatKeys,
 	}, nil
 }
 
 // HandleInput invokes the plugin's handleKey on key-down. Key-up events are
 // ignored so plugins can stay pure mapping functions.
+// RepeatKeys returns the keys the JS plugin wants auto-repeated, or nil if
+// the plugin didn't declare a repeatKeys array.
+func (o *ScriptOperator) RepeatKeys() []int {
+	return o.repeatKeys
+}
+
 func (o *ScriptOperator) HandleInput(key int, isDown bool) (bool, error) {
 	if !isDown {
 		return false, nil

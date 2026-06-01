@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cfg "github.com/xrfr/t-rex/v2/config"
+	"github.com/xrfr/t-rex/v2/keyrepeat"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
@@ -23,6 +24,16 @@ type GlobalOperator struct {
 	l1DownAt       time.Time
 	r1DownAt       time.Time
 	comboFired     bool
+	navRepeater    *keyrepeat.KeyRepeater
+}
+
+// fallbackRepeatKeys lists the global-fallback keys that auto-repeat.
+// D-pad directions only — B (Escape), A (Enter), and others don't repeat.
+var fallbackRepeatKeys = []int{
+	protocol.KeyDPadUp,
+	protocol.KeyDPadDown,
+	protocol.KeyDPadLeft,
+	protocol.KeyDPadRight,
 }
 
 func NewGlobalOperator(server *Server, operators map[string]Operator) *GlobalOperator {
@@ -102,8 +113,9 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		}
 	}
 
-	// key-up: active operator
+	// key-up: stop any active repeater, then active operator
 	if !event.IsDown {
+		o.stopNavRepeat(event.Key)
 		if o.activeOperator != nil {
 			_, err := (*o.activeOperator).HandleInput(event.Key, event.IsDown)
 			return err
@@ -116,11 +128,82 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 	if o.activeOperator != nil {
 		handled, err := (*o.activeOperator).HandleInput(event.Key, event.IsDown)
 		if err != nil || handled {
+			o.startOperatorRepeat(event.Key, *o.activeOperator)
 			return err
 		}
 	}
 
-	switch event.Key {
+	err := o.executeFallback(event.Key)
+	if err == nil {
+		o.startFallbackRepeat(event.Key)
+	}
+	return err
+}
+
+func (o *GlobalOperator) SetKeyboardActive(active bool) {
+	o.keyboardActive = active
+}
+
+// --- key-repeat helpers ---
+
+func (o *GlobalOperator) stopNavRepeat(key int) {
+	if o.navRepeater != nil {
+		o.navRepeater.Stop(key)
+	}
+}
+
+func (o *GlobalOperator) stopNavRepeatAll() {
+	if o.navRepeater != nil {
+		o.navRepeater.StopAll()
+	}
+}
+
+// startOperatorRepeat starts auto-repeat for a key that was handled by an
+// operator that lists it in RepeatKeys(). The operator is captured in the
+// closure so the repeater keeps targeting the same operator even if the user
+// switches windows mid-hold.
+func (o *GlobalOperator) startOperatorRepeat(key int, op Operator) {
+	for _, k := range op.RepeatKeys() {
+		if k != key {
+			continue
+		}
+		o.stopNavRepeatAll()
+		o.navRepeater = keyrepeat.NewKeyRepeater(
+			func(k int) error {
+				_, err := op.HandleInput(k, true)
+				return err
+			},
+			keyrepeat.Delay,
+			keyrepeat.Interval,
+		)
+		o.navRepeater.Start(key)
+		return
+	}
+}
+
+// startFallbackRepeat starts auto-repeat for a key handled by the global
+// fallback that appears in fallbackRepeatKeys.
+func (o *GlobalOperator) startFallbackRepeat(key int) {
+	for _, k := range fallbackRepeatKeys {
+		if k != key {
+			continue
+		}
+		o.stopNavRepeatAll()
+		o.navRepeater = keyrepeat.NewKeyRepeater(
+			func(k int) error {
+				return o.executeFallbackKey(k)
+			},
+			keyrepeat.Delay,
+			keyrepeat.Interval,
+		)
+		o.navRepeater.Start(key)
+		return
+	}
+}
+
+// executeFallback is the global fallback — keys not handled by any operator.
+func (o *GlobalOperator) executeFallback(key int) error {
+	switch key {
 	case protocol.KeySelect:
 		return o.OpenKeyboardPane(false)
 	case protocol.KeyStart:
@@ -129,6 +212,20 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return execute("tmux", "send-keys", "-t", "0", "Enter")
 	case protocol.KeyB:
 		return execute("tmux", "send-keys", "-t", "0", "Escape")
+	case protocol.KeyScrollUp:
+		return execute("tmux", "copy-mode", "-eu", "-t", "0")
+	case protocol.KeyScrollDown:
+		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
+	case protocol.KeyR3:
+		return execute("tmux", "send-keys", "-t", "0", "/")
+	}
+	return o.executeFallbackKey(key)
+}
+
+// executeFallbackKey handles the D-pad arrow keys in the global fallback.
+// Extracted from executeFallback so the repeater can call it synthetically.
+func (o *GlobalOperator) executeFallbackKey(key int) error {
+	switch key {
 	case protocol.KeyDPadUp:
 		return execute("tmux", "send-keys", "-t", "0", "Up")
 	case protocol.KeyDPadDown:
@@ -137,18 +234,8 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		return execute("tmux", "send-keys", "-t", "0", "Left")
 	case protocol.KeyDPadRight:
 		return execute("tmux", "send-keys", "-t", "0", "Right")
-	case protocol.KeyScrollUp:
-		return execute("tmux", "copy-mode", "-eu", "-t", "0")
-	case protocol.KeyScrollDown:
-		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
-	case protocol.KeyR3:
-		return execute("tmux", "send-keys", "-t", "0", "/")
 	}
 	return nil
-}
-
-func (o *GlobalOperator) SetKeyboardActive(active bool) {
-	o.keyboardActive = active
 }
 
 // executes a key press using tmux

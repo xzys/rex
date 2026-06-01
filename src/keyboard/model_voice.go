@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/xrfr/t-rex/v2/keyrepeat"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
@@ -21,8 +22,6 @@ const (
 	stateError
 )
 
-const deleteRepeatMs = 50
-
 // Bubbletea message types for voice model
 type STTResultMsg struct {
 	Text string
@@ -32,6 +31,10 @@ type STTInitDoneMsg struct{ Err error }
 type ErrorTimeoutMsg struct{}
 type SpinnerTickMsg struct{}
 type DeleteTickMsg struct{}
+type DPadArrowTickMsg struct {
+	Key string
+	Gen int
+}
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -44,6 +47,8 @@ type VoiceModel struct {
 	spinnerFrame int
 	deleting     bool
 	isCompanion  bool
+	heldDPad     int // -1 when nothing held; guards against stale repeat ticks
+	holdGen      int // bumped on dpad down/up to invalidate stale ticks
 }
 
 func NewVoiceModel(provider STTProvider) *VoiceModel {
@@ -52,6 +57,7 @@ func NewVoiceModel(provider STTProvider) *VoiceModel {
 		state:       stateInitializing,
 		stt:         provider,
 		isCompanion: isCompanion,
+		heldDPad:    -1,
 	}
 	if !isCompanion {
 		m.audio = NewAudioCapture()
@@ -113,6 +119,10 @@ func (m *VoiceModel) HandleMsg(msg tea.Msg) {
 		if m.deleting {
 			m.pendingCmd = m.deleteTick()
 		}
+	case DPadArrowTickMsg:
+		if msg.Gen == m.holdGen && m.heldDPad == dpadFromArrow(msg.Key) {
+			m.pendingCmd = dpadArrowTick(msg.Key, msg.Gen, keyrepeat.Interval)
+		}
 	case ErrorTimeoutMsg:
 		if m.state == stateError {
 			m.state = stateIdle
@@ -136,7 +146,7 @@ func (m *VoiceModel) spinnerTick() tea.Cmd {
 }
 
 func (m *VoiceModel) deleteTick() tea.Cmd {
-	return tea.Tick(deleteRepeatMs*time.Millisecond, func(time.Time) tea.Msg {
+	return tea.Tick(keyrepeat.Interval, func(time.Time) tea.Msg {
 		return DeleteTickMsg{}
 	})
 }
@@ -181,30 +191,25 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 	case protocol.KeyB:
 		if isKeyDown {
 			m.deleting = true
-			// First delete is immediate (keyboard.go sends it), then start repeat
-			m.pendingCmd = m.deleteTick()
+			// First delete is immediate (keyboard.go sends it), then wait
+			// Delay before the first repeat tick.
+			m.pendingCmd = tea.Tick(keyrepeat.Delay, func(time.Time) tea.Msg {
+				return DeleteTickMsg{}
+			})
 		} else {
 			m.deleting = false
 		}
-	case protocol.KeyDPadUp:
+	case protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight:
+		arrowKey := dpadToArrowKey(key)
 		if isKeyDown {
-			s := "Up"
+			m.heldDPad = key
+			m.holdGen++
+			m.pendingCmd = dpadArrowTick(arrowKey, m.holdGen, keyrepeat.Delay)
+			s := arrowKey
 			return &s
-		}
-	case protocol.KeyDPadDown:
-		if isKeyDown {
-			s := "Down"
-			return &s
-		}
-	case protocol.KeyDPadLeft:
-		if isKeyDown {
-			s := "Left"
-			return &s
-		}
-	case protocol.KeyDPadRight:
-		if isKeyDown {
-			s := "Right"
-			return &s
+		} else if m.heldDPad == key {
+			m.heldDPad = -1
+			m.holdGen++ // invalidate in-flight tick
 		}
 	}
 	return nil
@@ -262,4 +267,40 @@ func (m *VoiceModel) RenderView(width int) string {
 	}
 
 	return left + strings.Repeat(" ", leftGap) + status + strings.Repeat(" ", rightGap) + right
+}
+
+// --- D-pad arrow repeat helpers ---
+
+func dpadArrowTick(arrowKey string, gen int, d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg {
+		return DPadArrowTickMsg{Key: arrowKey, Gen: gen}
+	})
+}
+
+func dpadToArrowKey(key int) string {
+	switch key {
+	case protocol.KeyDPadUp:
+		return "Up"
+	case protocol.KeyDPadDown:
+		return "Down"
+	case protocol.KeyDPadLeft:
+		return "Left"
+	case protocol.KeyDPadRight:
+		return "Right"
+	}
+	return ""
+}
+
+func dpadFromArrow(arrowKey string) int {
+	switch arrowKey {
+	case "Up":
+		return protocol.KeyDPadUp
+	case "Down":
+		return protocol.KeyDPadDown
+	case "Left":
+		return protocol.KeyDPadLeft
+	case "Right":
+		return protocol.KeyDPadRight
+	}
+	return -1
 }

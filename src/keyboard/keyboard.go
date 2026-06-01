@@ -272,6 +272,17 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return k, nil
+	case DPadArrowTickMsg:
+		if vm, ok := k.model.(*VoiceModel); ok {
+			vm.HandleMsg(msg)
+			cmd := vm.DrainCmd()
+			pressCmd := k.sendKeyPress(msg.Key)
+			if cmd != nil {
+				return k, tea.Batch(cmd, pressCmd)
+			}
+			return k, pressCmd
+		}
+		return k, nil
 	case STTInitDoneMsg, SpinnerTickMsg, ErrorTimeoutMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
 			vm.HandleMsg(msg)

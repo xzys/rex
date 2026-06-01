@@ -3,7 +3,10 @@
 // The global operator remaps the d-pad (up/down = Up/Down arrows, left/right =
 // tmux scroll up/down) for terminal navigation. The menu is a grid and needs
 // the literal axes, so translate each d-pad direction straight to its matching
-// arrow key.
+// arrow key. Up/Down repeat for smooth scrolling through menu items; Left/Right
+// are one-shot (no repeat — single-step navigation between columns).
+
+var repeatKeys = [KEY_DPAD_UP, KEY_DPAD_DOWN];
 
 function handleKey(key) {
   switch (key) {

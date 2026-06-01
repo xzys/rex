@@ -4,12 +4,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/xrfr/t-rex/v2/keyrepeat"
 	"github.com/xrfr/t-rex/v2/protocol"
-)
-
-const (
-	dpadHoldInitialMs = 400
-	dpadHoldRepeatMs  = 80
 )
 
 // DPadHoldTickMsg fires while a dpad direction is held in simple mode so the
@@ -59,13 +55,13 @@ func (m *KeyboardModelSimple) HandleMsg(msg tea.Msg) {
 	if t, ok := msg.(DPadHoldTickMsg); ok {
 		if t.Gen == m.holdGen && m.heldDPad == t.Key && isDPad(t.Key) {
 			m.moveDPad(t.Key)
-			m.pendingCmd = dpadHoldTick(t.Key, m.holdGen, dpadHoldRepeatMs)
+			m.pendingCmd = dpadHoldTick(t.Key, m.holdGen, keyrepeat.Interval)
 		}
 	}
 }
 
-func dpadHoldTick(key, gen, ms int) tea.Cmd {
-	return tea.Tick(time.Duration(ms)*time.Millisecond, func(time.Time) tea.Msg {
+func dpadHoldTick(key, gen int, d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg {
 		return DPadHoldTickMsg{Key: key, Gen: gen}
 	})
 }
@@ -119,7 +115,7 @@ func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
 			m.moveDPad(key)
 			m.heldDPad = key
 			m.holdGen++
-			m.pendingCmd = dpadHoldTick(key, m.holdGen, dpadHoldInitialMs)
+			m.pendingCmd = dpadHoldTick(key, m.holdGen, keyrepeat.Delay)
 		} else if m.heldDPad == key {
 			m.heldDPad = -1
 			m.holdGen++ // invalidate any in-flight repeat tick for this hold

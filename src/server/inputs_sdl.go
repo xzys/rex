@@ -8,10 +8,9 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"sync"
-	"time"
 
 	"github.com/veandco/go-sdl2/sdl"
+	"github.com/xrfr/t-rex/v2/keyrepeat"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
@@ -46,7 +45,13 @@ func (d *SDLInputDevice) Initialize(handler func(InputEvent) error) error {
 func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error) {
 	var err error
 	leftStickYDir := 0 // -1 = up, +1 = down, 0 = centered/deadzone
-	repeater := newKeyRepeater(inputHandler)
+	repeater := keyrepeat.NewKeyRepeater(
+		func(key int) error {
+			return inputHandler(InputEvent{Key: key, IsDown: true})
+		},
+		keyrepeat.Delay,
+		keyrepeat.Interval,
+	)
 	defer func() {
 		repeater.StopAll()
 		sdl.Quit()
@@ -114,75 +119,9 @@ func runPollingLoop(joystick *sdl.Joystick, inputHandler func(InputEvent) error)
 const (
 	leftStickYAxis         = 1
 	leftStickAxisThreshold = 16000
-	repeatDelay            = 260 * time.Millisecond
-	repeatInterval         = 90 * time.Millisecond
 )
 
-type keyRepeater struct {
-	handler func(InputEvent) error
-
-	mu   sync.Mutex
-	key  int
-	stop chan struct{}
-}
-
-func newKeyRepeater(handler func(InputEvent) error) *keyRepeater {
-	return &keyRepeater{handler: handler, key: -1}
-}
-
-func (r *keyRepeater) Start(key int) {
-	r.mu.Lock()
-	if r.key == key && r.stop != nil {
-		r.mu.Unlock()
-		return
-	}
-	r.stopLocked()
-	stop := make(chan struct{})
-	r.key = key
-	r.stop = stop
-	r.mu.Unlock()
-
-	go func() {
-		timer := time.NewTimer(repeatDelay)
-		defer timer.Stop()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-timer.C:
-				if err := r.handler(InputEvent{Key: key, IsDown: true}); err != nil {
-					slog.Warn("repeat key dispatch failed", "key", key, "err", err)
-				}
-				timer.Reset(repeatInterval)
-			}
-		}
-	}()
-}
-
-func (r *keyRepeater) Stop(key int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.key != key {
-		return
-	}
-	r.stopLocked()
-}
-
-func (r *keyRepeater) StopAll() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.stopLocked()
-}
-
-func (r *keyRepeater) stopLocked() {
-	if r.stop != nil {
-		close(r.stop)
-		r.stop = nil
-	}
-	r.key = -1
-}
-
-func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent) error, repeater *keyRepeater) error {
+func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent) error, repeater *keyrepeat.KeyRepeater) error {
 	isDown := event.Type == sdl.JOYBUTTONDOWN
 	if event.Type != sdl.JOYBUTTONDOWN && event.Type != sdl.JOYBUTTONUP {
 		slog.Warn("unknown event type", "event", event)
@@ -244,7 +183,7 @@ func handleJoystickEvent(event *sdl.JoyButtonEvent, inputHandler func(InputEvent
 	return nil
 }
 
-func handleJoystickAxisEvent(event *sdl.JoyAxisEvent, inputHandler func(InputEvent) error, lastDir *int, repeater *keyRepeater) error {
+func handleJoystickAxisEvent(event *sdl.JoyAxisEvent, inputHandler func(InputEvent) error, lastDir *int, repeater *keyrepeat.KeyRepeater) error {
 	if event.Axis != leftStickYAxis {
 		return nil
 	}

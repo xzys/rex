@@ -28,6 +28,10 @@ var (
 
 type Operator interface {
 	HandleInput(key int, isDown bool) (bool, error)
+	// RepeatKeys returns the keys this operator wants auto-repeated by
+	// GlobalOperator. Operators that manage their own repeat internally
+	// (e.g. ClaudeOperator) return nil.
+	RepeatKeys() []int
 }
 
 type Server struct {

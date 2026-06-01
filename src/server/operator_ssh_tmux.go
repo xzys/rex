@@ -27,6 +27,8 @@ func NewSSHTmuxOperator() *SSHTmuxOperator {
 	return &SSHTmuxOperator{}
 }
 
+func (o *SSHTmuxOperator) RepeatKeys() []int { return nil }
+
 func (o *SSHTmuxOperator) HandleInput(key int, isDown bool) (bool, error) {
 	switch key {
 	case protocol.KeyL2:
