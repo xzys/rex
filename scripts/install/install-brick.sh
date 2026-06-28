@@ -31,7 +31,8 @@ fi
 
 # Chroot sources, in order of preference:
 #   1. Local tarball at /userdata/rex-bundle/brick-debian.tar.gz (bundled at
-#      image-build time by scripts/knulli/build.sh).
+#      image-build time by scripts/knulli/build.sh, copied from BATOCERA to
+#      /userdata by postshare.sh on first boot).
 #   2. REX_CHROOT_URL env (legacy fallback — for installs without the
 #      bundled overlay image).
 #   3. Existing /userdata/debian if /etc/debian_version is present.
@@ -125,7 +126,7 @@ if [ ! -x "$DEBIAN_ROOT/usr/bin/tmux" ]; then needs_setup=1; fi
 
 if [ "$needs_setup" = 1 ]; then
     echo "==> running first-time chroot setup (apt, locale, rex user, sshd)"
-    echo "    this takes several minutes on first run"
+    echo "    this takes several minutes on first run (skipped with pre-baked chroot)"
 
     chroot_run_root "ldconfig"
 

@@ -48,15 +48,15 @@ You can also flash the `.img.gz` file directly with balenaEtcher.
 
 Insert the SD card into the Brick and boot it. The first boot runs in stages:
 
-1. Knulli expands the `userdata` partition to fill the SD card. This takes about 30 seconds.
-2. The Rex payload extracts from `/userdata/rex-bundle/`.
-3. EmulationStation starts. Open the Wi-Fi settings from the EmulationStation menu and join your network.
-4. After Wi-Fi is available, the installer continues automatically. It extracts the bundled Debian chroot, then runs `apt` and `npm` to install tmux, Node 20, sshd, claude-code, and other dependencies. This usually takes 5–10 minutes on first boot.
-5. Rex starts automatically. Future boots skip the setup work and start Rex directly.
+1. Knulli expands and initializes the `userdata` partition to fill the SD card. This takes about 30 seconds.
+2. The Rex payload and bundled Debian chroot are copied from the boot partition into `userdata`.
+3. The installer extracts the preconfigured Debian chroot and installs the Knulli-side Rex launcher files. Network access is not required for this first-boot install.
+4. Rex starts automatically. Configure Wi-Fi from Rex's built-in Wi-Fi settings.
+5. Future boots skip the setup work and start Rex directly.
 
-The Debian chroot tarball is included in the image, so this path does not require a separate chroot download.
+You may briefly see EmulationStation during first boot while the startup hook hands off to Rex. Rex is also installed as an EmulationStation fallback launcher under Tools → Rex, so you can return to ES for recovery and launch Rex again from there if needed.
 
-If Wi-Fi is not configured before the installer reaches the network setup step, that step fails and retries on the next boot. EmulationStation stays available, so you can configure Wi-Fi and reboot without reflashing the card.
+The Debian chroot tarball and dependencies are included in the image, so this path does not require a separate chroot download or first-boot package install.
 
 First-boot logs are written to `/var/log/rex-firstboot.log` on the device.
 
@@ -168,18 +168,17 @@ On Brick, use `/userdata/system/apps/rex/debian-enter.sh` if you need to enter t
 
 ### Brick: Rex does not start after the first image boot
 
-Check `/var/log/rex-firstboot.log` over SSH as `root`. The most common cause is missing Wi-Fi during first boot. Configure Wi-Fi in EmulationStation, then reboot. The installer will retry.
+Check `/var/log/rex-firstboot.log` over SSH as `root`. The image install should not need Wi-Fi during first boot; failures usually mean the bundled payload did not extract, the chroot did not unpack, or the launcher files were not installed.
 
-### Brick: chroot setup fails repeatedly
+If EmulationStation is visible, check whether the fallback launcher exists at `/userdata/roms/tools/Rex.sh` and try launching Rex from Tools → Rex.
 
-The chroot setup needs network access for `apt` and `npm`. Enter the chroot as root and confirm that a default route exists:
+### Brick: Wi-Fi does not work inside Rex
+
+Rex manages Wi-Fi through ConnMan on the Knulli host. If networks do not appear or password entry fails, reboot once and try again. If the problem persists, check the Rex logs and confirm the ConnMan D-Bus policy was installed:
 
 ```bash
-/userdata/system/apps/rex/debian-enter.sh --root
-ip route show default
+ls -l /etc/dbus-1/system.d/connman-rex.conf
 ```
-
-If the default route exists but package downloads still fail, check DNS configuration inside the chroot.
 
 ### Package install fails with `dependency not satisfiable: tmux (>= 3.5)`
 

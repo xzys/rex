@@ -2,11 +2,12 @@
 # build.sh — produce a rex-edition KNULLI SD image for the TrimUI Brick.
 #
 # Takes an upstream KNULLI Brick .img.gz, grows the SHARE partition (ext4)
-# to fit the rex payload + Debian chroot, drops both into
-# /userdata/rex-bundle/, and writes the overlay scripts to BATOCERA
-# (FAT32). On first boot, postshare.sh extracts the payload and wires up
-# rex-firstboot.sh, which runs install-brick.sh. No network needed at
-# first boot — the chroot is already on the card.
+# to fit the rex payload + Debian chroot, drops bundles onto BATOCERA
+# (FAT32) so they survive first-boot reformat, and writes the overlay
+# scripts alongside them. On first boot, postshare.sh copies bundles from
+# /boot/ to /userdata/ (the now-empty exFAT SHARE), extracts the payload,
+# and wires up rex-firstboot.sh, which runs install-brick.sh. No network
+# needed at first boot — the chroot is pre-baked and already on the card.
 #
 # Runs the partition-level work inside a privileged Linux Docker container
 # so this works from a macOS host (no native ext4 mount).
@@ -77,7 +78,10 @@ rm -f "$work_img"
 gunzip -c "$img_gz" > "$work_img"
 
 # --- 3. hand to Docker for partition + filesystem work ----------------------
-# Size budget: chroot tarball + payload + slack. Add 1.5GB to be safe.
+# Size budget: chroot tarball + payload + slack for extraction + user data.
+# Add 1.5GB to be safe. The bundles go on BATOCERA (FAT32, 5GB), but the
+# SHARE partition (ext4 → exFAT on first boot) still needs room for the
+# extracted chroot (~3GB uncompressed).
 echo "==> growing image + bundling chroot/payload via Docker"
 
 stage="$(mktemp -d)"
@@ -120,9 +124,11 @@ mount -t ext4 "${loop}p2" /mnt/share
 # Overlay scripts onto BATOCERA (FAT32)
 cp postshare.sh rex-firstboot.sh /mnt/boot/
 
-# Bundle onto SHARE — survives first-boot resize2fs/Batocera /userdata setup
-mkdir -p /mnt/share/rex-bundle
-cp rex-payload.tar.gz brick-debian.tar.gz /mnt/share/rex-bundle/
+# Bundle onto BATOCERA (FAT32) — survives first-boot reformat of SHARE.
+# Knulli's S02resize unconditionally reformats the SHARE partition as exFAT
+# on first boot, destroying anything placed there. BATOCERA is untouched.
+mkdir -p /mnt/boot/rex-bundle
+cp rex-payload.tar.gz brick-debian.tar.gz /mnt/boot/rex-bundle/
 
 sync
 umount /mnt/share /mnt/boot
