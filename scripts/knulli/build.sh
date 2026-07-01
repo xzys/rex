@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # build.sh — produce a rex-edition KNULLI SD image for the TrimUI Brick.
 #
-# Takes an upstream KNULLI Brick .img.gz, grows the SHARE partition (ext4)
-# to fit the rex payload + Debian chroot, drops bundles onto BATOCERA
-# (FAT32) so they survive first-boot reformat, and writes the overlay
-# scripts alongside them. On first boot, postshare.sh copies bundles from
-# /boot/ to /userdata/ (the now-empty exFAT SHARE), extracts the payload,
-# and wires up rex-firstboot.sh, which runs install-brick.sh. No network
-# needed at first boot — the chroot is pre-baked and already on the card.
+# Takes an upstream KNULLI Brick .img.gz and drops the rex bundles (payload +
+# pre-baked Debian chroot) onto BATOCERA (FAT32) so they survive first-boot
+# reformat, alongside the overlay scripts. knulli's rootfs and boot config are
+# left stock — first boot resizes SHARE and formats it exFAT as usual. On first
+# boot postshare.sh (S12) copies the bundles from /boot/ to /userdata/, extracts
+# the payload, and wires up rex-firstboot.sh, which runs install-brick.sh.
+# install-brick.sh creates an ext4 image on the exFAT SHARE and loop-mounts it at
+# /userdata/debian for the chroot (exFAT can't store Unix perms/symlinks). No
+# network needed at first boot — the chroot is pre-baked and already on the card.
 #
-# Runs the partition-level work inside a privileged Linux Docker container
-# so this works from a macOS host (no native ext4 mount).
+# Only the FAT32 BATOCERA partition is modified, via hdiutil — no ext4/squashfs
+# work, so this runs natively on a macOS host.
 #
 # Usage:
 #   make build-knulli-rex      (calls this)
@@ -77,65 +79,55 @@ echo "==> decompressing to $(basename "$work_img")"
 rm -f "$work_img"
 gunzip -c "$img_gz" > "$work_img"
 
-# --- 3. hand to Docker for partition + filesystem work ----------------------
-# Size budget: chroot tarball + payload + slack for extraction + user data.
-# Add 1.5GB to be safe. The bundles go on BATOCERA (FAT32, 5GB), but the
-# SHARE partition (ext4 → exFAT on first boot) still needs room for the
-# extracted chroot (~3GB uncompressed).
-echo "==> growing image + bundling chroot/payload via Docker"
+# --- 3. mount BATOCERA partition and inject files ---------------------------
+# macOS supports FAT32 natively via hdiutil; no Docker needed.
+echo "==> mounting BATOCERA partition and injecting files"
 
-stage="$(mktemp -d)"
-cp "$PAYLOAD" "$stage/rex-payload.tar.gz"
-cp "$CHROOT" "$stage/brick-debian.tar.gz"
-cp "$OVERLAY/postshare.sh" "$stage/postshare.sh"
-cp "$OVERLAY/rex-firstboot.sh" "$stage/rex-firstboot.sh"
-cp "$work_img" "$stage/work.img"
+# Attach the image — macOS auto-detects and mounts the FAT32 partition
+attach_output=$(hdiutil attach -nobrowse -noautoopen "$work_img" 2>&1)
+echo "$attach_output"
 
-cleanup() { rm -rf "$stage"; }
-trap cleanup EXIT
+# Find the BATOCERA mount point. Take everything from "/Volumes/" to end of line
+# (mount points can contain spaces, e.g. "/Volumes/BATOCERA 1" when a stale mount
+# of the same label already exists) so we never inject into the wrong volume.
+boot_mp=$(echo "$attach_output" | sed -nE 's#.*(/Volumes/.+)$#\1#p' | grep BATOCERA | head -1)
+[ -n "$boot_mp" ] || boot_mp=$(echo "$attach_output" | sed -nE 's#.*(/Volumes/.+)$#\1#p' | head -1)
+echo "BATOCERA mount point: [$boot_mp]"
+[ -d "$boot_mp" ] || { echo "error: could not find BATOCERA mount point" >&2; exit 1; }
+# Sanity: the mount must contain knulli's stock rootfs squashfs — proves we
+# grabbed this image's BATOCERA, not a leftover mount or an unrelated volume.
+[ -f "$boot_mp/boot/batocera" ] || { echo "error: $boot_mp is not a knulli BATOCERA partition" >&2; exit 1; }
 
-docker run --rm --privileged \
-    -v "$stage:/work" \
-    debian:bookworm-slim bash -eux <<'DOCKER_EOF'
-apt-get update -qq
-apt-get install -y -qq --no-install-recommends parted e2fsprogs dosfstools util-linux
+# Copy overlay scripts
+cp "$OVERLAY/postshare.sh" "$boot_mp/postshare.sh"
+cp "$OVERLAY/rex-firstboot.sh" "$boot_mp/rex-firstboot.sh"
 
-cd /work
+# The rootfs (squashfs) and batocera-boot.conf are left 100% stock: knulli's
+# first boot resizes SHARE to fill the card and formats it exFAT, which boots
+# reliably. We do NOT make SHARE ext4 — every attempt to (patch S02resize via a
+# /boot/boot/overlay file, or repack the squashfs in place) black-screened this
+# device's minimal initramfs (overlay triggers a second loop-mount that collides
+# with the squashfs loop; a repacked squashfs wouldn't mount). Instead the Debian
+# chroot lives in an ext4 image FILE on the exFAT SHARE (/userdata/rex/debian.ext4,
+# loop-mounted at /userdata/debian by debian-mount.sh), created at install time on
+# a normally-booted system. Nothing in the boot path changes.
+# Belt-and-suspenders: ensure no stale persistent-overlay file from an earlier
+# build approach lingers (its initramfs restore is what black-screened).
+rm -f "$boot_mp/boot/overlay" "$boot_mp/boot/._overlay" 2>/dev/null || true
 
-# Grow .img by 1.5GB
-truncate -s +1536M work.img
+# Copy bundles
+mkdir -p "$boot_mp/rex-bundle"
+cp "$PAYLOAD" "$boot_mp/rex-bundle/rex-payload.tar.gz"
+cp "$CHROOT" "$boot_mp/rex-bundle/brick-debian.tar.gz"
 
-# Grow last partition to fill the image
-parted -s work.img resizepart 2 100%
+echo "Files injected. Contents of BATOCERA:"
+ls -la "$boot_mp/"
+ls -la "$boot_mp/rex-bundle/"
 
-# Loopback with partition scan
-loop=$(losetup --show -fP work.img)
-trap "losetup -d $loop" EXIT
+# Detach
+hdiutil detach "$boot_mp" -force 2>/dev/null || diskutil unmount force "$boot_mp" 2>/dev/null || true
 
-# Check + resize ext4 partition 2 (SHARE / userdata)
-e2fsck -fy "${loop}p2"
-resize2fs "${loop}p2"
-
-# Mount both partitions
-mkdir -p /mnt/boot /mnt/share
-mount -t vfat "${loop}p1" /mnt/boot
-mount -t ext4 "${loop}p2" /mnt/share
-
-# Overlay scripts onto BATOCERA (FAT32)
-cp postshare.sh rex-firstboot.sh /mnt/boot/
-
-# Bundle onto BATOCERA (FAT32) — survives first-boot reformat of SHARE.
-# Knulli's S02resize unconditionally reformats the SHARE partition as exFAT
-# on first boot, destroying anything placed there. BATOCERA is untouched.
-mkdir -p /mnt/boot/rex-bundle
-cp rex-payload.tar.gz brick-debian.tar.gz /mnt/boot/rex-bundle/
-
-sync
-umount /mnt/share /mnt/boot
-DOCKER_EOF
-
-# --- 4. recompress + cleanup ------------------------------------------------
-cp "$stage/work.img" "$work_img"
+# --- 4. recompress -----------------------------------------------------------
 
 out="$DIST_DIR/knulli-rex-brick-${VERSION}.img.gz"
 echo "==> compressing to $(basename "$out")"

@@ -1,29 +1,59 @@
 #!/bin/bash
 # postshare.sh — preseeded onto the BATOCERA (FAT32) partition of a
-# rex-edition KNULLI image. Runs after /userdata mounts but before
-# EmulationStation starts. Idempotent.
+# rex-edition KNULLI image. Runs at S12populateshare on every boot.
+# Idempotent.
 #
-# Job: copy the rex bundles from /boot/ (BATOCERA, untouched by first-boot
-# reformat) to /userdata/ (SHARE, reformatted as empty exFAT by S02resize),
-# extract the payload into /userdata/rex-install/, then drop a
-# /userdata/system/custom.sh that wires rex-firstboot.sh into the normal
-# boot path. The chroot tarball stays in rex-bundle/ for install-brick.sh
-# to find and extract.
+# Two-boot orchestration:
+#   Boot 1: autoresize=true grew SHARE to full card but formatted exFAT.
+#           We detect exFAT → write format-internal=ext4 to boot.conf,
+#           drop a loop guard, and reboot.
+#   Boot 2: format-internal=ext4 converted SHARE to ext4 (full-size, by
+#           S02resize before mount). We detect ext4 → copy bundles from
+#           /boot/ to /userdata/, extract payload, wire custom.sh, and
+#           let ES start rex.
+#
+# The Debian chroot requires ext4 (Unix permissions + symlinks).
 
 set -eu
 
-MARKER=/userdata/.rex-bootstrap-done
+MARKER_DONE=/userdata/.rex-bootstrap-done
+MARKER_REBOOT=/boot/.rex-ext4-requested
 BOOT_BUNDLE=/boot/rex-bundle
 BUNDLE=/userdata/rex-bundle
 PAYLOAD="$BUNDLE/rex-payload.tar.gz"
 STAGE=/userdata/rex-install
+SHARE_DEV="$(batocera-part share_internal)"
+SHARE_FS="$(blkid -o value -s TYPE "$SHARE_DEV" 2>/dev/null || echo unknown)"
 
-[ -f "$MARKER" ] && exit 0
+# Already fully installed — hand off to rex-firstboot.sh.
+[ -f "$MARKER_DONE" ] && exit 0
 
-# Copy bundles from BATOCERA (survives first-boot reformat) to SHARE.
-# Knulli's S02resize unconditionally reformats SHARE as exFAT on first
-# boot, so /userdata is empty when we arrive. The bundles live on /boot
-# (BATOCERA, FAT32) which is never reformatted.
+# --- Boot 1: exFAT → request ext4 conversion and reboot ----------------
+if [ "$SHARE_FS" != "ext4" ]; then
+    # Guard against reboot loops — if we already requested conversion,
+    # something went wrong; leave ES up for debugging.
+    if [ -f "$MARKER_REBOOT" ]; then
+        echo "postshare: ext4 requested but SHARE is still $SHARE_FS — aborting" >&2
+        exit 0
+    fi
+
+    echo "postshare: SHARE is $SHARE_FS, requesting ext4 conversion and rebooting"
+    mount -o remount,rw /boot
+    if grep -q '^format-internal' /boot/batocera-boot.conf; then
+        sed -i 's/^#*format-internal.*/format-internal=ext4/' /boot/batocera-boot.conf
+    else
+        echo 'format-internal=ext4' >> /boot/batocera-boot.conf
+    fi
+    touch "$MARKER_REBOOT"
+    sync
+    reboot
+    exit 0
+fi
+
+# --- Boot 2: SHARE is ext4 — install -----------------------------------
+echo "postshare: SHARE is ext4, installing"
+
+# Copy bundles from BATOCERA (survives reformats) to SHARE.
 if [ -d "$BOOT_BUNDLE" ]; then
     mkdir -p "$BUNDLE"
     for f in rex-payload.tar.gz brick-debian.tar.gz; do
@@ -33,14 +63,15 @@ if [ -d "$BOOT_BUNDLE" ]; then
     done
 fi
 
-[ -f "$PAYLOAD" ] || exit 0
+[ -f "$PAYLOAD" ] || { echo "postshare: payload not found" >&2; exit 1; }
 
+# Extract payload
 mkdir -p "$STAGE"
-tar xzf "$PAYLOAD" -C "$STAGE"
+tar xzf "$PAYLOAD" -C "$STAGE" --no-same-owner
 
-# Find extracted top-level dir (rex-brick-<version>) — package.sh nests one level.
+# Find extracted top-level dir (rex-brick-<version>)
 INNER="$(find "$STAGE" -maxdepth 1 -mindepth 1 -type d | head -n1)"
-[ -d "$INNER" ] || exit 0
+[ -d "$INNER" ] || { echo "postshare: no payload dir found" >&2; exit 1; }
 
 # Write custom.sh — invoked by ES on every boot from here on.
 mkdir -p /userdata/system
@@ -51,5 +82,9 @@ exec /boot/rex-firstboot.sh "$INNER" >> /var/log/rex-firstboot.log 2>&1
 CUSTOM_EOF
 chmod +x /userdata/system/custom.sh
 
-touch "$MARKER"
+# Clean up loop guard from boot 1
+rm -f "$MARKER_REBOOT"
+
+touch "$MARKER_DONE"
+echo "postshare: install ready, handing off to rex-firstboot.sh"
 exit 0

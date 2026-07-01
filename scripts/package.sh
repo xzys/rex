@@ -58,6 +58,14 @@ stage_brick() {
     cp "$REPO_ROOT/bin/termsp" "$app/termsp"
     cp "$REPO_ROOT/ext/TermSP/TermSP/libs/libsdlfox.so" "$app/lib/"
     cp "$REPO_ROOT/ext/TermSP/TermSP/libs/libvterm.so" "$app/lib/"
+    # Sherpa STT runtime libs (aarch64, from sherpa-onnx-go-linux module)
+    SHERPA_LIB_DIR="$(cd "$REPO_ROOT/src" && go list -m -f '{{.Dir}}' github.com/k2-fsa/sherpa-onnx-go-linux 2>/dev/null)/lib/aarch64-unknown-linux-gnu"
+    if [ -d "$SHERPA_LIB_DIR" ]; then
+        cp "$SHERPA_LIB_DIR/libsherpa-onnx-c-api.so" "$app/lib/"
+        cp "$SHERPA_LIB_DIR/libonnxruntime.so" "$app/lib/"
+    else
+        echo "warning: sherpa libs not found at $SHERPA_LIB_DIR — STT won't work" >&2
+    fi
     cp "$REPO_ROOT/ext/fonts/"*.ttf "$app/fonts/"
     cp "$REPO_ROOT/ext/brick/start-rex.sh" \
        "$REPO_ROOT/ext/brick/stop-rex.sh" \

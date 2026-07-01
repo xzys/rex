@@ -107,11 +107,14 @@ fi
 chmod +x "$REX_HOME/bin/rex"
 
 # Copy sherpa libs into chroot /usr/local/lib so rex resolves them at runtime.
+# Always run ldconfig afterward — the chroot setup block may be skipped for
+# pre-baked chroots, but the shared lib cache must be refreshed.
 for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do
     if [ -f "$APP/lib/$lib" ]; then
         cp -u "$APP/lib/$lib" "$DEBIAN_ROOT/usr/local/lib/"
     fi
 done
+"$APP/debian-enter.sh" --root ldconfig
 
 # --- 4. chroot enter helper -------------------------------------------------
 chroot_run_root() {
