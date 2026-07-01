@@ -59,3 +59,11 @@ make_link() {
 make_link "$main_root/.env"      "$wt_root/.env"
 make_link "$main_root/../rex-notes" "$wt_root/notes"
 make_link "$main_root/../rex-web"   "$wt_root/web"
+
+# Pre-approve this worktree's .envrc for direnv so the user isn't blocked
+# on first cd. `direnv allow` is non-interactive — it just records the
+# file hash in the allow list. No-op if direnv isn't installed.
+if command -v direnv >/dev/null 2>&1 && [ -f "$wt_root/.envrc" ]; then
+  ( cd "$wt_root" && direnv allow ) >/dev/null 2>&1 &&
+    printf 'setup-worktree: direnv allow approved for %s\n' "$wt_root"
+fi
