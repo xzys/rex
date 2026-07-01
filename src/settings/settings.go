@@ -314,10 +314,18 @@ func NewModel(config cfg.Config) *Model {
 }
 
 func rexEnabledOnBoot() bool {
+	// On Knulli/Brick there is no systemd — Rex always autostarts
+	// via /userdata/system/custom.sh.
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return true
+	}
 	return exec.Command("systemctl", "is-enabled", "--quiet", "rex.service").Run() == nil
 }
 
 func setRexOnBoot(enable bool) error {
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return fmt.Errorf("rex autostart is always on (no systemd on this device)")
+	}
 	if enable {
 		if out, err := exec.Command("sudo", "systemctl", "enable", "rex.service").CombinedOutput(); err != nil {
 			return fmt.Errorf("enable rex: %v: %s", err, strings.TrimSpace(string(out)))

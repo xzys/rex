@@ -37,10 +37,14 @@ sleep 1
 
 # Background a subshell that owns the full lifecycle: launch termsp in the
 # foreground, and on ANY exit (clean tmux shutdown via L1+R1, crash, SIGTERM,
-# stop-rex.sh) fire an EXIT trap that restarts ES. Symmetric stop/start.
+# stop-rex.sh, or rex shutdown menu) fire an EXIT trap that checks for a
+# shutdown request before restarting ES.
 nohup bash -c '
     APP="$1"
     cleanup() {
+        if [ -f "$APP/shutdown-host.sh" ]; then
+            "$APP/shutdown-host.sh"
+        fi
         /etc/init.d/S31emulationstation start >/dev/null 2>&1
         echo "=== rex exited at $(date -Iseconds), ES restarted ==="
     }

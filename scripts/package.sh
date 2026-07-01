@@ -73,6 +73,8 @@ stage_brick() {
        "$REPO_ROOT/ext/brick/debian-sshd.sh" \
        "$REPO_ROOT/ext/brick/debian-enter.sh" \
        "$REPO_ROOT/ext/brick/debian-cleanup.sh" \
+       "$REPO_ROOT/ext/brick/shutdown.sh" \
+       "$REPO_ROOT/ext/brick/shutdown-host.sh" \
        "$app/"
     cp "$REPO_ROOT/config.yaml.brick.example" "$app/config.yaml.brick.example"
 
@@ -86,6 +88,7 @@ stage_brick() {
         "$app/start-rex.sh" "$app/stop-rex.sh" \
         "$app/debian-rex.sh" "$app/debian-sshd.sh" \
         "$app/debian-enter.sh" "$app/debian-cleanup.sh" \
+        "$app/shutdown.sh" "$app/shutdown-host.sh" \
         "$tools/Rex.sh" "$home/bin/rex" "$home/.tmux-wifi.sh"
 
     cp "$INSTALL_DIR/install.sh" "$stage/install.sh"
