@@ -30,13 +30,19 @@ if [ ! -d /userdata ]; then
 fi
 
 # Chroot sources, in order of preference:
-#   1. Local tarball at /userdata/rex-bundle/brick-debian.tar.gz (bundled at
-#      image-build time by scripts/knulli/build.sh, copied from BATOCERA to
-#      /userdata by postshare.sh on first boot).
-#   2. REX_CHROOT_URL env (legacy fallback — for installs without the
-#      bundled overlay image).
-#   3. Existing /userdata/debian if /etc/debian_version is present.
-CHROOT_BUNDLE=/userdata/rex-bundle/brick-debian.tar.gz
+#   1. Bundled at /boot/rex-bundle/brick-debian.tar.gz (on BATOCERA FAT32,
+#      extracted directly — no redundant copy needed).
+#   2. Bundled at /userdata/rex-bundle/brick-debian.tar.gz (legacy path,
+#      from older images that copied it to SHARE).
+#   3. REX_CHROOT_URL env (fallback for installs without bundled image).
+#   4. Existing /userdata/debian if /etc/debian_version is present.
+BOOT_CHROOT_BUNDLE=/boot/rex-bundle/brick-debian.tar.gz
+SHARE_CHROOT_BUNDLE=/userdata/rex-bundle/brick-debian.tar.gz
+if [ -f "$BOOT_CHROOT_BUNDLE" ]; then
+    CHROOT_BUNDLE="$BOOT_CHROOT_BUNDLE"
+else
+    CHROOT_BUNDLE="$SHARE_CHROOT_BUNDLE"
+fi
 CHROOT_URL="${REX_CHROOT_URL:-}"
 
 APP=/userdata/system/apps/rex
@@ -83,7 +89,7 @@ if [ ! -e "$DEBIAN_ROOT/etc/debian_version" ]; then
 error: Debian chroot not found at $DEBIAN_ROOT.
 
 Expected one of:
-  - bundled rootfs at $CHROOT_BUNDLE (rex-edition image)
+  - bundled rootfs at /boot/rex-bundle/ or /userdata/rex-bundle/
   - REX_CHROOT_URL set to a Debian arm64 rootfs tarball (.tar.gz)
   - existing /userdata/debian/ (manually staged)
 EOF

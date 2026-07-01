@@ -54,13 +54,13 @@ fi
 echo "postshare: SHARE is ext4, installing"
 
 # Copy bundles from BATOCERA (survives reformats) to SHARE.
+# Only the small payload — the large chroot tarball is extracted
+# directly from /boot/ by install-brick.sh to avoid a redundant copy.
 if [ -d "$BOOT_BUNDLE" ]; then
     mkdir -p "$BUNDLE"
-    for f in rex-payload.tar.gz brick-debian.tar.gz; do
-        if [ -f "$BOOT_BUNDLE/$f" ] && [ ! -f "$BUNDLE/$f" ]; then
-            cp "$BOOT_BUNDLE/$f" "$BUNDLE/$f"
-        fi
-    done
+    if [ -f "$BOOT_BUNDLE/rex-payload.tar.gz" ] && [ ! -f "$BUNDLE/rex-payload.tar.gz" ]; then
+        cp "$BOOT_BUNDLE/rex-payload.tar.gz" "$BUNDLE/rex-payload.tar.gz"
+    fi
 fi
 
 [ -f "$PAYLOAD" ] || { echo "postshare: payload not found" >&2; exit 1; }
