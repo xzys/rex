@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # build.sh — produce a rex-edition KNULLI SD image for the TrimUI Brick.
 #
-# Takes an upstream KNULLI Brick .img.gz and drops the rex bundles (payload +
-# pre-baked Debian chroot) onto BATOCERA (FAT32) so they survive first-boot
-# reformat, alongside the overlay scripts. knulli's rootfs and boot config are
-# left stock — first boot resizes SHARE and formats it exFAT as usual. On first
-# boot postshare.sh (S12) copies the bundles from /boot/ to /userdata/, extracts
-# the payload, and wires up rex-firstboot.sh, which runs install-brick.sh.
-# install-brick.sh creates an ext4 image on the exFAT SHARE and loop-mounts it at
-# /userdata/debian for the chroot (exFAT can't store Unix perms/symlinks). No
-# network needed at first boot — the chroot is pre-baked and already on the card.
+# Takes an upstream KNULLI Brick .img.gz and drops the rex bundles
+# (payload + pre-baked Debian chroot) onto BATOCERA (FAT32) so they
+# survive first-boot reformat. Knulli's rootfs and boot config are left
+# stock — first boot resizes SHARE and formats it exFAT as usual.
+# postshare.sh (S12) detects exFAT, writes /boot/boot-custom.sh (an S00
+# hook that runs mkfs.ext4 before anything mounts SHARE), and reboots.
+# On boot 2, boot-custom.sh converts exFAT → ext4 on the unmounted
+# device (no FUSE conflict, no gdisk corruption), then self-destructs.
+# S12 repopulates the skeleton, postshare copies bundles from /boot/,
+# extracts the payload, and wires rex-firstboot.sh → install-brick.sh → Rex.
+# The Debian chroot is extracted to a plain /userdata/debian directory.
 #
 # Only the FAT32 BATOCERA partition is modified, via hdiutil — no ext4/squashfs
 # work, so this runs natively on a macOS host.
@@ -102,15 +104,12 @@ echo "BATOCERA mount point: [$boot_mp]"
 cp "$OVERLAY/postshare.sh" "$boot_mp/postshare.sh"
 cp "$OVERLAY/rex-firstboot.sh" "$boot_mp/rex-firstboot.sh"
 
-# The rootfs (squashfs) and batocera-boot.conf are left 100% stock: knulli's
+# The rootfs (squashfs) and batocera-boot.conf are left 100% stock. Knulli's
 # first boot resizes SHARE to fill the card and formats it exFAT, which boots
-# reliably. We do NOT make SHARE ext4 — every attempt to (patch S02resize via a
-# /boot/boot/overlay file, or repack the squashfs in place) black-screened this
-# device's minimal initramfs (overlay triggers a second loop-mount that collides
-# with the squashfs loop; a repacked squashfs wouldn't mount). Instead the Debian
-# chroot lives in an ext4 image FILE on the exFAT SHARE (/userdata/rex/debian.ext4,
-# loop-mounted at /userdata/debian by debian-mount.sh), created at install time on
-# a normally-booted system. Nothing in the boot path changes.
+# reliably. postshare.sh handles the ext4 conversion via a two-boot S00 hook
+# (boot-custom.sh runs mkfs.ext4 on the unmounted device before S11share).
+# No patching of S02resize, no format-internal, no gdisk — just stock Knulli
+# boot sequence with a drop-in S00 script.
 # Belt-and-suspenders: ensure no stale persistent-overlay file from an earlier
 # build approach lingers (its initramfs restore is what black-screened).
 rm -f "$boot_mp/boot/overlay" "$boot_mp/boot/._overlay" 2>/dev/null || true
