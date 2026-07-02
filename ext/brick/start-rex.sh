@@ -42,8 +42,9 @@ sleep 1
 nohup bash -c '
     APP="$1"
     cleanup() {
-        if [ -f "$APP/shutdown-host.sh" ]; then
-            "$APP/shutdown-host.sh"
+        if [ -f "$APP/shutdown-host.sh" ] && "$APP/shutdown-host.sh"; then
+            echo "=== rex exited at $(date -Iseconds), powering off ==="
+            return
         fi
         /etc/init.d/S31emulationstation start >/dev/null 2>&1
         echo "=== rex exited at $(date -Iseconds), ES restarted ==="

@@ -41,7 +41,6 @@ apps:
       icon: ⏻
       color: "1"
       command: /userdata/system/apps/rex/shutdown.sh
-      exclusive: true
 ssh_hosts: []
 
 # Keyboard input model: simple | chorded | chorded-simultaneous | front-chorded
