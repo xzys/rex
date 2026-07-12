@@ -22,8 +22,8 @@ apps:
     - name: games
       icon: ©
       color: "2"
-      command: /usr/bin/emulationstation/emulationstation.sh
-      exclusive: true
+      command: touch /userdata/system/apps/rex/start-es.flag && tmux kill-server
+      exclusive: false
     - name: btm
       icon: ↓
       color: "5"

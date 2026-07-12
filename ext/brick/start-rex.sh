@@ -34,10 +34,18 @@ fi
 # L1+R1, crash, SIGTERM, stop-rex.sh, or rex shutdown menu), just exit.
 nohup bash -c '
     APP="$1"
+    ES_FLAG="$APP/start-es.flag"
     cleanup() {
         if [ -f "$APP/shutdown-host.sh" ] && "$APP/shutdown-host.sh"; then
             echo "=== rex exited at $(date -Iseconds), powering off ==="
             return
+        fi
+        if [ -f "$ES_FLAG" ]; then
+            rm -f "$ES_FLAG"
+            echo "=== rex exited at $(date -Iseconds), launching EmulationStation ==="
+            emulationstation-standalone
+            echo "=== ES exited at $(date -Iseconds), restarting Rex ==="
+            exec "$APP/start-rex.sh"
         fi
         echo "=== rex exited at $(date -Iseconds) ==="
     }
