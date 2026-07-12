@@ -88,10 +88,12 @@ if ! grep -q "^wifi.enabled=1" /userdata/system/batocera.conf 2>/dev/null; then
 fi
 
 # Already installed: start Rex and exit.
+# Delay start to let the framebuffer initialize (S12 is early; termsp
+# needs /dev/fb0 which may not be ready until later in the boot).
 if [ -f "$MARKER_DONE" ]; then
-    echo "postshare: rex already installed, starting" >&2
+    echo "postshare: rex already installed, starting (delayed)" >&2
     if [ -x "$APP/start-rex.sh" ]; then
-        "$APP/start-rex.sh" &
+        (sleep 15 && "$APP/start-rex.sh") &
     fi
     exit 0
 fi
@@ -129,9 +131,9 @@ fi
 # Clean up leftover boot-custom.sh from the conversion boot.
 rm -f "$BOOTCUSTOM" 2>/dev/null || true
 
-# Start Rex.
+# Start Rex (delayed — framebuffer isn't ready at S12).
 if [ -x "$APP/start-rex.sh" ]; then
-    "$APP/start-rex.sh" &
+    (sleep 15 && "$APP/start-rex.sh") &
 fi
 
 exit 0
