@@ -29,6 +29,11 @@ apps:
       color: "4"
       command: lf
       exclusive: false
+    - name: games
+      icon: ©
+      color: "2"
+      command: touch /userdata/system/apps/rex/start-es.flag && tmux kill-server
+      exclusive: false
     - name: ssh
       icon: "~"
       color: "6"

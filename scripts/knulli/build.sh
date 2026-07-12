@@ -26,6 +26,7 @@
 #   KNULLI_IMG_SHA  override the expected sha256 (skips download of .sha256)
 #   PAYLOAD         override the rex-brick install tarball path
 #   CHROOT          override the brick-debian rootfs tarball path
+#   REX_DEBUG=1     leave ES enabled for WiFi config + shell access (debug)
 
 set -euo pipefail
 
@@ -104,6 +105,15 @@ echo "BATOCERA mount point: [$boot_mp]"
 
 # Copy overlay scripts
 cp "$OVERLAY/postshare.sh" "$boot_mp/postshare.sh"
+
+# Debug mode: REX_DEBUG=1 leaves ES enabled for WiFi config + shell access.
+# Rex is installed but does not auto-start; launch from ES menu.
+if [ "${REX_DEBUG:-}" = "1" ]; then
+    touch "$boot_mp/.rex-debug"
+    echo "==> debug mode: ES will auto-start, Rex available from ES menu"
+else
+    rm -f "$boot_mp/.rex-debug"
+fi
 
 # The rootfs (squashfs) and batocera-boot.conf are left 100% stock. Knulli's
 # first boot resizes SHARE to fill the card and formats it exFAT, which boots
