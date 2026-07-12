@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-deb package-deb-brick package-deb-r36s build-knulli-rex build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -136,7 +136,7 @@ sync-debian: ## Transfer Debian rootfs to Brick and extract to /userdata/debian
 		echo "Debian chroot ready."'
 	$(MAKE) setup-debian
 
-setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-code inside the chroot (idempotent)
+setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and pi inside the chroot (idempotent)
 	@echo "Installing sherpa/onnx libs into chroot /usr/local/lib and running ldconfig..."
 	ssh brick-root 'set -eu; \
 		for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do \
@@ -156,8 +156,8 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and claude-
 		} && \
 		[ -f /etc/apt/sources.list.d/nodesource.list ] || \
 			echo \"deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main\" > /etc/apt/sources.list.d/nodesource.list"'
-	@echo "Installing apt packages + claude-code + pi inside chroot..."
-	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs && apt install -y -qq -t bookworm-backports tmux && npm install -g @anthropic-ai/claude-code @earendil-works/pi-coding-agent 2>&1 | tail -5 && which claude && claude --version && which pi && pi --version && node --version && npm --version && tmux -V"'
+	@echo "Installing apt packages + pi inside chroot..."
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs && apt install -y -qq -t bookworm-backports tmux && npm install -g @earendil-works/pi-coding-agent 2>&1 | tail -5 && which pi && pi --version && node --version && npm --version && tmux -V"'
 	@echo "Generating en_US.UTF-8 locale in chroot..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
@@ -252,8 +252,8 @@ package: package-brick ## Build install tarball for Brick (used by the overlay i
 package-brick: ## Build dist/rex-brick-<v>.tar.gz (requires bin/rex-brick + bin/termsp)
 	bash scripts/package.sh brick
 
-build-knulli-rex: package-brick bin/brick-debian.tar.gz ## Build dist/knulli-rex-brick-<v>.img.gz with chroot bundled
-	bash scripts/knulli/build.sh
+package-overlay: package-brick bin/brick-debian.tar.gz ## Build dist/rex-brick-overlay-<v>.tar.gz (scripts + payload + chroot)
+	bash scripts/knulli/package-overlay.sh
 
 bin/brick-debian.tar.gz:
 	@echo "bin/brick-debian.tar.gz missing — running 'make bootstrap-debian'..."

@@ -4,6 +4,9 @@
 # then tars up the rootfs. The resulting chroot is ready-to-run — no apt or npm
 # needed on first boot.
 #
+# Does NOT include claude-code (@anthropic-ai/claude-code is proprietary and
+# cannot be redistributed). Users install it on-device via the More menu.
+#
 # Host can be macOS; on Apple Silicon this runs natively without QEMU emulation.
 
 set -euo pipefail
@@ -80,12 +83,12 @@ apt-get install -y -qq -t bookworm-backports tmux
 # Install Node 20 (replaces Debian's Node 18)
 apt-get install -y -qq nodejs
 
-# npm global installs (claude-code, pi)
-npm install -g @anthropic-ai/claude-code @earendil-works/pi-coding-agent 2>&1 | tail -5
+# npm global install (pi coding agent)
+npm install -g @earendil-works/pi-coding-agent 2>&1 | tail -5
 
-# Verify key system packages (don't run claude/pi — they need a full /dev
-# which isn't available in the Docker chroot during build)
+# Verify key system packages
 node --version
+npm --version
 tmux -V
 CHROOT_INSTALL
 
@@ -126,17 +129,17 @@ CHROOT_SSHD
 
 # --- Stage 9: fix npm permissions -------------------------------------
 # npm install -g as root creates files/dirs with root-only perms.
-# Make them world-readable so the rex user can run claude/pi.
+# Make them world-readable so the rex user can run pi.
 # NodeSource places global modules under /usr/lib/node_modules.
 chroot /rootfs bash -eux <<'CHROOT_PERM'
 chmod 755 /usr/lib/node_modules
-chmod -R go+rX /usr/lib/node_modules/@anthropic-ai 2>/dev/null || true
 chmod -R go+rX /usr/lib/node_modules/@earendil-works 2>/dev/null || true
 CHROOT_PERM
 
 # --- Stage 10: cleanup ------------------------------------------------
 chroot /rootfs apt-get clean
 rm -rf /rootfs/var/lib/apt/lists/*
+rm -rf /rootfs/root/.npm /rootfs/root/.cache
 
 # --- Stage 11: package into tarball -----------------------------------
 tar czf /output/$OUTNAME -C /rootfs .

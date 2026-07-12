@@ -160,8 +160,7 @@ if [ "$needs_setup" = 1 ]; then
     chroot_run_root "
         apt update -qq &&
         apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs &&
-        apt install -y -qq -t bookworm-backports tmux &&
-        npm install -g @anthropic-ai/claude-code 2>&1 | tail -3
+        apt install -y -qq -t bookworm-backports tmux
     "
 
     chroot_run_root "
