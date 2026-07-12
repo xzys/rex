@@ -76,10 +76,15 @@ fi
 
 # --- Boot 2+: ext4 — install (first time) or start Rex ------------------
 
-# Prevent ES from auto-starting on every boot. S31emulationstation reads this.
+# Prevent ES from auto-starting and enable WiFi hardware on every boot.
+# S31emulationstation reads system.es.atstartup.
+# ConnMan reads wifi.enabled to power up the WiFi chip.
 mkdir -p /userdata/system
 if ! grep -q "^system.es.atstartup=0" /userdata/system/batocera.conf 2>/dev/null; then
     echo "system.es.atstartup=0" >> /userdata/system/batocera.conf
+fi
+if ! grep -q "^wifi.enabled=1" /userdata/system/batocera.conf 2>/dev/null; then
+    echo "wifi.enabled=1" >> /userdata/system/batocera.conf
 fi
 
 # Already installed: start Rex and exit.
