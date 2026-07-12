@@ -10,7 +10,9 @@
 # On boot 2, boot-custom.sh converts exFAT → ext4 on the unmounted
 # device (no FUSE conflict, no gdisk corruption), then self-destructs.
 # S12 repopulates the skeleton, postshare copies bundles from /boot/,
-# extracts the payload, and wires rex-firstboot.sh → install-brick.sh → Rex.
+# on every boot postshare.sh checks the install marker. First time it runs
+# install-brick.sh and starts Rex. Subsequent boots start Rex directly.
+# ES is disabled via system.es.atstartup=0 — users launch it from the games menu.
 # The Debian chroot is extracted to a plain /userdata/debian directory.
 #
 # Only the FAT32 BATOCERA partition is modified, via hdiutil — no ext4/squashfs
@@ -102,7 +104,6 @@ echo "BATOCERA mount point: [$boot_mp]"
 
 # Copy overlay scripts
 cp "$OVERLAY/postshare.sh" "$boot_mp/postshare.sh"
-cp "$OVERLAY/rex-firstboot.sh" "$boot_mp/rex-firstboot.sh"
 
 # The rootfs (squashfs) and batocera-boot.conf are left 100% stock. Knulli's
 # first boot resizes SHARE to fill the card and formats it exFAT, which boots

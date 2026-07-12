@@ -196,16 +196,8 @@ fi
 # Always re-chown — rex binary copied as root via cp -f
 chroot_run_root "chown -R rex:rex /home/rex"
 
-# --- 6. autostart hint ------------------------------------------------------
-custom_sh=/userdata/system/custom.sh
-sshd_line="$APP/debian-sshd.sh"
-if [ -f "$custom_sh" ] && ! grep -qF "$sshd_line" "$custom_sh"; then
-    echo ""
-    echo "To start sshd in the chroot on every boot, append this line to $custom_sh:"
-    echo "  $sshd_line"
-fi
+# --- 6. done ---------------------------------------------------------------
 
 echo ""
 echo "rex installed."
-echo "  launch from EmulationStation:  Ports → Rex"
 echo "  launch over ssh from host:     ssh brick-root '$APP/start-rex.sh'"

@@ -1,8 +1,7 @@
 #!/bin/bash
-# Start Rex safely — stops ES (reclaims ~90 MB RAM), launches termsp on Knulli
-# with rex running inside the Debian chroot as termsp's PTY child.
-# Symmetric with Rex.sh (the ES menu launcher). Use stop-rex.sh to stop rex
-# early and let ES come back up.
+# Start Rex — launches termsp with the Debian chroot.
+# ES is already disabled via system.es.atstartup=0 in batocera.conf.
+# Users launch ES from the games menu tile if desired.
 # Designed to be called via SSH: ssh brick-root '/path/to/start-rex.sh'
 
 APP=/userdata/system/apps/rex
@@ -31,14 +30,8 @@ fi
 # root because /userdata/system is root-owned. Best-effort.
 "$APP/debian-enter.sh" --root /home/rex/bin/rex wifi capture >>/tmp/rex-launch.log 2>&1 || true
 
-# Stop ES (reclaims RAM). init.d is the same path Rex.sh uses from the ES menu.
-/etc/init.d/S31emulationstation stop >/dev/null 2>&1
-sleep 1
-
-# Background a subshell that owns the full lifecycle: launch termsp in the
-# foreground, and on ANY exit (clean tmux shutdown via L1+R1, crash, SIGTERM,
-# stop-rex.sh, or rex shutdown menu) fire an EXIT trap that checks for a
-# shutdown request before restarting ES.
+# Start Rex — termsp in foreground. On any exit (clean tmux shutdown via
+# L1+R1, crash, SIGTERM, stop-rex.sh, or rex shutdown menu), just exit.
 nohup bash -c '
     APP="$1"
     cleanup() {
@@ -46,15 +39,12 @@ nohup bash -c '
             echo "=== rex exited at $(date -Iseconds), powering off ==="
             return
         fi
-        /etc/init.d/S31emulationstation start >/dev/null 2>&1
-        echo "=== rex exited at $(date -Iseconds), ES restarted ==="
+        echo "=== rex exited at $(date -Iseconds) ==="
     }
     trap cleanup EXIT
 
     echo ""
     echo "=== rex starting at $(date -Iseconds) ==="
-    # No "exec" here — we need the shell to stay alive past termsp so the
-    # EXIT trap fires. env is a single-fork cost, termsp is the long-lived one.
     env \
         LD_LIBRARY_PATH="$APP/lib:$LD_LIBRARY_PATH" \
         PATH="$APP:$PATH" \

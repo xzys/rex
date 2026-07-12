@@ -39,12 +39,10 @@ trap 'rm -rf "$stage"' EXIT
 
 # Mirror the layout postshare.sh expects on the FAT32 partition:
 #   postshare.sh
-#   rex-firstboot.sh
 #   rex-bundle/
 #     rex-payload.tar.gz
 #     brick-debian.tar.gz
 cp "$OVERLAY/postshare.sh" "$stage/"
-cp "$OVERLAY/rex-firstboot.sh" "$stage/"
 mkdir -p "$stage/rex-bundle"
 cp "$PAYLOAD" "$stage/rex-bundle/rex-payload.tar.gz"
 cp "$CHROOT"   "$stage/rex-bundle/brick-debian.tar.gz"
