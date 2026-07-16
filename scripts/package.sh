@@ -81,6 +81,7 @@ stage_brick() {
     cp "$REPO_ROOT/ext/brick/Rex.sh" "$tools/Rex.sh"
 
     cp "$REPO_ROOT/bin/rex-brick" "$home/bin/rex"
+    cp "$REPO_ROOT/ext/kitten-tts/kitten-speak" "$home/bin/kitten-speak"
     cp "$REPO_ROOT/config/dot/tmux.conf" "$home/.tmux.conf"
     cp "$REPO_ROOT/config/dot/tmux-wifi.sh" "$home/.tmux-wifi.sh"
 
@@ -89,7 +90,7 @@ stage_brick() {
         "$app/debian-rex.sh" "$app/debian-sshd.sh" \
         "$app/debian-enter.sh" "$app/debian-cleanup.sh" \
         "$app/shutdown.sh" "$app/shutdown-host.sh" \
-        "$tools/Rex.sh" "$home/bin/rex" "$home/.tmux-wifi.sh"
+        "$tools/Rex.sh" "$home/bin/rex" "$home/bin/kitten-speak" "$home/.tmux-wifi.sh"
 
     cp "$INSTALL_DIR/install.sh" "$stage/install.sh"
     cp "$INSTALL_DIR/install-brick.sh" "$stage/install-brick.sh"

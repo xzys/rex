@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -81,8 +81,9 @@ sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and laun
 	scp config.yaml.brick.example brick-root:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf brick-root:/userdata/debian/home/rex/.tmux.conf
 	scp config/dot/tmux-wifi.sh brick-root:/userdata/debian/home/rex/.tmux-wifi.sh
+	scp ext/kitten-tts/kitten-speak brick-root:/userdata/debian/home/rex/bin/kitten-speak
 	ssh brick-root '[ -f /userdata/debian/home/rex/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/home/rex/.config/rex/config.yaml'
-	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/rex /userdata/debian/home/rex/.tmux-wifi.sh /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
+	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/rex /userdata/debian/home/rex/bin/kitten-speak /userdata/debian/home/rex/.tmux-wifi.sh /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
 	@echo "Fixing ownership of /home/rex inside chroot (scp lands files as root)..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "id rex >/dev/null 2>&1 && chown -R rex:rex /home/rex || echo warn: rex user not yet created, run make setup-debian"'
 
@@ -118,6 +119,10 @@ install-stt-parakeet: $(STT_PARAKEET_DIR)/model.int8.onnx ## Install Parakeet-TD
 
 install-stt-models: install-stt-sherpa install-stt-parakeet ## Install both STT models onto Brick so Settings app can switch dynamically
 	@echo "Done. Switch between stt_mode: sherpa / parakeet in the rex Settings app."
+
+install-kitten-tts-brick: ## Install optional KittenTTS binary + model into the Brick Debian chroot (ssh alias: brick)
+	@echo "Installing KittenTTS into Brick Debian chroot via ssh alias 'brick'..."
+	tar czf - -C ext/kitten-tts install-brick.sh kitten-speak | ssh brick 'set -e; d=$$(mktemp -d); tar xzf - -C "$$d"; bash "$$d/install-brick.sh"; rm -rf "$$d"'
 
 bootstrap-debian: ## Build Debian arm64 rootfs tarball for Brick chroot (bin/brick-debian.tar.gz)
 	bash scripts/bootstrap-debian-brick.sh

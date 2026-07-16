@@ -121,6 +121,28 @@ You can also reboot the device.
 
 The Brick `.deb` is a chroot-only binary upgrade. It does **not** update Knulli host files such as `/userdata/system/apps/rex/`, `Rex.sh`, or `custom.sh`. To refresh those host-side files, rerun the tarball installer from Path 2 with the current release.
 
+## Optional: KittenTTS on TrimUI Brick
+
+Rex includes a `kitten-speak` wrapper for optional local text-to-speech, but it does not bundle the third-party KittenTTS binary or model weights. Install those into the Brick Debian chroot from a Rex checkout on your workstation:
+
+```bash
+make install-kitten-tts-brick
+```
+
+This target assumes `ssh brick` connects to the Debian chroot as user `rex`. It downloads the unofficial `second-state/kitten_tts_rs` ARM64 Linux release and model archive, then installs:
+
+- `~/bin/kitten-tts`
+- `~/bin/kitten-tts-server`
+- `~/bin/kitten-speak`
+- `~/models/kitten-tts-mini/`
+
+Verify with:
+
+```bash
+ssh brick 'kitten-speak --list-voices'
+ssh brick 'kitten-speak "Hello from Rex on the Brick"'
+```
+
 ## Path 4: R36S package install
 
 Use this path for Boyhom R36S devices running dArkOSRE. dArkOSRE uses Debian trixie, so Rex installs with `apt` directly on the host system.
