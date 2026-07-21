@@ -30,6 +30,10 @@ fi
 # root because /userdata/system is root-owned. Best-effort.
 "$APP/debian-enter.sh" --root /home/rex/bin/rex wifi capture >>/tmp/rex-launch.log 2>&1 || true
 
+# Start sshd in the Debian chroot (port 2222) so the user can SSH in
+# as rex@brick. /run/sshd is on tmpfs and lost on reboot; create it first.
+"$APP/debian-enter.sh" --root "mkdir -p /run/sshd && /usr/sbin/sshd" >>/tmp/rex-launch.log 2>&1 || true
+
 # If ES is running (debug mode, launched from tools menu), stop it to free
 # the framebuffer before termsp starts. In production mode ES is already
 # disabled via atstartup=0, so this is a no-op.
