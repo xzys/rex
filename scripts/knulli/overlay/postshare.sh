@@ -26,9 +26,9 @@ set -u
 ACTION="${1:-start}"
 [ "$ACTION" = "start" ] || exit 0
 
-# All output from this point goes to the log and stderr.
-exec 1>>"$LOG"
-exec 2>&1
+# Ensure log directory exists, then tee output to the log file.
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+exec >>"$LOG" 2>&1
 
 MARKER_DONE=/userdata/.rex-installed
 BOOT_BUNDLE=/boot/rex-bundle
