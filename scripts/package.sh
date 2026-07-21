@@ -75,7 +75,7 @@ stage_brick() {
        "$REPO_ROOT/ext/brick/debian-cleanup.sh" \
        "$REPO_ROOT/ext/brick/shutdown.sh" \
        "$REPO_ROOT/ext/brick/shutdown-host.sh" \
-       "$REPO_ROOT/ext/brick/games.sh" \
+       "$REPO_ROOT/ext/brick/emulationstation.sh" \
        "$REPO_ROOT/ext/brick/connman-rex.conf" \
        "$app/"
     cp "$REPO_ROOT/config.yaml.brick.example" "$app/config.yaml.brick.example"
@@ -90,7 +90,7 @@ stage_brick() {
         "$app/start-rex.sh" "$app/stop-rex.sh" \
         "$app/debian-rex.sh" "$app/debian-sshd.sh" \
         "$app/debian-enter.sh" "$app/debian-cleanup.sh" \
-        "$app/shutdown.sh" "$app/shutdown-host.sh" "$app/games.sh" \
+        "$app/shutdown.sh" "$app/shutdown-host.sh" "$app/emulationstation.sh" \
         "$tools/Rex.sh" "$home/bin/rex" "$home/.tmux-wifi.sh"
 
     cp "$INSTALL_DIR/install.sh" "$stage/install.sh"
