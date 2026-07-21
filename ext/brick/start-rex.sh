@@ -35,7 +35,6 @@ fi
 # disabled via atstartup=0, so this is a no-op.
 if pidof emulationstation >/dev/null 2>&1; then
     /etc/init.d/S31emulationstation stop >/dev/null 2>&1
-    sleep 1
 fi
 
 # Start Rex — termsp in foreground. On any exit (clean tmux shutdown via
