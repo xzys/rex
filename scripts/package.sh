@@ -75,6 +75,7 @@ stage_brick() {
        "$REPO_ROOT/ext/brick/debian-cleanup.sh" \
        "$REPO_ROOT/ext/brick/shutdown.sh" \
        "$REPO_ROOT/ext/brick/shutdown-host.sh" \
+       "$REPO_ROOT/ext/brick/connman-rex.conf" \
        "$app/"
     cp "$REPO_ROOT/config.yaml.brick.example" "$app/config.yaml.brick.example"
 

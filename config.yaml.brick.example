@@ -32,7 +32,7 @@ apps:
     - name: games
       icon: ©
       color: "2"
-      command: touch /userdata/system/apps/rex/start-es.flag && tmux kill-server
+      command: touch /tmp/.rex-start-es && tmux kill-server
       exclusive: false
     - name: ssh
       icon: "~"

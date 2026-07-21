@@ -30,11 +30,19 @@ fi
 # root because /userdata/system is root-owned. Best-effort.
 "$APP/debian-enter.sh" --root /home/rex/bin/rex wifi capture >>/tmp/rex-launch.log 2>&1 || true
 
+# If ES is running (debug mode, launched from tools menu), stop it to free
+# the framebuffer before termsp starts. In production mode ES is already
+# disabled via atstartup=0, so this is a no-op.
+if pidof emulationstation >/dev/null 2>&1; then
+    /etc/init.d/S31emulationstation stop >/dev/null 2>&1
+    sleep 1
+fi
+
 # Start Rex — termsp in foreground. On any exit (clean tmux shutdown via
 # L1+R1, crash, SIGTERM, stop-rex.sh, or rex shutdown menu), just exit.
 nohup bash -c '
     APP="$1"
-    ES_FLAG="$APP/start-es.flag"
+    ES_FLAG=/tmp/.rex-start-es
     cleanup() {
         if [ -f "$APP/shutdown-host.sh" ] && "$APP/shutdown-host.sh"; then
             echo "=== rex exited at $(date -Iseconds), powering off ==="
