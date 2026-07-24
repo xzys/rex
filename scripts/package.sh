@@ -66,6 +66,21 @@ stage_brick() {
     else
         echo "warning: sherpa libs not found at $SHERPA_LIB_DIR — STT won't work" >&2
     fi
+
+    # STT model files.  Parakeet is the default (better quality: punctuation +
+    # casing).  Conformer-Small is optional — included when present.
+    mkdir -p "$app/stt" "$app/stt-parakeet"
+    PARAKEET_MODEL="$REPO_ROOT/bin/sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8"
+    if [ -f "$PARAKEET_MODEL/model.int8.onnx" ] && [ -f "$PARAKEET_MODEL/tokens.txt" ]; then
+        cp "$PARAKEET_MODEL/model.int8.onnx" "$PARAKEET_MODEL/tokens.txt" "$app/stt-parakeet/"
+    else
+        echo "warning: Parakeet STT model not found at $PARAKEET_MODEL — " >&2
+        echo "  voice dictation will show 'model not found'. Run: make install-stt-parakeet" >&2
+    fi
+    SHERPA_MODEL="$REPO_ROOT/bin/sherpa-onnx-nemo-ctc-en-conformer-small-2024-08-01"
+    if [ -f "$SHERPA_MODEL/model.int8.onnx" ] && [ -f "$SHERPA_MODEL/tokens.txt" ]; then
+        cp "$SHERPA_MODEL/model.int8.onnx" "$SHERPA_MODEL/tokens.txt" "$app/stt/"
+    fi
     cp "$REPO_ROOT/ext/fonts/"*.ttf "$app/fonts/"
     cp "$REPO_ROOT/ext/brick/start-rex.sh" \
        "$REPO_ROOT/ext/brick/stop-rex.sh" \

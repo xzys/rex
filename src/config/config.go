@@ -18,8 +18,8 @@ const (
 	DefaultDictWords                = 50000
 	configPathEnvVar                = "REX_CONFIG_PATH"
 
-	STTModeSherpa    = "sherpa"    // on-device STT via sherpa-onnx, NeMo Conformer-Small (Brick default)
-	STTModeParakeet  = "parakeet"  // on-device STT via sherpa-onnx, Parakeet-TDT-CTC 110M (Brick, with punctuation + casing)
+	STTModeSherpa    = "sherpa"    // on-device STT via sherpa-onnx, NeMo Conformer-Small
+	STTModeParakeet  = "parakeet"  // on-device STT via sherpa-onnx, Parakeet-TDT-CTC 110M (default, with punctuation + casing)
 	STTModeCompanion = "companion" // iOS companion app STT (R36S)
 
 	TimezoneDefault = "UTC"
@@ -51,7 +51,7 @@ type Config struct {
 	KeyboardCompact      bool     `yaml:"keyboard_compact"`
 	KeyboardAutocomplete bool     `yaml:"keyboard_autocomplete,omitempty"`
 	DictWords            int      `yaml:"dict_words,omitempty"`
-	STTMode              string   `yaml:"stt_mode,omitempty"`      // "sherpa" (default), "parakeet", or "companion"
+	STTMode              string   `yaml:"stt_mode,omitempty"`      // "parakeet" (default), "sherpa", or "companion"
 	DefaultVoice         bool     `yaml:"default_voice,omitempty"`        // open keyboard in voice mode by default
 	DefaultVoiceSticky   bool     `yaml:"default_voice_sticky,omitempty"` // persist voice/text toggle across keyboard launches
 	Timezone             string   `yaml:"timezone,omitempty"`             // IANA zone, e.g. "America/Los_Angeles"
@@ -157,7 +157,7 @@ func NormalizeSTTMode(mode string) string {
 	case STTModeSherpa, STTModeParakeet, STTModeCompanion:
 		return mode
 	default:
-		return STTModeSherpa
+		return STTModeParakeet
 	}
 }
 
