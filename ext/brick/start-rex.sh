@@ -55,7 +55,8 @@ nohup bash -c '
             echo "=== ES exited at $(date -Iseconds), restarting Rex ==="
             exec "$APP/start-rex.sh"
         fi
-        echo "=== rex exited at $(date -Iseconds) ==="
+        echo "=== rex exited at $(date -Iseconds), restarting Rex ==="
+        exec "$APP/start-rex.sh"
     }
     trap cleanup EXIT
 
