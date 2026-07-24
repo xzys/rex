@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -418,7 +419,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if pm, ok := msg.(wifiPoweredMsg); ok {
 		if pm.err != nil {
-			m.status = "wifi: " + pm.err.Error()
+			switch {
+			case errors.Is(pm.err, wifi.ErrNotAvailable):
+				m.status = "WiFi unavailable"
+			case errors.Is(pm.err, wifi.ErrBlocked):
+				m.status = "WiFi blocked (check D-Bus config)"
+			default:
+				m.status = "wifi: " + pm.err.Error()
+			}
 		} else {
 			on := pm.on
 			m.wifiPowered = &on

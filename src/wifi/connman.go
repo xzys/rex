@@ -1,11 +1,43 @@
 package wifi
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/godbus/dbus/v5"
 )
+
+// ErrNotAvailable is returned by WifiPowered / SetWifiPowered when the WiFi
+// technology object is not registered with ConnMan. Callers should treat this
+// as a transient condition — the XRADIO driver on the Brick can deregister
+// the interface, and it typically recovers on its own within a few seconds.
+var ErrNotAvailable = errors.New("WiFi not available")
+
+// ErrBlocked is returned when D-Bus policy rejects the message (e.g. the
+// connman-rex.conf drop-in is missing from /etc/dbus-1/system.d/ on a fresh
+// boot). Unlike ErrNotAvailable this does not self-recover.
+var ErrBlocked = errors.New("WiFi blocked by D-Bus policy")
+
+// classifyDBusError maps a D-Bus error to a user-friendly sentinel. Other
+// errors pass through unchanged.
+func classifyDBusError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var derr dbus.Error
+	if !errors.As(err, &derr) {
+		return err
+	}
+	switch derr.Name {
+	case "org.freedesktop.DBus.Error.UnknownObject",
+		"org.freedesktop.DBus.Error.UnknownMethod":
+		return ErrNotAvailable
+	case "org.freedesktop.DBus.Error.AccessDenied":
+		return ErrBlocked
+	}
+	return err
+}
 
 const (
 	busName       = "net.connman"
@@ -110,17 +142,22 @@ func isConnected(state string) bool {
 	return state == "online" || state == "ready"
 }
 
+// ScanWifi triggers a WiFi scan. Returns ErrNotAvailable if the WiFi
+// technology is not registered.
 func (c *Client) ScanWifi() error {
 	obj := c.conn.Object(busName, wifiTechPath)
-	return obj.Call(techIface+".Scan", 0).Err
+	return classifyDBusError(obj.Call(techIface+".Scan", 0).Err)
 }
 
 // WifiPowered reads the WiFi technology's Powered property.
+// Returns ErrNotAvailable if the WiFi technology is not registered with
+// ConnMan (e.g. driver flaked), or ErrBlocked if the D-Bus policy rejects
+// the call.
 func (c *Client) WifiPowered() (bool, error) {
 	obj := c.conn.Object(busName, wifiTechPath)
 	var props map[string]dbus.Variant
 	if err := obj.Call(techIface+".GetProperties", 0).Store(&props); err != nil {
-		return false, fmt.Errorf("GetProperties: %w", err)
+		return false, classifyDBusError(fmt.Errorf("GetProperties: %w", err))
 	}
 	v, ok := props["Powered"]
 	if !ok {
@@ -134,9 +171,12 @@ func (c *Client) WifiPowered() (bool, error) {
 }
 
 // SetWifiPowered toggles the WiFi technology on/off via ConnMan.
+// Returns ErrNotAvailable if the WiFi technology is not registered, or
+// ErrBlocked if the D-Bus policy rejects the call.
 func (c *Client) SetWifiPowered(on bool) error {
 	obj := c.conn.Object(busName, wifiTechPath)
-	return obj.Call(techIface+".SetProperty", 0, "Powered", dbus.MakeVariant(on)).Err
+	err := obj.Call(techIface+".SetProperty", 0, "Powered", dbus.MakeVariant(on)).Err
+	return classifyDBusError(err)
 }
 
 func (c *Client) Connect(path dbus.ObjectPath) error {
