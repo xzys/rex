@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# Generate speech with second-state/kitten_tts_rs and play it locally.
+# Intended runtime path on Brick: /home/rex/bin/kitten-speak
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: kitten-speak [options] [--] TEXT...
+       echo TEXT | kitten-speak [options]
+
+Options:
+  --voice VOICE       KittenTTS voice (default: $KITTEN_TTS_VOICE or Bruno)
+  --speed SPEED       Speech speed multiplier (default: $KITTEN_TTS_SPEED or 1.0)
+  --model DIR         Model directory (default: $KITTEN_TTS_MODEL or ~/models/kitten-tts-mini)
+  --output FILE       Keep generated WAV at FILE instead of a temp file
+  --no-play           Generate only; do not play audio
+  --list-voices       Print voices supported by the selected model
+  -h, --help          Show this help
+
+Environment:
+  KITTEN_TTS_BIN      kitten-tts executable (default: kitten-tts on PATH)
+  KITTEN_TTS_MODEL    model directory
+  KITTEN_TTS_VOICE    default voice
+  KITTEN_TTS_SPEED    default speed
+  KITTEN_TTS_PLAYER   playback command; set to "none" to skip playback
+EOF
+}
+
+voice="${KITTEN_TTS_VOICE:-Bruno}"
+speed="${KITTEN_TTS_SPEED:-1.0}"
+model="${KITTEN_TTS_MODEL:-$HOME/models/kitten-tts-mini}"
+out=""
+play=1
+list_voices=0
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --voice)
+            [ "$#" -ge 2 ] || { echo "--voice requires a value" >&2; exit 2; }
+            voice="$2"
+            shift 2
+            ;;
+        --speed)
+            [ "$#" -ge 2 ] || { echo "--speed requires a value" >&2; exit 2; }
+            speed="$2"
+            shift 2
+            ;;
+        --model)
+            [ "$#" -ge 2 ] || { echo "--model requires a value" >&2; exit 2; }
+            model="$2"
+            shift 2
+            ;;
+        --output|-o)
+            [ "$#" -ge 2 ] || { echo "--output requires a value" >&2; exit 2; }
+            out="$2"
+            shift 2
+            ;;
+        --no-play)
+            play=0
+            shift
+            ;;
+        --list-voices)
+            list_voices=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+kitten_tts="${KITTEN_TTS_BIN:-kitten-tts}"
+
+if ! command -v "$kitten_tts" >/dev/null 2>&1; then
+    echo "kitten-tts binary not found on PATH" >&2
+    echo "Run ext/kitten-tts/install-brick.sh on the Brick first." >&2
+    exit 127
+fi
+
+if [ ! -d "$model" ]; then
+    fallback="$(find "$HOME/models" -maxdepth 1 -type d -name 'kitten-tts-*' 2>/dev/null | sort | head -n 1 || true)"
+    if [ -n "$fallback" ]; then
+        model="$fallback"
+    else
+        echo "KittenTTS model directory not found: $model" >&2
+        echo "Run ext/kitten-tts/install-brick.sh on the Brick first." >&2
+        exit 1
+    fi
+fi
+
+if [ "$list_voices" -eq 1 ]; then
+    exec "$kitten_tts" "$model" "" --list-voices
+fi
+
+if [ "$#" -gt 0 ]; then
+    text="$*"
+elif [ -t 0 ]; then
+    usage >&2
+    exit 2
+else
+    text="$(cat)"
+fi
+
+if [ -z "${text//[[:space:]]/}" ]; then
+    echo "no text to speak" >&2
+    exit 2
+fi
+
+cleanup=""
+if [ -z "$out" ]; then
+    out="$(mktemp /tmp/rex-kitten-tts.XXXXXX.wav)"
+    cleanup="$out"
+else
+    mkdir -p "$(dirname "$out")"
+fi
+
+if [ -n "$cleanup" ]; then
+    trap 'rm -f "$cleanup"' EXIT
+fi
+
+"$kitten_tts" "$model" "$text" --voice "$voice" --speed "$speed" --output "$out"
+
+if [ "$play" -eq 0 ] || [ "${KITTEN_TTS_PLAYER:-}" = "none" ]; then
+    printf '%s\n' "$out"
+    trap - EXIT
+    exit 0
+fi
+
+if [ -n "${KITTEN_TTS_PLAYER:-}" ]; then
+    "$KITTEN_TTS_PLAYER" "$out"
+elif command -v aplay >/dev/null 2>&1; then
+    aplay -q "$out"
+elif command -v paplay >/dev/null 2>&1; then
+    paplay "$out"
+elif command -v afplay >/dev/null 2>&1; then
+    afplay "$out"
+else
+    echo "No audio player found (tried aplay, paplay, afplay). WAV saved at: $out" >&2
+    trap - EXIT
+    exit 0
+fi

@@ -112,6 +112,9 @@ fi
 echo "==> installing rex binary into chroot at /home/rex/bin/rex"
 install -d -m 755 "$REX_HOME/bin" "$REX_HOME/.config/rex"
 cp -f "$PAYLOAD/home-rex/bin/rex" "$REX_HOME/bin/rex"
+if [ -f "$PAYLOAD/home-rex/bin/kitten-speak" ]; then
+    cp -f "$PAYLOAD/home-rex/bin/kitten-speak" "$REX_HOME/bin/kitten-speak"
+fi
 cp -f "$PAYLOAD/home-rex/.tmux.conf" "$REX_HOME/.tmux.conf"
 cp -f "$PAYLOAD/home-rex/.tmux-wifi.sh" "$REX_HOME/.tmux-wifi.sh"
 chmod +x "$REX_HOME/.tmux-wifi.sh"
@@ -122,6 +125,7 @@ if [ ! -f "$REX_HOME/.config/rex/config.yaml" ]; then
 fi
 
 chmod +x "$REX_HOME/bin/rex"
+[ -f "$REX_HOME/bin/kitten-speak" ] && chmod +x "$REX_HOME/bin/kitten-speak"
 
 # Copy sherpa libs into chroot /usr/local/lib so rex resolves them at runtime.
 # Always run ldconfig afterward — the chroot setup block may be skipped for
