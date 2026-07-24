@@ -4,9 +4,9 @@
 
 ```
 ┌──────────┐
-│   R36S   │
+│   Brick   │
 └────┬─────┘
-     │ SDL events
+     │ SDL events (gamepad / keyboard)
 ┌────▼─────────────────────────────────────────────────────┐
 │                          Daemon                          │
 │  ┌────────────────────────────────────────────────────┐  │
@@ -118,7 +118,7 @@ All output goes to `/tmp/rex-launch.log` on the host (daemon, termsp, shell scri
 Rex's own stderr (panics, fatal errors) also goes to `/tmp/rex-stderr.log` inside
 the chroot, which is visible on the host at the same path (bind mount).
 
-### R36S / local
+### Local dev
 
 Logs are written to `/tmp/rex.log` with debug-level output.
 
