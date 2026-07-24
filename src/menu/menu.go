@@ -289,8 +289,16 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.scrollToCursor()
 		case "down", "j":
-			if m.cursor+m.itemsPerRow < len(m.effectiveApps()) {
-				m.cursor += m.itemsPerRow
+			n := len(m.effectiveApps())
+			if n == 0 {
+				break
+			}
+			target := m.cursor + m.itemsPerRow
+			if target >= n {
+				target = n - 1
+			}
+			if target != m.cursor {
+				m.cursor = target
 			}
 			m.scrollToCursor()
 		case "enter":
@@ -457,27 +465,26 @@ func (m *Menu) View() string {
 	}
 	visibleRows := rows[m.rowOffset:end]
 
-	// Scroll indicators.
-	scrollStyle := lipgloss.NewStyle().
-		Width(m.width - 2*layout.MarginX).
-		Align(lipgloss.Center).
-		Foreground(lipgloss.Color("8"))
-	upArrow := ""
-	if m.rowOffset > 0 {
-		upArrow = scrollStyle.Render("▲") + "\n"
-	}
-	downArrow := ""
-	if end < len(rows) {
-		downArrow = "\n" + scrollStyle.Render("▼")
-	}
-
 	gapStyle := lipgloss.NewStyle().MarginBottom(layout.Gap / 2)
 	var gappedRows []string
 	for _, row := range visibleRows {
 		gappedRows = append(gappedRows, gapStyle.Render(row))
 	}
 
-	grid := upArrow + lipgloss.JoinVertical(lipgloss.Left, gappedRows...) + downArrow
+	grid := lipgloss.JoinVertical(lipgloss.Left, gappedRows...)
+
+	// Scroll indicators — match the grid's natural width so centering works.
+	gridWidth := lipgloss.Width(grid)
+	scrollStyle := lipgloss.NewStyle().
+		Width(gridWidth).
+		Align(lipgloss.Center).
+		Foreground(lipgloss.Color("8"))
+	if m.rowOffset > 0 {
+		grid = scrollStyle.Render("▲") + "\n" + grid
+	}
+	if end < len(rows) {
+		grid = grid + "\n" + scrollStyle.Render("▼")
+	}
 
 	gridHeight := m.height
 	if m.sshHost != nil {
