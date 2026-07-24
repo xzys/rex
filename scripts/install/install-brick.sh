@@ -54,12 +54,13 @@ REX_HOME="$DEBIAN_ROOT/home/rex"
 echo "==> installing $APP"
 mkdir -p "$APP/lib" "$APP/fonts"
 cp -f "$PAYLOAD/apps-rex/termsp" "$APP/termsp"
+cp -f "$PAYLOAD/apps-rex/rex-wifid" "$APP/rex-wifid"
 cp -f "$PAYLOAD/apps-rex/lib/"*.so "$APP/lib/"
 cp -f "$PAYLOAD/apps-rex/fonts/"*.ttf "$APP/fonts/"
 cp -f "$PAYLOAD/apps-rex/"*.sh "$APP/"
 cp -f "$PAYLOAD/apps-rex/config.yaml.brick.example" "$APP/config.yaml.brick.example"
 ln -sf libvterm.so "$APP/lib/libvterm.so.0"
-chmod +x "$APP/termsp" "$APP"/*.sh
+chmod +x "$APP/termsp" "$APP/rex-wifid" "$APP"/*.sh
 
 # Install STT model files so voice dictation works.
 for model_dir in stt stt-parakeet; do

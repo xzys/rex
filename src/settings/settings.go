@@ -103,9 +103,10 @@ type Model struct {
 	rexOnBoot     bool
 	status        string
 	screen        screenKind
-	wifiClient    *wifi.Client
+	wifiClient    wifi.WiFiClient
 	wifiModel     *wifi.Model
-	wifiPowered   *bool // nil = not yet queried
+	wifiPowered   *bool     // nil = not yet queried
+	lastToggle    time.Time // suppress tick re-query briefly after a toggle
 	backlight     *backlight
 	brightnessPct int    // 0..100, only meaningful when backlight != nil
 	prevWindow    string // tmux window name before entering wifi sub-screen
@@ -217,11 +218,11 @@ func (m *Model) closeWifi() {
 // ensureWifiClient lazily opens a single ConnMan dbus connection shared by
 // the WiFi power toggle and the wifi sub-screen. Returns nil + sets status
 // on failure (e.g. dbus unavailable).
-func (m *Model) ensureWifiClient() *wifi.Client {
+func (m *Model) ensureWifiClient() wifi.WiFiClient {
 	if m.wifiClient != nil {
 		return m.wifiClient
 	}
-	c, err := wifi.NewClient()
+	c, err := wifi.Dial()
 	if err != nil {
 		m.status = "wifi: " + err.Error()
 		return nil
@@ -254,10 +255,11 @@ func (m *Model) toggleWifiPowered() tea.Cmd {
 		if err := c.SetWifiPowered(want); err != nil {
 			return wifiPoweredMsg{err: err}
 		}
-		// Re-query after the change so the displayed state reflects what
-		// ConnMan actually settled on (it may reject e.g. when rfkill blocks).
-		on, err := c.WifiPowered()
-		return wifiPoweredMsg{on: on, err: err}
+		// Return the desired state immediately — don't re-query. ConnMan
+		// may not have settled yet, and reading back the old state causes
+		// the toggle to flicker. The 2-second tick corrects if ConnMan
+		// rejected the change (e.g. rfkill blocks).
+		return wifiPoweredMsg{on: want}
 	}
 }
 
@@ -407,11 +409,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if _, ok := msg.(settingsTickMsg); ok {
 		// Re-query WiFi power while on the settings list so the row self-
-		// corrects after a toggle ConnMan applied asynchronously. The wifi
-		// sub-screen runs its own refresh loop, so skip there. Always re-arm
-		// the tick so it resumes when we return to the list.
+		// corrects after a toggle ConnMan applied asynchronously. Skip
+		// for 3 s after a user toggle to avoid racing with ConnMan's
+		// async settle (which would flip the toggle back).
 		var q tea.Cmd
-		if m.screen == screenSettings && m.wifiClient != nil {
+		if m.screen == screenSettings && m.wifiClient != nil &&
+			time.Since(m.lastToggle) > 3*time.Second {
 			q = m.queryWifiPowered()
 		}
 		return m, tea.Batch(q, settingsTick())
@@ -449,6 +452,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.moveCursor(1)
 		case "left", "h":
 			if r := m.rows[m.cursor]; r.kind == rowValue && r.id == idWifiOn {
+				m.lastToggle = time.Now()
 				return m, m.toggleWifiPowered()
 			}
 			m.cycleMode(-1)
@@ -458,6 +462,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case idWifi:
 					return m, m.openWifi()
 				case idWifiOn:
+					m.lastToggle = time.Now()
 					return m, m.toggleWifiPowered()
 				}
 			}

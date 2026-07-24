@@ -118,6 +118,16 @@ func (c *Client) Wifi() ([]Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	return filterWifi(all), nil
+}
+
+func isConnected(state string) bool {
+	return state == "online" || state == "ready"
+}
+
+// filterWifi returns only WiFi-typed services, sorted by connected first,
+// then favorites, then signal strength.
+func filterWifi(all []Service) []Service {
 	out := all[:0]
 	for _, s := range all {
 		if s.Type == "wifi" {
@@ -125,7 +135,6 @@ func (c *Client) Wifi() ([]Service, error) {
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		// connected first, then favorites, then by signal
 		ci, cj := isConnected(out[i].State), isConnected(out[j].State)
 		if ci != cj {
 			return ci
@@ -135,11 +144,22 @@ func (c *Client) Wifi() ([]Service, error) {
 		}
 		return out[i].Strength > out[j].Strength
 	})
-	return out, nil
+	return out
 }
 
-func isConnected(state string) bool {
-	return state == "online" || state == "ready"
+// WiFiClient is the interface shared by the D-Bus client (used by rex-wifid)
+// and the socket RPC client (used by rex inside the chroot).
+type WiFiClient interface {
+	WifiPowered() (bool, error)
+	SetWifiPowered(on bool) error
+	Services() ([]Service, error)
+	Wifi() ([]Service, error)
+	ScanWifi() error
+	Connect(path dbus.ObjectPath) error
+	ConnectWithPassphrase(path dbus.ObjectPath, passphrase string) error
+	Disconnect(path dbus.ObjectPath) error
+	Remove(path dbus.ObjectPath) error
+	Close() error
 }
 
 // ScanWifi triggers a WiFi scan. Returns ErrNotAvailable if the WiFi

@@ -37,7 +37,7 @@ sync-auth-r36s: ## Sync Codex, pi, and Claude auth to r36s
 	security find-generic-password -s "Claude Code-credentials" -w | ssh r36s 'umask 077 && cat > /home/ark/.claude/.credentials.json'
 	ssh r36s 'chmod 600 ~/.codex/auth.json ~/.pi/agent/auth.json ~/.claude/.credentials.json'
 
-build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+brick tags)
+build-docker-brick: ## Build rex and rex-wifid for TrimUI Brick (cross-compile ARM64, SDL+brick tags)
 	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t brick-rex-builder src/
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/root/go/pkg/mod \
@@ -47,6 +47,14 @@ build-docker-brick: ## Build rex for TrimUI Brick (cross-compile ARM64, SDL+bric
 		-w /app \
 		brick-rex-builder \
 		go build -tags "sdl brick sherpa" -o /output/rex-brick
+	docker run --rm --platform linux/amd64 \
+		-v go-mod-cache:/root/go/pkg/mod \
+		-v go-build-cache:/root/.cache/go-build \
+		-v $$(pwd)/src:/app \
+		-v $$(pwd)/bin:/output \
+		-w /app \
+		brick-rex-builder \
+		go build -tags brick -o /output/rex-wifid ./cmd/rex-wifid
 
 build-docker-termsp: ## Build TermSP for TrimUI Brick (cross-compile ARM64, outputs bin/termsp)
 	docker buildx build --platform linux/amd64 --load -t termsp-builder ext/TermSP/
@@ -68,16 +76,18 @@ textdump-brick: ## Trigger TermSP screen-text dump on Brick and pull bin/termsp-
 	scp brick-root:/tmp/termsp-text.txt bin/termsp-text.txt
 	@echo "Saved bin/termsp-text.txt"
 
-sync-brick: ## Deploy rex (into Debian chroot), termsp (Knulli), fonts, and launch scripts to TrimUI Brick
+sync-brick: ## Deploy rex (into Debian chroot), rex-wifid (Knulli host), termsp, fonts, and launch scripts to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."
 	ssh brick-root 'mkdir -p /userdata/system/apps/rex/fonts /userdata/system/apps/rex/lib /userdata/roms/ports /userdata/debian/home/rex/bin /userdata/debian/home/rex/.config/rex'
 	scp bin/rex-brick brick-root:/userdata/debian/home/rex/bin/rex
+	scp bin/rex-wifid brick-root:/userdata/system/apps/rex/rex-wifid
+	ssh brick-root 'chmod +x /userdata/system/apps/rex/rex-wifid'
 	scp bin/termsp brick-root:/userdata/system/apps/rex/termsp
 	scp ext/TermSP/TermSP/libs/libsdlfox.so ext/TermSP/TermSP/libs/libvterm.so brick-root:/userdata/system/apps/rex/lib/
 	ssh brick-root 'ln -sf libvterm.so /userdata/system/apps/rex/lib/libvterm.so.0'
 	scp ext/fonts/*.ttf brick-root:/userdata/system/apps/rex/fonts/
 	scp ext/brick/Rex.sh brick-root:/userdata/roms/tools/Rex.sh
-	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh ext/brick/connman-rex.conf brick-root:/userdata/system/apps/rex/
+	scp ext/brick/start-rex.sh ext/brick/stop-rex.sh ext/brick/debian-rex.sh ext/brick/debian-sshd.sh brick-root:/userdata/system/apps/rex/
 	scp config.yaml.brick.example brick-root:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf brick-root:/userdata/debian/home/rex/.tmux.conf
 	scp config/dot/tmux-wifi.sh brick-root:/userdata/debian/home/rex/.tmux-wifi.sh

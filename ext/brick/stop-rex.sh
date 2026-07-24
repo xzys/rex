@@ -17,5 +17,7 @@ pkill -f "rex server"
 pkill -f "rex keyboard"
 pkill -f "tmux .*-s rex" 2>/dev/null
 pkill -f "rex$"
+pkill -x rex-wifid 2>/dev/null || true
+rm -f /tmp/rex-wifi.sock
 
 echo "rex stopped"

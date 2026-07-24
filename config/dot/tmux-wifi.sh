@@ -1,19 +1,24 @@
 #!/bin/sh
-# Print wifi status for the tmux status bar: 'off' when no link, otherwise the
-# SSID. Reads via `iw` (nl80211) since the Knulli kernel exposes neither
-# /proc/net/wireless nor /sys/class/net/*/wireless/*.
+# Print wifi status for the tmux status bar. Queries the rex-wifid daemon
+# over its Unix socket (visible inside the chroot via /tmp bind mount).
+# Falls back to 'off' if the daemon isn't reachable.
 export LC_ALL=C.UTF-8
-iface=wlan0
 
-carrier=$(cat /sys/class/net/$iface/carrier 2>/dev/null)
-if [ "$carrier" != "1" ]; then
-  printf 'off'
-  exit 0
-fi
+out=$(python3 -c "
+import socket, json
+try:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(1)
+    s.connect('/tmp/rex-wifi.sock')
+    s.sendall(b'{\"id\":\"1\",\"cmd\":\"status\"}\n')
+    resp = json.loads(s.recv(4096))
+    print(resp.get('ssid',''))
+except:
+    print('')
+" 2>/dev/null)
 
-ssid=$(/usr/sbin/iw dev $iface link 2>/dev/null | awk -F': ' '/^\tSSID:/ {print $2; exit}')
-if [ -z "$ssid" ]; then
-  printf 'off'
+if [ -z "$out" ]; then
+    printf 'off'
 else
-  printf '%s' "$ssid"
+    printf '%s' "$out"
 fi

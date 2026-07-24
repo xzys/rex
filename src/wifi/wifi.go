@@ -21,7 +21,7 @@ type errMsg struct{ err error }
 type doneMsg struct{ verb string }
 
 type Model struct {
-	client   *Client
+	client   WiFiClient
 	services []Service // visible from ConnMan
 	saved    []Service // saved profiles not currently visible (Path empty)
 	cursor   int       // index into services++saved
@@ -49,7 +49,7 @@ func Run() error {
 	// auto-reconnects on next boot. Don't fail the TUI if this errors.
 	_, _ = CaptureBatocera()
 
-	c, err := NewClient()
+	c, err := Dial()
 	if err != nil {
 		return err
 	}
@@ -61,11 +61,12 @@ func Run() error {
 	return err
 }
 
-// NewModel constructs a wifi Model around an already-open ConnMan dbus
-// client. The caller retains ownership of the client and is responsible for
-// closing it. Useful when embedding the wifi screen inside another bubbletea
-// program (e.g. settings) that wants to reuse the same connection.
-func NewModel(c *Client) *Model {
+// NewModel constructs a wifi Model around an already-open WiFi client
+// (either D-Bus or socket RPC). The caller retains ownership of the client
+// and is responsible for closing it. Useful when embedding the wifi screen
+// inside another bubbletea program (e.g. settings) that wants to reuse the
+// same connection.
+func NewModel(c WiFiClient) *Model {
 	return &Model{client: c}
 }
 
@@ -73,7 +74,7 @@ func NewModel(c *Client) *Model {
 func List() error {
 	_, _ = CaptureBatocera()
 
-	c, err := NewClient()
+	c, err := Dial()
 	if err != nil {
 		return err
 	}

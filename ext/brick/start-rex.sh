@@ -12,23 +12,20 @@ if [ -x /usr/bin/brightness ]; then
     cp -f /usr/bin/brightness "$APP/brightness" && chmod 755 "$APP/brightness"
 fi
 
-# Install ConnMan dbus policy if missing — root /etc is on tmpfs overlay so this
-# is lost on reboot. Lets uid 1000 (rex inside chroot) talk to net.connman for
-# `rex wifi`. No-op if already present or source file missing.
-if [ -f "$APP/connman-rex.conf" ] && [ ! -f /etc/dbus-1/system.d/connman-rex.conf ]; then
-    cp "$APP/connman-rex.conf" /etc/dbus-1/system.d/connman-rex.conf
-    chmod 644 /etc/dbus-1/system.d/connman-rex.conf
-    dbus-send --system --type=method_call --dest=org.freedesktop.DBus / \
-        org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
+# Start the WiFi daemon (rex-wifid) — runs as root on the Knulli host, talks
+# to ConnMan over D-Bus. Rex inside the chroot talks to it over a Unix socket
+# at /tmp/rex-wifi.sock (visible inside the chroot via /tmp bind mount).
+# The daemon also snapshots ES wifi credentials on startup.
+if ! pidof rex-wifid >/dev/null 2>&1; then
+    rm -f /tmp/rex-wifi.sock
+    env DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+        "$APP/rex-wifid" >>/tmp/rex-launch.log 2>&1 &
+    # Wait for the socket to appear (daemon starts quickly).
+    for i in $(seq 1 50); do
+        [ -S /tmp/rex-wifi.sock ] && break
+        sleep 0.1
+    done
 fi
-
-# Snapshot whatever wifi credentials ES has left in batocera.conf into the
-# persistent ConnMan provisioning file (/userdata/system/network-connman.config).
-# /var/lib/connman is on the volatile rootfs and only the current batocera.conf
-# SSID gets re-provisioned at boot; this accumulates every network the user has
-# ever connected to via ES so they auto-reconnect across reboots. Must run as
-# root because /userdata/system is root-owned. Best-effort.
-"$APP/debian-enter.sh" --root /home/rex/bin/rex wifi capture >>/tmp/rex-launch.log 2>&1 || true
 
 # Start sshd in the Debian chroot (port 2222) so the user can SSH in
 # as rex@brick. /run/sshd is on tmpfs and lost on reboot; create it first.

@@ -49,6 +49,7 @@ stage_brick() {
     mkdir -p "$app/lib" "$app/fonts" "$tools" "$home/bin" "$home/.config/rex"
 
     require_file "$REPO_ROOT/bin/rex-brick" "make build-docker-brick"
+    require_file "$REPO_ROOT/bin/rex-wifid" "make build-docker-brick"
     require_file "$REPO_ROOT/bin/termsp" "make build-docker-termsp"
     require_file "$REPO_ROOT/ext/TermSP/TermSP/libs/libsdlfox.so" \
         "git submodule update --init ext/TermSP/TermSP"
@@ -56,6 +57,7 @@ stage_brick() {
         "git submodule update --init ext/TermSP/TermSP"
 
     cp "$REPO_ROOT/bin/termsp" "$app/termsp"
+    cp "$REPO_ROOT/bin/rex-wifid" "$app/rex-wifid"
     cp "$REPO_ROOT/ext/TermSP/TermSP/libs/libsdlfox.so" "$app/lib/"
     cp "$REPO_ROOT/ext/TermSP/TermSP/libs/libvterm.so" "$app/lib/"
     # Sherpa STT runtime libs (aarch64, from sherpa-onnx-go-linux module)
@@ -91,7 +93,6 @@ stage_brick() {
        "$REPO_ROOT/ext/brick/shutdown.sh" \
        "$REPO_ROOT/ext/brick/shutdown-host.sh" \
        "$REPO_ROOT/ext/brick/emulationstation.sh" \
-       "$REPO_ROOT/ext/brick/connman-rex.conf" \
        "$app/"
     cp "$REPO_ROOT/config.yaml.brick.example" "$app/config.yaml.brick.example"
 
@@ -101,7 +102,7 @@ stage_brick() {
     cp "$REPO_ROOT/config/dot/tmux.conf" "$home/.tmux.conf"
     cp "$REPO_ROOT/config/dot/tmux-wifi.sh" "$home/.tmux-wifi.sh"
 
-    chmod +x "$app/termsp" \
+    chmod +x "$app/termsp" "$app/rex-wifid" \
         "$app/start-rex.sh" "$app/stop-rex.sh" \
         "$app/debian-rex.sh" "$app/debian-sshd.sh" \
         "$app/debian-enter.sh" "$app/debian-cleanup.sh" \
