@@ -39,7 +39,17 @@ if pidof emulationstation >/dev/null 2>&1; then
 fi
 
 # Start Rex — termsp in foreground. On any exit (clean tmux shutdown via
-# L1+R1, crash, SIGTERM, stop-rex.sh, or rex shutdown menu), just exit.
+# L1+R1, crash, SIGTERM, stop-rex.sh, or rex shutdown menu) the EXIT trap
+# handles restart/shutdown/ES dispatch.
+#
+# Guard against double-launch: if termsp is already running, start-rex.sh
+# was called while rex is active (e.g. from the EXIT restart loop racing
+# with a manual start). Skip silently.
+if pidof termsp >/dev/null 2>&1; then
+    echo "=== rex already running (termsp pid $(pidof termsp)), skipping start ===" >> /tmp/rex-launch.log
+    exit 0
+fi
+
 nohup bash -c '
     APP="$1"
     ES_FLAG=/tmp/.rex-start-es
