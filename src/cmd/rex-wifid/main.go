@@ -99,9 +99,20 @@ func handle(conn net.Conn, client *wifi.Client) {
 		}
 		write(conn, dispatch(client, req))
 	}
+	if err := sc.Err(); err != nil {
+		log.Printf("client %s: %v", conn.RemoteAddr(), err)
+	}
 }
 
 func dispatch(c *wifi.Client, req request) response {
+	resp := dispatchRaw(c, req)
+	if resp.Error != "" {
+		log.Printf("req %s cmd=%s: %s", resp.ID, req.Cmd, resp.Error)
+	}
+	return resp
+}
+
+func dispatchRaw(c *wifi.Client, req request) response {
 	switch req.Cmd {
 	case "ping":
 		return response{ID: req.ID, Ok: true}
