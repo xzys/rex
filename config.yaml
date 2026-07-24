@@ -5,9 +5,9 @@ layout:
     square_size: 9
 apps:
     - name: ncmpcpp
-      icon: √
+      icon: ♫
       color: "1"
-      command: ncmpcpp
+      command: /home/rex/bin/ncmpcpp
       exclusive: false
     - name: lazygit
       icon: ¥

@@ -24,6 +24,11 @@ apps:
       color: "6"
       command: zot
       exclusive: false
+    - name: ncmpcpp
+      icon: ♫
+      color: "1"
+      command: /home/rex/bin/ncmpcpp
+      exclusive: false
     - name: lazygit
       icon: ¥
       color: "3"
@@ -43,6 +48,11 @@ apps:
       icon: "~"
       color: "6"
       command: rex menu --ssh
+    - name: btm
+      icon: ↓
+      color: "5"
+      command: btm
+      exclusive: false
     - name: settings
       icon: "*"
       color: "8"
