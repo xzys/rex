@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp build-docker-kitten-tts screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -65,6 +65,15 @@ build-docker-termsp: ## Build TermSP for TrimUI Brick (cross-compile ARM64, outp
 		termsp-builder \
 		bash build.sh
 
+build-docker-kitten-tts: ## Build kitten-tts for TrimUI Brick (cross-compile ARM64, outputs bin/kitten-tts)
+	docker buildx build --platform linux/arm64 --load -t kitten-tts-builder ext/kitten-tts/
+	docker run --rm --platform linux/arm64 \
+		-v $$(pwd)/ext/kitten-tts:/app \
+		-v $$(pwd)/bin:/output \
+		-w /app \
+		kitten-tts-builder \
+		/app/build.sh
+
 screenshot-brick: ## Trigger TermSP screenshot on Brick and pull bin/termsp-screenshot.png
 	ssh brick-root 'pkill -USR1 termsp && sleep 1 && ls -la /tmp/termsp-screenshot.png'
 	scp brick-root:/tmp/termsp-screenshot.png bin/termsp-screenshot.png
@@ -91,6 +100,7 @@ sync-brick: ## Deploy rex (into Debian chroot), rex-wifid (Knulli host), termsp,
 	scp config.yaml.brick.example brick-root:/userdata/system/apps/rex/config.yaml.brick.example
 	scp config/dot/tmux.conf brick-root:/userdata/debian/home/rex/.tmux.conf
 	scp config/dot/tmux-wifi.sh brick-root:/userdata/debian/home/rex/.tmux-wifi.sh
+	scp bin/kitten-tts brick-root:/userdata/debian/home/rex/bin/kitten-tts
 	scp ext/kitten-tts/kitten-speak brick-root:/userdata/debian/home/rex/bin/kitten-speak
 	ssh brick-root '[ -f /userdata/debian/home/rex/.config/rex/config.yaml ] || cp /userdata/system/apps/rex/config.yaml.brick.example /userdata/debian/home/rex/.config/rex/config.yaml'
 	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/rex /userdata/debian/home/rex/bin/kitten-speak /userdata/debian/home/rex/.tmux-wifi.sh /userdata/system/apps/rex/termsp /userdata/roms/tools/Rex.sh /userdata/system/apps/rex/start-rex.sh /userdata/system/apps/rex/stop-rex.sh /userdata/system/apps/rex/debian-rex.sh /userdata/system/apps/rex/debian-sshd.sh'
@@ -172,7 +182,7 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and pi insi
 		[ -f /etc/apt/sources.list.d/nodesource.list ] || \
 			echo \"deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main\" > /etc/apt/sources.list.d/nodesource.list"'
 	@echo "Installing apt packages + pi inside chroot..."
-	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs && apt install -y -qq -t bookworm-backports tmux && npm install -g @earendil-works/pi-coding-agent 2>&1 | tail -5 && which pi && pi --version && node --version && npm --version && tmux -V"'
+	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs espeak-ng && apt install -y -qq -t bookworm-backports tmux && npm install -g @earendil-works/pi-coding-agent 2>&1 | tail -5 && which pi && pi --version && node --version && npm --version && tmux -V"'
 	@echo "Generating en_US.UTF-8 locale in chroot..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "\
 		grep -q ^en_US.UTF-8 /etc/locale.gen || echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \

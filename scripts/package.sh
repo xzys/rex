@@ -69,6 +69,15 @@ stage_brick() {
         echo "warning: sherpa libs not found at $SHERPA_LIB_DIR — STT won't work" >&2
     fi
 
+    # KittenTTS runtime: official onnxruntime (needed for proper SONAME libonnxruntime.so.1)
+    ORT_TGZ="$REPO_ROOT/bin/onnxruntime-linux-aarch64-1.23.2.tgz"
+    if [ ! -f "$ORT_TGZ" ]; then
+        echo "==> Downloading onnxruntime 1.23.2 for KittenTTS..."
+        curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-aarch64-1.23.2.tgz" -o "$ORT_TGZ"
+    fi
+    mkdir -p "$app/ort"
+    tar xzf "$ORT_TGZ" -C "$app/ort" --strip-components=1 onnxruntime-linux-aarch64-1.23.2/lib/libonnxruntime.so.1.23.2
+
     # STT model files.  Parakeet is the default (better quality: punctuation +
     # casing).  Conformer-Small is optional — included when present.
     mkdir -p "$app/stt" "$app/stt-parakeet"
@@ -99,6 +108,7 @@ stage_brick() {
     cp "$REPO_ROOT/ext/brick/Rex.sh" "$tools/Rex.sh"
 
     cp "$REPO_ROOT/bin/rex-brick" "$home/bin/rex"
+    cp "$REPO_ROOT/bin/kitten-tts" "$home/bin/kitten-tts" 2>/dev/null || echo "warning: bin/kitten-tts not found — TTS won't be available" >&2
     cp "$REPO_ROOT/ext/kitten-tts/kitten-speak" "$home/bin/kitten-speak"
     cp "$REPO_ROOT/config/dot/tmux.conf" "$home/.tmux.conf"
     cp "$REPO_ROOT/config/dot/tmux-wifi.sh" "$home/.tmux-wifi.sh"
@@ -108,7 +118,7 @@ stage_brick() {
         "$app/debian-rex.sh" "$app/debian-sshd.sh" \
         "$app/debian-enter.sh" "$app/debian-cleanup.sh" \
         "$app/shutdown.sh" "$app/shutdown-host.sh" "$app/emulationstation.sh" \
-        "$tools/Rex.sh" "$home/bin/rex" "$home/bin/kitten-speak" "$home/.tmux-wifi.sh"
+        "$tools/Rex.sh" "$home/bin/rex" "$home/bin/kitten-tts" "$home/bin/kitten-speak" "$home/.tmux-wifi.sh"
 
     cp "$INSTALL_DIR/install.sh" "$stage/install.sh"
     cp "$INSTALL_DIR/install-brick.sh" "$stage/install-brick.sh"
