@@ -26,9 +26,9 @@ set -u
 ACTION="${1:-start}"
 [ "$ACTION" = "start" ] || exit 0
 
-# All output from this point goes to the log and stderr.
-exec 1>>"$LOG"
-exec 2>&1
+# Ensure log directory exists, then tee output to the log file.
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+exec >>"$LOG" 2>&1
 
 MARKER_DONE=/userdata/.rex-installed
 BOOT_BUNDLE=/boot/rex-bundle
@@ -76,57 +76,65 @@ fi
 
 # --- Boot 2+: ext4 — install (first time) or start Rex ------------------
 
-# Prevent ES from auto-starting on every boot. S31emulationstation reads this.
+DEBUG_FLAG=/boot/.rex-debug
+
+# Enable WiFi hardware on every boot (ConnMan reads wifi.enabled).
 mkdir -p /userdata/system
+if ! grep -q "^wifi.enabled=1" /userdata/system/batocera.conf 2>/dev/null; then
+    echo "wifi.enabled=1" >> /userdata/system/batocera.conf
+fi
+
+# --- First install (if not yet done) -----------------------------------
+if [ ! -f "$MARKER_DONE" ]; then
+    echo "postshare: /userdata is ext4, running first-time install" >&2
+
+    if [ -d "$BOOT_BUNDLE" ]; then
+        mkdir -p "$BUNDLE"
+        if [ -f "$BOOT_BUNDLE/rex-payload.tar.gz" ] && [ ! -f "$BUNDLE/rex-payload.tar.gz" ]; then
+            cp "$BOOT_BUNDLE/rex-payload.tar.gz" "$BUNDLE/rex-payload.tar.gz"
+        fi
+    fi
+
+    [ -f "$PAYLOAD" ] || { echo "postshare: payload not found" >&2; exit 1; }
+
+    rm -rf "$STAGE"
+    mkdir -p "$STAGE"
+    tar xzf "$PAYLOAD" -C "$STAGE" --no-same-owner
+
+    INNER="$(find "$STAGE" -maxdepth 1 -mindepth 1 -type d | head -n1)"
+    [ -d "$INNER" ] || { echo "postshare: no payload dir found" >&2; exit 1; }
+
+    echo "$(date -Iseconds): running installer" >&2
+    if "$INNER/install.sh" 2>&1; then
+        touch "$MARKER_DONE"
+        echo "$(date -Iseconds): install complete" >&2
+    else
+        echo "$(date -Iseconds): install failed — will retry on next boot" >&2
+        exit 1
+    fi
+
+    # Clean up leftover boot-custom.sh from the conversion boot.
+    rm -f "$BOOTCUSTOM" 2>/dev/null || true
+fi
+
+# --- Debug mode: leave ES enabled, don't auto-start Rex ----------------
+if [ -f "$DEBUG_FLAG" ]; then
+    echo "postshare: debug mode — ES will auto-start, Rex available from ES menu" >&2
+    exit 0
+fi
+
+# --- Production mode: disable ES, auto-start Rex -----------------------
 if ! grep -q "^system.es.atstartup=0" /userdata/system/batocera.conf 2>/dev/null; then
     echo "system.es.atstartup=0" >> /userdata/system/batocera.conf
 fi
 
-# Already installed: start Rex and exit.
+# Already installed: start Rex and exit (delayed for framebuffer init).
 if [ -f "$MARKER_DONE" ]; then
-    echo "postshare: rex already installed, starting" >&2
+    echo "postshare: rex already installed, starting (delayed)" >&2
     if [ -x "$APP/start-rex.sh" ]; then
-        "$APP/start-rex.sh" &
+        (sleep 15 && "$APP/start-rex.sh") &
     fi
     exit 0
-fi
-
-# --- First install ------------------------------------------------------
-echo "postshare: /userdata is ext4, running first-time install" >&2
-
-# Copy payload from BATOCERA to SHARE.
-if [ -d "$BOOT_BUNDLE" ]; then
-    mkdir -p "$BUNDLE"
-    if [ -f "$BOOT_BUNDLE/rex-payload.tar.gz" ] && [ ! -f "$BUNDLE/rex-payload.tar.gz" ]; then
-        cp "$BOOT_BUNDLE/rex-payload.tar.gz" "$BUNDLE/rex-payload.tar.gz"
-    fi
-fi
-
-[ -f "$PAYLOAD" ] || { echo "postshare: payload not found" >&2; exit 1; }
-
-# Extract and run the installer.
-rm -rf "$STAGE"
-mkdir -p "$STAGE"
-tar xzf "$PAYLOAD" -C "$STAGE" --no-same-owner
-
-INNER="$(find "$STAGE" -maxdepth 1 -mindepth 1 -type d | head -n1)"
-[ -d "$INNER" ] || { echo "postshare: no payload dir found" >&2; exit 1; }
-
-echo "$(date -Iseconds): running installer" >&2
-if "$INNER/install.sh" 2>&1; then
-    touch "$MARKER_DONE"
-    echo "$(date -Iseconds): install complete, starting Rex" >&2
-else
-    echo "$(date -Iseconds): install failed — will retry on next boot" >&2
-    exit 1
-fi
-
-# Clean up leftover boot-custom.sh from the conversion boot.
-rm -f "$BOOTCUSTOM" 2>/dev/null || true
-
-# Start Rex.
-if [ -x "$APP/start-rex.sh" ]; then
-    "$APP/start-rex.sh" &
 fi
 
 exit 0

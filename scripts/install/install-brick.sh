@@ -61,6 +61,16 @@ cp -f "$PAYLOAD/apps-rex/config.yaml.brick.example" "$APP/config.yaml.brick.exam
 ln -sf libvterm.so "$APP/lib/libvterm.so.0"
 chmod +x "$APP/termsp" "$APP"/*.sh
 
+# Install STT model files so voice dictation works.
+for model_dir in stt stt-parakeet; do
+    if [ -d "$PAYLOAD/apps-rex/$model_dir" ] && [ -n "$(ls -A "$PAYLOAD/apps-rex/$model_dir" 2>/dev/null)" ]; then
+        echo "==> installing STT model: $model_dir"
+        mkdir -p "$APP/$model_dir"
+        cp -f "$PAYLOAD/apps-rex/$model_dir/"* "$APP/$model_dir/"
+        chmod -R a+rX "$APP/$model_dir"
+    fi
+done
+
 echo "==> installing $TOOLS/Rex.sh (ES menu launcher)"
 mkdir -p "$TOOLS"
 cp -f "$PAYLOAD/roms-tools/Rex.sh" "$TOOLS/Rex.sh"

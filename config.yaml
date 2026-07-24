@@ -22,8 +22,8 @@ apps:
     - name: games
       icon: ©
       color: "2"
-      command: /usr/bin/emulationstation/emulationstation.sh
-      exclusive: true
+      command: /userdata/system/apps/rex/emulationstation.sh
+      exclusive: false
     - name: btm
       icon: ↓
       color: "5"

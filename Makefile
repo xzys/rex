@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -202,6 +202,7 @@ setup-debian: ## (Re)install Debian packages, sherpa libs, rex user, and pi insi
 # .deb downloads: aptui (apt TUI), bottom/btm (system monitor)
 APTUI_VERSION := 0.7.0
 BOTTOM_VERSION := 0.12.3
+ZOT_VERSION ?= 0.2.93
 setup-debian-extras: ## Install curated extras into the chroot (ncmpcpp+mpd, btm, aptui, fzf, htop)
 	@echo "Installing apt extras (ncmpcpp mpd fzf htop)..."
 	ssh brick-root '/userdata/system/apps/rex/debian-enter.sh --root "apt update -qq && apt install -y -qq ncmpcpp mpd fzf htop"'
@@ -214,6 +215,13 @@ setup-debian-extras: ## Install curated extras into the chroot (ncmpcpp+mpd, btm
 		[ -f bottom_$(BOTTOM_VERSION)-1_arm64.deb ] || curl -fsSLO https://github.com/ClementTsang/bottom/releases/download/$(BOTTOM_VERSION)/bottom_$(BOTTOM_VERSION)-1_arm64.deb && \
 		sudo dpkg -i bottom_$(BOTTOM_VERSION)-1_arm64.deb || sudo apt-get install -f -y'
 	@echo "Done. Run on brick: aptui, btm, ncmpcpp"
+
+setup-debian-zot: build-docker-ext-zot ## Install zot (coding agent) into the chroot
+	@echo "Installing zot $(ZOT_VERSION) into chroot..."
+	scp bin/zot brick-root:/userdata/debian/home/rex/bin/zot
+	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/zot'
+	@echo "zot $(ZOT_VERSION) installed. Configure API keys via env vars or ~/.local/state/zot/"
+	@echo "Run on brick: zot"
 
 build-docker-ext-%: ## Build program from ext/
 	docker buildx build --platform linux/amd64 --load -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*

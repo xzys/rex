@@ -19,6 +19,11 @@ apps:
       color: "5"
       command: pi --no-tools
       exclusive: false
+    - name: zot
+      icon: Z
+      color: "6"
+      command: zot
+      exclusive: false
     - name: lazygit
       icon: ¥
       color: "3"
@@ -28,6 +33,11 @@ apps:
       icon: ≠
       color: "4"
       command: lf
+      exclusive: false
+    - name: games
+      icon: ©
+      color: "2"
+      command: /userdata/system/apps/rex/emulationstation.sh
       exclusive: false
     - name: ssh
       icon: "~"
@@ -46,6 +56,6 @@ ssh_hosts: []
 # Keyboard input model: simple | chorded | chorded-simultaneous | front-chorded
 keyboard_mode: chorded
 # Keyboard layout: 4x8 | 3-row
-keyboard_layout: 4x8
+keyboard_layout: 3-row
 # 4x8 view: grid | fan. Ignored when keyboard_layout is 3-row.
 keyboard_view: grid
