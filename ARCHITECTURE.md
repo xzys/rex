@@ -112,6 +112,14 @@ Manual harness:
 
 ## Logging
 
+### Brick
+
+All output goes to `/tmp/rex-launch.log` on the host (daemon, termsp, shell scripts).
+Rex's own stderr (panics, fatal errors) also goes to `/tmp/rex-stderr.log` inside
+the chroot, which is visible on the host at the same path (bind mount).
+
+### R36S / local
+
 Logs are written to `/tmp/rex.log` with debug-level output.
 
 ## Design Decisions
