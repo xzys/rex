@@ -640,7 +640,7 @@ func (m *Model) View() string {
 	}
 	visible := rowLines[start:end]
 
-	help := hintStyle.Render("↑/↓ select row • ←/→ change • esc back")
+	help := hintStyle.Render("↑/↓ select row • ←/→ change • B back")
 
 	var content strings.Builder
 	content.WriteString(titleStyle.Render("Settings"))

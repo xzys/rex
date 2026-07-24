@@ -173,7 +173,7 @@ func (s *SSHSelect) View() string {
 	}
 
 	content.WriteString("\n")
-	content.WriteString(barStyle.Render("↑/↓ navigate • enter select • esc cancel"))
+	content.WriteString(barStyle.Render("↑/↓ navigate • A select • B cancel"))
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).

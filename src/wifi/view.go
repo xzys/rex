@@ -43,7 +43,7 @@ func (m *Model) View() string {
 
 	help := dimSt.Render(truncate("↑/↓ • A conn • X disc • Y refr • R3 forget • B back", innerWidth))
 	if m.pwTarget.Path != "" {
-		help = dimSt.Render(truncate("type passphrase • ⏎ connect • tab show/hide • esc cancel", innerWidth))
+		help = dimSt.Render(truncate("type passphrase • A connect • tab show/hide • B cancel", innerWidth))
 	}
 
 	var top strings.Builder
@@ -57,7 +57,7 @@ func (m *Model) View() string {
 	top.WriteString("\n")
 
 	if len(m.services) == 0 {
-		top.WriteString(dimSt.Render("no networks. press r to scan."))
+		top.WriteString(dimSt.Render("no networks. press Y to scan."))
 	} else {
 		for i, s := range m.services {
 			row := formatRow(s, innerWidth, false)

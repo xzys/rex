@@ -258,7 +258,13 @@ func (m *Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "q", "esc":
+			if m.inMoreView {
+				m.inMoreView = false
+				m.cursor = 0
+				m.rowOffset = 0
+				return m, nil
+			}
 			return m, tea.Quit
 		case "b":
 			if m.inMoreView {
@@ -337,6 +343,8 @@ func (m *Menu) calculateLayout() {
 	if m.sshHost != nil {
 		gridArea -= 1
 	}
+	// Reserve up to 2 lines for scroll indicators (▲/▼).
+	gridArea -= 2
 	if rowHeight > 0 {
 		m.rowsFit = gridArea / rowHeight
 		if m.rowsFit < 1 {
@@ -449,13 +457,27 @@ func (m *Menu) View() string {
 	}
 	visibleRows := rows[m.rowOffset:end]
 
+	// Scroll indicators.
+	scrollStyle := lipgloss.NewStyle().
+		Width(m.width - 2*layout.MarginX).
+		Align(lipgloss.Center).
+		Foreground(lipgloss.Color("8"))
+	upArrow := ""
+	if m.rowOffset > 0 {
+		upArrow = scrollStyle.Render("▲") + "\n"
+	}
+	downArrow := ""
+	if end < len(rows) {
+		downArrow = "\n" + scrollStyle.Render("▼")
+	}
+
 	gapStyle := lipgloss.NewStyle().MarginBottom(layout.Gap / 2)
 	var gappedRows []string
 	for _, row := range visibleRows {
 		gappedRows = append(gappedRows, gapStyle.Render(row))
 	}
 
-	grid := lipgloss.JoinVertical(lipgloss.Left, gappedRows...)
+	grid := upArrow + lipgloss.JoinVertical(lipgloss.Left, gappedRows...) + downArrow
 
 	gridHeight := m.height
 	if m.sshHost != nil {
