@@ -1,8 +1,10 @@
 package keyboard
 
-// STTProvider transcribes raw PCM audio bytes into text.
+// STTProvider transcribes speech into text. The only real implementation is
+// RemoteSTTProvider — transcription runs server-side so the keyboard never
+// loads a model. The interface is kept for tests/fakes.
 type STTProvider interface {
-	// Initialize loads the model. Called once, may be slow.
+	// Initialize blocks until the backend is ready.
 	Initialize() error
 	Transcribe(audio []byte, sampleRate int) (string, error)
 }

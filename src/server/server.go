@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/protocol"
 )
 
@@ -41,6 +42,7 @@ type Server struct {
 	operator    *GlobalOperator
 	disabled    atomic.Bool
 	voiceWS     *VoiceWebSocket
+	stt         *sttEngine
 }
 
 func NewServer() *Server {
@@ -66,6 +68,13 @@ func NewServer() *Server {
 	})
 	server.voiceWS.onClientChange = func(connected bool) {
 		server.sendCompanionStatus(connected)
+	}
+
+	// Local STT engine (parakeet/sherpa modes). Model loads once and stays
+	// resident so the keyboard doesn't wait on it at every launch.
+	server.stt = newSTTEngine()
+	server.stt.onReady = func() {
+		server.sendCompanionStatus(true)
 	}
 
 	return server
@@ -144,6 +153,11 @@ func (s *Server) Run() (runErr error) {
 		// Non-fatal — server works without companion app
 	}
 	defer s.voiceWS.Stop()
+
+	// Warm-load the STT model so it's ready before the keyboard first opens
+	if mode := currentSTTMode(); mode != cfg.STTModeCompanion {
+		s.stt.Ensure(mode)
+	}
 
 	go s.handleControlConnections(controlListener)
 
@@ -224,7 +238,49 @@ func (s *Server) handleConnections(inputConn, outputConn net.Conn) error {
 	}
 }
 
+// currentSTTMode re-reads config on each use so Settings app changes take
+// effect without a daemon restart.
+func currentSTTMode() string {
+	mode := ""
+	if loaded, err := cfg.LoadConfig(); err == nil {
+		mode = loaded.STTMode
+	}
+	return cfg.NormalizeSTTMode(mode)
+}
+
 func (s *Server) handleVoiceCommand(action string) {
+	mode := currentSTTMode()
+	if mode == cfg.STTModeCompanion {
+		s.handleCompanionVoiceCommand(action)
+		return
+	}
+
+	s.stt.Ensure(mode)
+	switch action {
+	case "start":
+		if err := s.stt.StartRecording(); err != nil {
+			slog.Error("voice: start recording failed", "err", err)
+		}
+	case "stop":
+		// Transcribe in a goroutine so we don't block the message loop
+		go func() {
+			text, err := s.stt.StopAndTranscribe()
+			if err != nil {
+				slog.Error("voice: transcribe failed", "err", err)
+				s.sendVoiceText("", true)
+				return
+			}
+			slog.Info("voice: transcribed", "text", text)
+			s.sendVoiceText(text, true)
+		}()
+	case "status":
+		s.sendCompanionStatus(s.stt.Ready())
+	default:
+		slog.Warn("unknown voice command action", "action", action)
+	}
+}
+
+func (s *Server) handleCompanionVoiceCommand(action string) {
 	switch action {
 	case "start":
 		if err := s.voiceWS.SendStart(); err != nil {
@@ -263,6 +319,8 @@ func (s *Server) handleVoiceCommand(action string) {
 	}
 }
 
+// sendCompanionStatus reports STT readiness to the keyboard: companion app
+// connected (companion mode) or local model loaded (parakeet/sherpa modes).
 func (s *Server) sendCompanionStatus(connected bool) {
 	if s.encoder == nil {
 		return

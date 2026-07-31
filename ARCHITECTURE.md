@@ -78,6 +78,23 @@
   X=Escape, B=backspace with repeat, D-Pad Up/Down=Up/Down arrows,
   D-Pad Left/Right=scroll page up/down.
 
+### Speech-to-Text (`stt/`, `server/stt_engine.go`)
+
+- The STT model runs inside the long-running daemon, not the keyboard app.
+  The daemon warm-loads the sherpa-onnx recognizer (Parakeet by default) at
+  startup and keeps it resident, so opening the keyboard in voice mode is
+  instant.
+- The keyboard's `RemoteSTTProvider` drives it over the existing Unix-socket
+  protocol: `voice_command` (start/stop/status) → daemon records via
+  `arecord` and transcribes → `voice_text` back to the keyboard, which types
+  the result. `companion_status` reports backend readiness (model loaded, or
+  iOS companion app connected in `companion` mode).
+- `stt_mode` is re-read from config on every voice entry / voice command, so
+  switching parakeet/sherpa/companion in Settings applies without a restart
+  (a parakeet↔sherpa switch reloads the model in the background).
+- TODO: run the recognizer as a small supervised subprocess the daemon can
+  restart, so a crash in the CGo/onnx stack can't take down input handling.
+
 ### Keyboard Models
 
 - **Chorded**: Modifier + trigger combinations (L1/R1/L2 + D-Pad/buttons), supports shift and numbers modes

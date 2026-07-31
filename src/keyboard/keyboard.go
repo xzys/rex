@@ -41,8 +41,8 @@ type Keyboard struct {
 	rowOffsets   []int
 	minKeyWidth  int
 	paneHeight   int
-	// voice companion mode
-	sttMode string // "sherpa" or "companion"
+	// voice mode
+	sttMode string // "parakeet", "sherpa", or "companion"
 	// when true, voice/text toggles are written back to config so the next
 	// keyboard launch resumes in the same mode
 	stickyVoice bool
@@ -71,21 +71,21 @@ func (k *Keyboard) createVoiceModel() *VoiceModel {
 	if fresh, err := cfg.LoadConfig(); err == nil {
 		sttMode = cfg.NormalizeSTTMode(fresh.STTMode)
 	}
+	k.sttMode = sttMode
 
-	if sttMode == cfg.STTModeCompanion {
-		provider := NewCompanionSTTProvider(func(action string) error {
-			if k.encoder == nil {
-				return fmt.Errorf("not connected to server")
-			}
-			msg := protocol.VoiceCommandMessage{
-				BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeVoiceCommand},
-				Action:      action,
-			}
-			return k.encoder.Encode(msg)
-		})
-		return NewVoiceModel(provider)
-	}
-	return NewVoiceModel(defaultSTTProvider(sttMode))
+	// STT always runs server-side (resident model in the daemon, or the iOS
+	// companion app); the keyboard just sends voice commands and waits for text.
+	provider := NewRemoteSTTProvider(func(action string) error {
+		if k.encoder == nil {
+			return fmt.Errorf("not connected to server")
+		}
+		msg := protocol.VoiceCommandMessage{
+			BaseMessage: protocol.BaseMessage{Type: protocol.MessageTypeVoiceCommand},
+			Action:      action,
+		}
+		return k.encoder.Encode(msg)
+	})
+	return NewVoiceModel(provider, sttMode == cfg.STTModeCompanion)
 }
 
 func NewKeyboard(keyboardMode string, dictWords int, compact bool, autocomplete bool, sttMode string, defaultVoice bool, stickyVoice bool, keyboardView string, keyboardLayout string) *Keyboard {
@@ -209,32 +209,32 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Process the input and send response, then read next message
 		return k, tea.Sequence(k.handleDeviceInput(msg), k.ReadSocket)
 	case protocol.VoiceTextMessage:
-		// Server received final transcription from iOS companion app.
-		// Deliver to CompanionSTTProvider so Transcribe() unblocks.
+		// Server produced a final transcription (local model or companion app).
+		// Deliver to RemoteSTTProvider so Transcribe() unblocks.
 		if vm, ok := k.model.(*VoiceModel); ok {
-			if companion, ok := vm.STTProvider().(*CompanionSTTProvider); ok {
+			if remote, ok := vm.STTProvider().(*RemoteSTTProvider); ok {
 				select {
-				case companion.FinalCh <- msg.Text:
+				case remote.FinalCh <- msg.Text:
 				default:
-					slog.Warn("companion finalCh full, dropping")
+					slog.Warn("remote stt finalCh full, dropping")
 				}
 			}
 		}
 		return k, k.ReadSocket
 	case protocol.CompanionStatusMessage:
-		// Server reports companion app connection state change.
-		// Deliver to CompanionSTTProvider so Initialize() can unblock.
+		// Server reports STT readiness change (model loaded / companion connected).
+		// Deliver to RemoteSTTProvider so Initialize() can unblock.
 		if vm, ok := k.model.(*VoiceModel); ok {
-			if companion, ok := vm.STTProvider().(*CompanionSTTProvider); ok {
+			if remote, ok := vm.STTProvider().(*RemoteSTTProvider); ok {
 				// Drain-and-resend to avoid blocking the Update loop.
 				select {
-				case companion.ConnectedCh <- msg.Connected:
+				case remote.ReadyCh <- msg.Connected:
 				default:
 					select {
-					case <-companion.ConnectedCh:
+					case <-remote.ReadyCh:
 					default:
 					}
-					companion.ConnectedCh <- msg.Connected
+					remote.ReadyCh <- msg.Connected
 				}
 			}
 		}

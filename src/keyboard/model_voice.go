@@ -42,25 +42,20 @@ type VoiceModel struct {
 	state        voiceState
 	pendingCmd   tea.Cmd
 	stt          STTProvider
-	audio        *AudioCapture // nil in companion mode (iPhone captures audio)
 	errMsg       string
 	spinnerFrame int
 	deleting     bool
-	isCompanion  bool
-	heldDPad     int // -1 when nothing held; guards against stale repeat ticks
-	holdGen      int // bumped on dpad down/up to invalidate stale ticks
+	isCompanion  bool // companion mode: iPhone records; otherwise the daemon records
+	heldDPad     int  // -1 when nothing held; guards against stale repeat ticks
+	holdGen      int  // bumped on dpad down/up to invalidate stale ticks
 }
 
-func NewVoiceModel(provider STTProvider) *VoiceModel {
-	_, isCompanion := provider.(*CompanionSTTProvider)
+func NewVoiceModel(provider STTProvider, isCompanion bool) *VoiceModel {
 	m := &VoiceModel{
 		state:       stateInitializing,
 		stt:         provider,
 		isCompanion: isCompanion,
 		heldDPad:    -1,
-	}
-	if !isCompanion {
-		m.audio = NewAudioCapture()
 	}
 	// Queue async initialization — keyboard.go will drain this
 	stt := m.stt
@@ -157,33 +152,22 @@ func (m *VoiceModel) HandleKey(key int, isKeyDown bool) *string {
 	case protocol.KeyY:
 		if isKeyDown {
 			if m.state == stateIdle {
-				if m.audio != nil {
-					if err := m.audio.Start(); err != nil {
-						slog.Error("failed to start recording", "err", err)
-						m.setError("mic failed")
-						return nil
-					}
-				}
 				m.state = stateRecording
 				slog.Info("voice: recording started")
-				// Notify companion app to start recording (no-op for sherpa/stub)
+				// Tell the server to start recording (daemon mic or companion app)
 				if starter, ok := m.stt.(interface{ NotifyStart() }); ok {
 					starter.NotifyStart()
 				}
 			}
 		} else {
 			if m.state == stateRecording {
-				var pcm []byte
-				if m.audio != nil {
-					pcm = m.audio.Stop()
-				}
 				m.state = stateProcessing
 				m.spinnerFrame = 0
-				slog.Info("voice: recording stopped, starting STT", "pcm_bytes", len(pcm))
+				slog.Info("voice: recording stopped, waiting for transcription")
 
 				stt := m.stt
 				m.pendingCmd = func() tea.Msg {
-					text, err := stt.Transcribe(pcm, 16000)
+					text, err := stt.Transcribe(nil, 16000)
 					return STTResultMsg{Text: text, Err: err}
 				}
 			}

@@ -1,6 +1,6 @@
 //go:build sherpa
 
-package keyboard
+package stt
 
 import (
 	"encoding/binary"
@@ -10,11 +10,13 @@ import (
 	"path/filepath"
 
 	sherpa "github.com/k2-fsa/sherpa-onnx-go/sherpa_onnx"
+
+	cfg "github.com/xrfr/t-rex/v2/config"
 )
 
 const (
-	sttModelDirSherpa   = "/userdata/system/apps/rex/stt"
-	sttModelDirParakeet = "/userdata/system/apps/rex/stt-parakeet"
+	modelDirSherpa   = "/userdata/system/apps/rex/stt"
+	modelDirParakeet = "/userdata/system/apps/rex/stt-parakeet"
 )
 
 type SherpaOnnxProvider struct {
@@ -89,14 +91,23 @@ func (p *SherpaOnnxProvider) Transcribe(audio []byte, sampleRate int) (string, e
 	return result.Text, nil
 }
 
-func defaultSTTProvider(sttMode string) STTProvider {
+func (p *SherpaOnnxProvider) Close() {
+	if p.recognizer != nil {
+		sherpa.DeleteOfflineRecognizer(p.recognizer)
+		p.recognizer = nil
+	}
+}
+
+// NewProvider returns the recognizer for the given stt_mode
+// ("parakeet" or "sherpa"). Companion mode never reaches here.
+func NewProvider(sttMode string) Provider {
 	modelDir := os.Getenv("REX_STT_MODEL_DIR")
 	if modelDir == "" {
 		switch sttMode {
-		case "parakeet":
-			modelDir = sttModelDirParakeet
+		case cfg.STTModeParakeet:
+			modelDir = modelDirParakeet
 		default:
-			modelDir = sttModelDirSherpa
+			modelDir = modelDirSherpa
 		}
 	}
 	return NewSherpaOnnxProvider(modelDir)
