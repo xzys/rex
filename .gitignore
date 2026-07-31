@@ -4,3 +4,4 @@ dist
 rex-local
 .env
 .DS_Store
+.worktrees
