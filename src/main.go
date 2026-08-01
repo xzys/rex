@@ -137,8 +137,9 @@ func main() {
 		outFile := fs.String("o", "", "output text file (default ~/dictations/<timestamp>.txt)")
 		fs.Parse(args)
 
-		config, _ := cfg.LoadConfig()
-		err = dictator.Run(cfg.NormalizeSTTMode(config.STTMode), *outFile)
+		// STT mode comes from the daemon's config — dictator sends audio to
+		// the daemon's resident model instead of loading its own.
+		err = dictator.Run(*outFile)
 	case "wifi":
 		fs := flag.NewFlagSet("wifi", flag.ExitOnError)
 		fs.Usage = func() {

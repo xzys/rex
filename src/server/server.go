@@ -16,6 +16,7 @@ import (
 
 	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/protocol"
+	"github.com/xrfr/t-rex/v2/stt"
 )
 
 type InputDevice interface {
@@ -114,7 +115,7 @@ func (s *Server) Run() (runErr error) {
 	}
 
 	// remove socket files if they exist
-	for _, path := range []string{protocol.InputSocketPath(), protocol.OutputSocketPath(), ControlSocketPath()} {
+	for _, path := range []string{protocol.InputSocketPath(), protocol.OutputSocketPath(), ControlSocketPath(), stt.SocketPath()} {
 		if _, err := os.Stat(path); err == nil {
 			os.Remove(path)
 		}
@@ -145,6 +146,14 @@ func (s *Server) Run() (runErr error) {
 	defer controlListener.Close()
 	defer os.Remove(ControlSocketPath())
 
+	sttListener, err := net.Listen("unix", stt.SocketPath())
+	if err != nil {
+		slog.Error("failed to create stt socket", "err", err)
+		return err
+	}
+	defer sttListener.Close()
+	defer os.Remove(stt.SocketPath())
+
 	slog.Info("server listening", "input", protocol.InputSocketPath(), "output", protocol.OutputSocketPath(), "control", ControlSocketPath())
 
 	// Start voice WebSocket server for companion app
@@ -160,6 +169,7 @@ func (s *Server) Run() (runErr error) {
 	}
 
 	go s.handleControlConnections(controlListener)
+	go s.handleSTTConnections(sttListener)
 
 	// handle cleanup on interrupt. Catch more signals than we plan to handle
 	// so an unexpected signal kill (e.g. SIGHUP from parent exit) shows up in

@@ -22,6 +22,11 @@ type sttEngine struct {
 	loading  bool
 	capture  *stt.AudioCapture
 
+	// decodeMu serializes Transcribe calls — the keyboard and the dictator
+	// socket can request recognition concurrently, and the CGo decoder isn't
+	// guaranteed thread-safe.
+	decodeMu sync.Mutex
+
 	// onReady is called (outside the lock) when a model finishes loading,
 	// so the server can unblock a keyboard waiting in Initialize().
 	onReady func()
@@ -96,7 +101,12 @@ func (e *sttEngine) StartRecording() error {
 // StopAndTranscribe stops mic capture and runs the recognizer on the
 // captured audio. Blocking — call from a goroutine.
 func (e *sttEngine) StopAndTranscribe() (string, error) {
-	pcm := e.capture.Stop()
+	return e.Transcribe(e.capture.Stop(), 16000)
+}
+
+// Transcribe runs the recognizer on caller-supplied PCM (e.g. dictator
+// segments arriving over the stt socket). Blocking — call from a goroutine.
+func (e *sttEngine) Transcribe(pcm []byte, sampleRate int) (string, error) {
 	e.mu.Lock()
 	p := e.provider
 	ready := e.ready
@@ -104,5 +114,7 @@ func (e *sttEngine) StopAndTranscribe() (string, error) {
 	if p == nil || !ready {
 		return "", fmt.Errorf("stt: model not loaded")
 	}
-	return p.Transcribe(pcm, 16000)
+	e.decodeMu.Lock()
+	defer e.decodeMu.Unlock()
+	return p.Transcribe(pcm, sampleRate)
 }

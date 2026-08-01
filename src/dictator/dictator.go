@@ -8,7 +8,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	cfg "github.com/xrfr/t-rex/v2/config"
 	"github.com/xrfr/t-rex/v2/stt"
 )
 
@@ -55,7 +54,7 @@ type Model struct {
 
 // Run opens (or creates) the output file and runs the dictation TUI.
 // Transcribed utterances are appended one per line as they complete.
-func Run(sttMode, outPath string) error {
+func Run(outPath string) error {
 	if outPath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -72,13 +71,8 @@ func Run(sttMode, outPath string) error {
 	}
 	defer file.Close()
 
-	// Companion STT needs the iPhone app driving the mic — not usable here.
-	if sttMode == cfg.STTModeCompanion {
-		sttMode = cfg.STTModeParakeet
-	}
-
 	m := &Model{
-		stt:   stt.NewProvider(sttMode),
+		stt:   stt.NewRemoteProvider(),
 		audio: stt.NewAudioCapture(),
 		seg:   newSegmenter(),
 		file:  file,

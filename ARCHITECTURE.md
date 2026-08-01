@@ -92,6 +92,11 @@
 - `stt_mode` is re-read from config on every voice entry / voice command, so
   switching parakeet/sherpa/companion in Settings applies without a restart
   (a parakeet↔sherpa switch reloads the model in the background).
+- The daemon also serves transcription to other rex processes on
+  `/tmp/rex-stt.sock` (`stt/remote.go`, `server/stt_sock.go`): JSON requests
+  carrying base64 PCM, answered with text from the resident model. `rex
+  dictator` captures and segments audio itself but transcribes through this
+  socket, so it never loads a model of its own.
 - TODO: run the recognizer as a small supervised subprocess the daemon can
   restart, so a crash in the CGo/onnx stack can't take down input handling.
 
