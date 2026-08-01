@@ -34,7 +34,7 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 		return true, nil
 	case protocol.KeyX:
 		if isDown {
-			return true, execute("tmux", "send-keys", "-t", "0", "Escape")
+			return true, execute("tmux", "send-keys", "Escape")
 		}
 		return true, nil
 	case protocol.KeyB:
@@ -46,7 +46,7 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 	case protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight:
 		arrowKey := dpadToArrow(key)
 		if isDown {
-			if err := execute("tmux", "send-keys", "-t", "0", arrowKey); err != nil {
+			if err := execute("tmux", "send-keys", arrowKey); err != nil {
 				return true, err
 			}
 			o.startDpadRepeat(key, arrowKey)
@@ -56,7 +56,7 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 		return true, nil
 	case protocol.KeyR3:
 		if isDown {
-			return true, execute("tmux", "send-keys", "-t", "0", "/")
+			return true, execute("tmux", "send-keys", "/")
 		}
 		return true, nil
 	}
@@ -64,8 +64,8 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 }
 
 // Manufacture key-repeat for claude's /voice PTT — SDL joystick events don't auto-repeat.
-// If pane 0 is SSH'd, also start an audio relay so the remote's default ALSA
-// source receives the Brick's mic. See notes/plans/cross-device-mic-relay.md.
+// If the focused pane is SSH'd, also start an audio relay so the remote's default
+// ALSA source receives the Brick's mic. See notes/plans/cross-device-mic-relay.md.
 func (o *ClaudeOperator) startVoice() {
 	o.mu.Lock()
 	if o.voiceCancel != nil {
@@ -74,7 +74,7 @@ func (o *ClaudeOperator) startVoice() {
 	cancel := make(chan struct{})
 	o.voiceCancel = cancel
 
-	if remote, err := detectSSHPane("0"); err != nil {
+	if remote, err := detectSSHPane(""); err != nil {
 		slog.Warn("claude: ssh pane detect failed", "err", err)
 	} else if remote != nil {
 		if relay, err := startAudioRelay(*remote); err != nil {
@@ -88,7 +88,7 @@ func (o *ClaudeOperator) startVoice() {
 	}
 	o.voiceRepeater = keyrepeat.NewKeyRepeater(
 		func(k int) error {
-			return execute("tmux", "send-keys", "-t", "0", "Space")
+			return execute("tmux", "send-keys", "Space")
 		},
 		0, // no initial delay — PTT starts immediately
 		keyrepeat.PTTInterval,
@@ -114,7 +114,7 @@ func (o *ClaudeOperator) stopVoice() {
 
 func (o *ClaudeOperator) startBackspace() error {
 	// First delete fires immediately.
-	if err := execute("tmux", "send-keys", "-t", "0", "BSpace"); err != nil {
+	if err := execute("tmux", "send-keys", "BSpace"); err != nil {
 		return err
 	}
 	o.mu.Lock()
@@ -125,7 +125,7 @@ func (o *ClaudeOperator) startBackspace() error {
 	}
 	o.bsRepeater = keyrepeat.NewKeyRepeater(
 		func(k int) error {
-			return execute("tmux", "send-keys", "-t", "0", "BSpace")
+			return execute("tmux", "send-keys", "BSpace")
 		},
 		keyrepeat.Delay,
 		keyrepeat.Interval,
@@ -166,7 +166,7 @@ func (o *ClaudeOperator) startDpadRepeat(key int, arrowKey string) {
 	}
 	o.dpadRepeater = keyrepeat.NewKeyRepeater(
 		func(k int) error {
-			return execute("tmux", "send-keys", "-t", "0", arrowKey)
+			return execute("tmux", "send-keys", arrowKey)
 		},
 		keyrepeat.Delay,
 		keyrepeat.Interval,

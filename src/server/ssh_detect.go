@@ -22,16 +22,22 @@ func (r RemotePane) Addr() string {
 	return r.User + "@" + r.Host
 }
 
-// detectSSHPane probes tmux pane `target` and returns RemotePane if its
-// foreground process is an ssh client. Returns (nil, nil) if not ssh.
+// detectSSHPane probes tmux pane `target` ("" for the focused pane) and
+// returns RemotePane if its foreground process is an ssh client. Returns
+// (nil, nil) if not ssh.
 //
 // The probe follows this flow (see notes/plans/cross-device-mic-relay.md):
-//  1. tmux display-message -p -t <target> '#{pane_tty}' → tty path
+//  1. tmux display-message -p [-t <target>] '#{pane_tty}' → tty path
 //  2. ps -t <tty> -o tpgid= → terminal foreground process group id
 //  3. ps -t <tty> -o pid=,pgid=,comm=,args= → pick the row whose pgid == tpgid
 //  4. parse argv; if comm is "ssh", extract user/host/port/key
 func detectSSHPane(target string) (*RemotePane, error) {
-	ttyOut, err := exec.Command("tmux", "display-message", "-p", "-t", target, "#{pane_tty}").Output()
+	args := []string{"display-message", "-p"}
+	if target != "" {
+		args = append(args, "-t", target)
+	}
+	args = append(args, "#{pane_tty}")
+	ttyOut, err := exec.Command("tmux", args...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("tmux display-message: %w", err)
 	}

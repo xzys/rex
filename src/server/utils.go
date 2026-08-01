@@ -18,6 +18,17 @@ func execute(arg0 string, args ...string) error {
 	return nil
 }
 
+// tmuxOutput runs a tmux command and returns its trimmed stdout.
+func tmuxOutput(args ...string) (string, error) {
+	cmd := exec.Command("tmux", args...)
+	slog.Debug("executing command", "command", cmd.String())
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("tmux %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func tryExecuteIgnoreMessages(ignoreMessages []string, arg0 string, args ...string) error {
 	cmd := exec.Command(arg0, args...)
 	slog.Debug("executing command", "command", cmd.String())

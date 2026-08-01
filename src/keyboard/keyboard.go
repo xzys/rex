@@ -352,8 +352,15 @@ func (k *Keyboard) persistVoiceState(voiceOn bool) {
 	}
 }
 
+// resizeKeyboardPane resizes the keyboard's own pane. The pane is created
+// unfocused and can be joined into any window, so index-based targets don't
+// work — $TMUX_PANE always names our pane.
 func resizeKeyboardPane(height int) {
-	exec.Command("tmux", "resize-pane", "-t", "1", "-y", fmt.Sprintf("%d", height)).Run()
+	pane := os.Getenv("TMUX_PANE")
+	if pane == "" {
+		return
+	}
+	exec.Command("tmux", "resize-pane", "-t", pane, "-y", fmt.Sprintf("%d", height)).Run()
 }
 
 // handle key input and optionally provide a command to send key press to server

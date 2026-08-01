@@ -68,7 +68,7 @@
 - `ScriptOperator` (`operator_script.go`, `plugins.go`): loads JS plugins from
   `~/.config/rex/plugins/<window>.js` via `buke/quickjs-go` (CGo QuickJS).
   Plugins export a global `handleKey(key)` and return a string for
-  `tmux send-keys -t 0` or `null` to fall through. Defaults are embedded via
+  `tmux send-keys` or `null` to fall through. Defaults are embedded via
   `go:embed plugins/*.js` and used when a user plugin is missing. Current
   defaults: `ncmpcpp.js`. See `notes/features/js-plugins.md`.
 - `SSHTmuxOperator` (`tmux` window): stays in Go — runs remote `tmux`
@@ -148,4 +148,9 @@ Logs are written to `/tmp/rex.log` with debug-level output.
 
 - **Select**: Use this to open/close the keyboard app
 - **Synchronous connections**: Only one keyboard allowed at a time
-- **Tmux integration**: All key presses are executed via tmux send-keys to pane 0
+- **Tmux integration**: All key presses are executed via tmux send-keys to the
+  focused pane. The keyboard pane is created unfocused (`split-window -d`) and
+  never takes focus — it gets input over the socket, so it only needs to be
+  visible. Pane cycling (L1+R1 chords) skips it, and window switches re-attach
+  it to the new window with `join-pane`, so the keyboard process (and its
+  voice/autocomplete state) survives navigation instead of being killed.

@@ -11,7 +11,7 @@ import (
 
 // ScriptOperator runs a JavaScript plugin that defines a top-level handleKey(key)
 // function. The plugin receives a key code (matching protocol.Key* constants
-// injected as globals) and returns a string passed to `tmux send-keys -t 0`, or
+// injected as globals) and returns a string passed to `tmux send-keys`, or
 // null/undefined if the key is unhandled (falls through to global fallbacks).
 type ScriptOperator struct {
 	mu        sync.Mutex
@@ -115,7 +115,7 @@ func (o *ScriptOperator) HandleInput(key int, isDown bool) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	return true, execute("tmux", "send-keys", "-t", "0", tmuxKey)
+	return true, execute("tmux", "send-keys", tmuxKey)
 }
 
 // evalKey invokes the plugin's handleKey and returns (tmuxKeyString, handled).

@@ -16,6 +16,7 @@ const shoulderChordWindow = 100 * time.Millisecond
 
 type GlobalOperator struct {
 	keyboardActive bool
+	keyboardPane   string // tmux pane id (%N) of the live keyboard pane, "" when none
 	server         *Server
 	operators      map[string]Operator
 	activeOperator *Operator
@@ -54,7 +55,7 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 	// keyboard pane is active. The front-chorded and voice models don't use
 	// L1/R1 as modifiers, so hoisting this above the keyboardActive check
 	// lets the user navigate panes while voice is recording or the keyboard
-	// is open.
+	// is open — the keyboard pane survives navigation and follows the user.
 	switch event.Key {
 	case protocol.KeyL1:
 		if event.IsDown {
@@ -62,17 +63,21 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 			o.l1DownAt = time.Now()
 			if o.r1Down {
 				o.comboFired = true
-				o.killKeyboardIfActive()
 				if time.Since(o.r1DownAt) <= shoulderChordWindow {
-					return execute("tmux", "kill-pane")
+					return o.killActivePane()
 				}
-				return execute("tmux", "select-pane", "-t", ":.-")
+				return o.cyclePane(-1)
 			}
 			return nil
 		}
 		o.l1Down = false
-		if !o.r1Down && !o.comboFired {
-			o.killKeyboardIfActive()
+		// comboFired is cleared only on the release that leaves both shoulders
+		// up — clearing on the first release would make the second release
+		// look like a plain tap and fire a spurious window switch.
+		if o.r1Down {
+			return nil
+		}
+		if !o.comboFired {
 			return o.prevWindow()
 		}
 		o.comboFired = false
@@ -83,17 +88,18 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 			o.r1DownAt = time.Now()
 			if o.l1Down {
 				o.comboFired = true
-				o.killKeyboardIfActive()
 				if time.Since(o.l1DownAt) <= shoulderChordWindow {
-					return execute("tmux", "kill-pane")
+					return o.killActivePane()
 				}
-				return execute("tmux", "select-pane", "-t", ":.+")
+				return o.cyclePane(1)
 			}
 			return nil
 		}
 		o.r1Down = false
-		if !o.l1Down && !o.comboFired {
-			o.killKeyboardIfActive()
+		if o.l1Down {
+			return nil
+		}
+		if !o.comboFired {
 			return o.nextWindow()
 		}
 		o.comboFired = false
@@ -142,6 +148,9 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 
 func (o *GlobalOperator) SetKeyboardActive(active bool) {
 	o.keyboardActive = active
+	if !active {
+		o.keyboardPane = ""
+	}
 }
 
 // --- key-repeat helpers ---
@@ -209,15 +218,15 @@ func (o *GlobalOperator) executeFallback(key int) error {
 	case protocol.KeyStart:
 		return o.openMenu()
 	case protocol.KeyA:
-		return execute("tmux", "send-keys", "-t", "0", "Enter")
+		return execute("tmux", "send-keys", "Enter")
 	case protocol.KeyB:
-		return execute("tmux", "send-keys", "-t", "0", "Escape")
+		return execute("tmux", "send-keys", "Escape")
 	case protocol.KeyScrollUp:
-		return execute("tmux", "copy-mode", "-eu", "-t", "0")
+		return execute("tmux", "copy-mode", "-eu")
 	case protocol.KeyScrollDown:
-		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-t", "0", "-X", "page-down")
+		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-X", "page-down")
 	case protocol.KeyR3:
-		return execute("tmux", "send-keys", "-t", "0", "/")
+		return execute("tmux", "send-keys", "/")
 	}
 	return o.executeFallbackKey(key)
 }
@@ -227,13 +236,13 @@ func (o *GlobalOperator) executeFallback(key int) error {
 func (o *GlobalOperator) executeFallbackKey(key int) error {
 	switch key {
 	case protocol.KeyDPadUp:
-		return execute("tmux", "send-keys", "-t", "0", "Up")
+		return execute("tmux", "send-keys", "Up")
 	case protocol.KeyDPadDown:
-		return execute("tmux", "send-keys", "-t", "0", "Down")
+		return execute("tmux", "send-keys", "Down")
 	case protocol.KeyDPadLeft:
-		return execute("tmux", "send-keys", "-t", "0", "Left")
+		return execute("tmux", "send-keys", "Left")
 	case protocol.KeyDPadRight:
-		return execute("tmux", "send-keys", "-t", "0", "Right")
+		return execute("tmux", "send-keys", "Right")
 	}
 	return nil
 }
@@ -249,7 +258,7 @@ func (o *GlobalOperator) HandleKeyPress(key string) error {
 	// verbatim. The single-character branch below handles in-band special
 	// codes from the keyboard protocol.
 	if len(key) > 1 {
-		return execute("tmux", "send-keys", "-t", "0", key)
+		return execute("tmux", "send-keys", key)
 	}
 
 	char := rune(key[0])
@@ -269,8 +278,9 @@ func (o *GlobalOperator) HandleKeyPress(key string) error {
 	default:
 		tmuxKey = string(char)
 	}
-	// Send keys to pane 0 (top pane, main pane)
-	return execute("tmux", "send-keys", "-t", "0", tmuxKey)
+	// Send to the focused pane — the keyboard pane is created unfocused, so
+	// this is always the pane the user is looking at.
+	return execute("tmux", "send-keys", tmuxKey)
 }
 
 // executes a string as a sequence of key presses (e.g. autocomplete)
@@ -284,9 +294,11 @@ func (o *GlobalOperator) HandlePressString(value string) error {
 }
 
 // OpenKeyboardPane creates a horizontal split at the bottom running the keyboard
-// command. When forceVoice is true, the pane opens in voice mode (single-line
-// height, --voice flag) regardless of the user's DefaultVoice config — used by
-// the menu to auto-open voice for apps flagged `voice: true`.
+// command. The split is created unfocused (-d): the keyboard reads input from
+// the socket, so focus stays on the app pane and send-keys lands there. When
+// forceVoice is true, the pane opens in voice mode (single-line height, --voice
+// flag) regardless of the user's DefaultVoice config — used by the menu to
+// auto-open voice for apps flagged `voice: true`.
 func (o *GlobalOperator) OpenKeyboardPane(forceVoice bool) error {
 	// Check if process is already running
 	if err := execute("pgrep", "-f", binaryName+" keyboard"); err == nil {
@@ -311,21 +323,23 @@ func (o *GlobalOperator) OpenKeyboardPane(forceVoice bool) error {
 		slog.Warn("failed to load config, using default keyboard mode", "err", err)
 	}
 
-	args := []string{"split-window"}
+	args := []string{"split-window", "-d", "-P", "-F", "#{pane_id}"}
 	if voice {
 		args = append(args, "-l", "1") // voice mode uses a single line
 	} else {
 		args = append(args, "-l", fmt.Sprintf("%d", cfg.KeyboardPaneHeightForLayout(compact, autocomplete, layout)))
 	}
-	args = append(args, "-t", "0", binaryName, "keyboard", "--mode", mode)
+	args = append(args, binaryName, "keyboard", "--mode", mode)
 	if voice {
 		args = append(args, "--voice")
 	}
 
 	slog.Info("opening keyboard pane", "mode", mode, "layout", layout, "compact", compact, "autocomplete", autocomplete, "voice", voice)
-	if err := execute("tmux", args...); err != nil {
+	paneID, err := tmuxOutput(args...)
+	if err != nil {
 		return fmt.Errorf("failed to open keyboard pane: %w", err)
 	}
+	o.keyboardPane = paneID
 	o.SetKeyboardActive(true)
 	return nil
 }
@@ -339,15 +353,92 @@ func (o *GlobalOperator) closeKeyboardPane() error {
 	return nil
 }
 
-// Dismiss the keyboard on any pane/window nav — input is socket-routed to it
-// while active, so leaving focus would strand the user typing into a dead pane.
-func (o *GlobalOperator) killKeyboardIfActive() {
-	if !o.keyboardActive {
-		return
+// cyclePane moves focus to the next (+1) or previous (-1) pane in the current
+// window, skipping the keyboard pane — it never holds focus (input reaches it
+// over the socket), so landing on it would strand send-keys output there.
+func (o *GlobalOperator) cyclePane(step int) error {
+	out, err := tmuxOutput("list-panes", "-F", "#{pane_id} #{pane_active}")
+	if err != nil {
+		return err
 	}
-	if err := o.closeKeyboardPane(); err != nil {
-		slog.Warn("failed to close keyboard on nav", "err", err)
+	var ids []string
+	active := -1
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || fields[0] == o.keyboardPane {
+			continue
+		}
+		if fields[1] == "1" {
+			active = len(ids)
+		}
+		ids = append(ids, fields[0])
 	}
+	if active < 0 || len(ids) < 2 {
+		return nil
+	}
+	next := ids[((active+step)%len(ids)+len(ids))%len(ids)]
+	return execute("tmux", "select-pane", "-t", next)
+}
+
+// killActivePane kills the focused pane. The keyboard pane never holds focus,
+// so this only ever kills app panes — but tmux may hand focus to the keyboard
+// afterwards, which ensureFocusOffKeyboard corrects.
+func (o *GlobalOperator) killActivePane() error {
+	if err := execute("tmux", "kill-pane"); err != nil {
+		return err
+	}
+	return o.ensureFocusOffKeyboard()
+}
+
+// ensureFocusOffKeyboard moves focus to an app pane when tmux has landed it on
+// the keyboard pane (e.g. after kill-pane). If the keyboard is the only pane
+// left in the window, close it so the window dies with it.
+func (o *GlobalOperator) ensureFocusOffKeyboard() error {
+	if o.keyboardPane == "" {
+		return nil
+	}
+	active, err := tmuxOutput("display-message", "-p", "#{pane_id}")
+	if err != nil || active != o.keyboardPane {
+		return err
+	}
+	out, err := tmuxOutput("list-panes", "-F", "#{pane_id}")
+	if err != nil {
+		return err
+	}
+	for _, id := range strings.Fields(out) {
+		if id != o.keyboardPane {
+			return execute("tmux", "select-pane", "-t", id)
+		}
+	}
+	return o.closeKeyboardPane()
+}
+
+// moveKeyboardToCurrentWindow re-attaches the live keyboard pane below the
+// focused pane after a window switch. The keyboard process never restarts, so
+// voice mode, the STT connection, and autocomplete state survive navigation.
+func (o *GlobalOperator) moveKeyboardToCurrentWindow() error {
+	if o.keyboardPane == "" {
+		return nil
+	}
+	kbWindow, err := tmuxOutput("display-message", "-p", "-t", o.keyboardPane, "#{window_id}")
+	if err != nil {
+		// pane is gone — the keyboard died without telling us
+		o.keyboardPane = ""
+		return nil
+	}
+	curWindow, err := tmuxOutput("display-message", "-p", "#{window_id}")
+	if err != nil {
+		return err
+	}
+	if kbWindow == curWindow {
+		return nil
+	}
+	height, err := tmuxOutput("display-message", "-p", "-t", o.keyboardPane, "#{pane_height}")
+	if err != nil {
+		return err
+	}
+	// -d keeps focus on the app pane; the keyboard only needs to be visible.
+	return execute("tmux", "join-pane", "-d", "-v", "-l", height, "-s", o.keyboardPane)
 }
 
 // opens the menu in a new window
@@ -391,9 +482,15 @@ func (o *GlobalOperator) updateActiveOperator() error {
 }
 
 func (o *GlobalOperator) nextWindow() error {
-	return tryExecuteIgnoreMessages([]string{"no next window"}, "tmux", "next-window")
+	if err := tryExecuteIgnoreMessages([]string{"no next window"}, "tmux", "next-window"); err != nil {
+		return err
+	}
+	return o.moveKeyboardToCurrentWindow()
 }
 
 func (o *GlobalOperator) prevWindow() error {
-	return tryExecuteIgnoreMessages([]string{"no previous window"}, "tmux", "previous-window")
+	if err := tryExecuteIgnoreMessages([]string{"no previous window"}, "tmux", "previous-window"); err != nil {
+		return err
+	}
+	return o.moveKeyboardToCurrentWindow()
 }
