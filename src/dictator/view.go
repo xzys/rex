@@ -9,7 +9,6 @@ import (
 
 var (
 	red    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	green  = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	yellow = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	dim    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )
@@ -43,7 +42,7 @@ func (m *Model) headerLine(width int) string {
 	case stateInitializing:
 		status = yellow.Render(fmt.Sprintf("INITIALIZING %s", spinnerFrames[m.frame%len(spinnerFrames)]))
 	case stateRecording:
-		status = red.Render("● REC ") + m.elapsed().String() + " " + m.levelMeter()
+		status = red.Render("● REC ") + m.elapsed().String()
 	case statePaused:
 		status = dim.Render("‖ PAUSED ") + m.elapsed().String()
 	case stateFinishing:
@@ -65,13 +64,6 @@ func (m *Model) footerLine(width int) string {
 		gap = 1
 	}
 	return left + strings.Repeat(" ", gap) + right
-}
-
-func (m *Model) levelMeter() string {
-	const bars = 10
-	filled := int(m.seg.Level() * bars)
-	// Block elements only — termsp's font doesn't render U+25AE/25AF.
-	return green.Render(strings.Repeat("█", filled)) + dim.Render(strings.Repeat("░", bars-filled))
 }
 
 // transcriptTail renders the last lines of the transcript, wrapped to width,

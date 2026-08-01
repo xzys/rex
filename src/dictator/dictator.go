@@ -9,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	cfg "github.com/xrfr/t-rex/v2/config"
-	"github.com/xrfr/t-rex/v2/keyboard"
+	"github.com/xrfr/t-rex/v2/stt"
 )
 
 type state int
@@ -35,8 +35,8 @@ type resultMsg struct {
 var spinnerFrames = []string{"|", "/", "-", "\\"}
 
 type Model struct {
-	stt   keyboard.STTProvider
-	audio *keyboard.AudioCapture
+	stt   stt.Provider
+	audio *stt.AudioCapture
 	seg   *segmenter
 
 	file *os.File
@@ -78,14 +78,15 @@ func Run(sttMode, outPath string) error {
 	}
 
 	m := &Model{
-		stt:   keyboard.DefaultSTTProvider(sttMode),
-		audio: keyboard.NewAudioCapture(),
+		stt:   stt.NewProvider(sttMode),
+		audio: stt.NewAudioCapture(),
 		seg:   newSegmenter(),
 		file:  file,
 		path:  outPath,
 		state: stateInitializing,
 	}
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
+	m.stt.Close()
 	return err
 }
 
