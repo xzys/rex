@@ -31,7 +31,8 @@ type resultMsg struct {
 	err  error
 }
 
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+// ASCII only — termsp's font doesn't render braille spinner glyphs.
+var spinnerFrames = []string{"|", "/", "-", "\\"}
 
 type Model struct {
 	stt   keyboard.STTProvider

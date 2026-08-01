@@ -52,7 +52,7 @@ func (m *Model) headerLine(width int) string {
 		status = red.Render("ERROR: " + m.errMsg)
 	}
 	if n := len(m.queue) + boolToInt(m.busy); n > 0 && m.state != stateInitializing {
-		status += dim.Render(fmt.Sprintf("  ⠿%d", n))
+		status += yellow.Render(fmt.Sprintf("  %s STT %d", spinnerFrames[m.frame%len(spinnerFrames)], n))
 	}
 	return padRight(status, width)
 }
@@ -70,7 +70,8 @@ func (m *Model) footerLine(width int) string {
 func (m *Model) levelMeter() string {
 	const bars = 10
 	filled := int(m.seg.Level() * bars)
-	return green.Render(strings.Repeat("▮", filled)) + dim.Render(strings.Repeat("▯", bars-filled))
+	// Block elements only — termsp's font doesn't render U+25AE/25AF.
+	return green.Render(strings.Repeat("█", filled)) + dim.Render(strings.Repeat("░", bars-filled))
 }
 
 // transcriptTail renders the last lines of the transcript, wrapped to width,
