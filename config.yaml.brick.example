@@ -44,6 +44,11 @@ apps:
       color: "2"
       command: /userdata/system/apps/rex/emulationstation.sh
       exclusive: false
+    - name: dictator
+      icon: ●
+      color: "1"
+      command: rex dictator
+      exclusive: false
     - name: ssh
       icon: "~"
       color: "6"

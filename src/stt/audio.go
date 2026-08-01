@@ -68,6 +68,19 @@ func (a *AudioCapture) Start() error {
 	return nil
 }
 
+// Drain returns and clears the PCM captured so far without stopping arecord.
+func (a *AudioCapture) Drain() []byte {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.buf.Len() == 0 {
+		return nil
+	}
+	data := make([]byte, a.buf.Len())
+	copy(data, a.buf.Bytes())
+	a.buf.Reset()
+	return data
+}
+
 // Stop kills arecord and returns the captured raw PCM bytes.
 func (a *AudioCapture) Stop() []byte {
 	if a.cmd == nil || a.cmd.Process == nil {

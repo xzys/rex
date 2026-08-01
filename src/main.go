@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	cfg "github.com/xrfr/t-rex/v2/config"
+	"github.com/xrfr/t-rex/v2/dictator"
 	"github.com/xrfr/t-rex/v2/keyboard"
 	"github.com/xrfr/t-rex/v2/menu"
 	"github.com/xrfr/t-rex/v2/server"
@@ -31,6 +32,7 @@ func usage() {
        rex keyboard [options]
        rex menu [options]
        rex settings
+       rex dictator [-o FILE]
        rex wifi
        rex volumed
        rex exclusive <command> [args...]
@@ -126,6 +128,17 @@ func main() {
 		fs.Usage = func() { fmt.Fprintf(os.Stderr, "usage: rex settings\n\nOpen settings UI.\n") }
 		fs.Parse(args)
 		err = settings.Run()
+	case "dictator":
+		fs := flag.NewFlagSet("dictator", flag.ExitOnError)
+		fs.Usage = func() {
+			fmt.Fprintf(os.Stderr, "usage: rex dictator [-o FILE]\n\nContinuously record and transcribe speech (on-device STT), appending utterances to a text file.\n\n")
+			fs.PrintDefaults()
+		}
+		outFile := fs.String("o", "", "output text file (default ~/dictations/<timestamp>.txt)")
+		fs.Parse(args)
+
+		config, _ := cfg.LoadConfig()
+		err = dictator.Run(cfg.NormalizeSTTMode(config.STTMode), *outFile)
 	case "wifi":
 		fs := flag.NewFlagSet("wifi", flag.ExitOnError)
 		fs.Usage = func() {
