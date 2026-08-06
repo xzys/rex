@@ -102,15 +102,21 @@ stage_brick() {
     cp "$REPO_ROOT/config/dot/tmux.conf" "$home/.tmux.conf"
     cp "$REPO_ROOT/config/dot/tmux-wifi.sh" "$home/.tmux-wifi.sh"
 
-    # zot-tts extension + TTS voices.  Optional — staged when built/fetched.
-    # zot itself is not packaged; the extension activates once zot is installed.
-    ZOT_TTS_DIR="$REPO_ROOT/bin/zot-tts"
-    if [ -f "$ZOT_TTS_DIR/zot-tts" ]; then
-        ext="$home/.local/state/zot/extensions/zot-tts"
-        mkdir -p "$ext" "$home/models"
-        cp "$ZOT_TTS_DIR/zot-tts" "$ZOT_TTS_DIR"/*.so "$ZOT_TTS_DIR/extension.json" "$ext/"
-        cp "$REPO_ROOT/ext/zot-tts/AGENTS-snippet.md" "$ext/"
-        chmod +x "$ext/zot-tts"
+    # rex-tts engine + agent TTS extensions + voices.  Optional — staged when
+    # built/fetched.  The agents themselves (zot, pi) are not packaged; each
+    # extension activates once its agent is installed.
+    REX_TTS_DIR="$REPO_ROOT/bin/rex-tts"
+    if [ -f "$REX_TTS_DIR/rex-tts" ]; then
+        lib="$home/.local/lib/rex-tts"
+        zotext="$home/.local/state/zot/extensions/zot-tts"
+        piext="$home/.pi/agent/extensions"
+        mkdir -p "$lib" "$zotext" "$piext" "$home/models"
+        cp "$REX_TTS_DIR/rex-tts" "$REX_TTS_DIR"/*.so "$lib/"
+        chmod +x "$lib/rex-tts"
+        cp "$REPO_ROOT/ext/rex-tts/extension.json" "$zotext/"
+        cp "$REPO_ROOT/ext/rex-tts/AGENTS-snippet.md" "$zotext/"
+        ln -sf ../../../../lib/rex-tts/rex-tts "$zotext/rex-tts"
+        cp "$REPO_ROOT/ext/rex-tts/pi-tts.ts" "$piext/pi-tts.ts"
         for m in vits-piper-en_US-lessac-medium vits-piper-en_US-ryan-medium kitten-nano-en-v0_1-fp16; do
             if [ -d "$REPO_ROOT/bin/tts-models/$m" ]; then
                 cp -R "$REPO_ROOT/bin/tts-models/$m" "$home/models/$m"
@@ -119,7 +125,7 @@ stage_brick() {
             fi
         done
     else
-        echo "warning: bin/zot-tts not built — zot TTS won't be available. Run: make build-zot-tts fetch-tts-models" >&2
+        echo "warning: bin/rex-tts not built — agent TTS won't be available. Run: make build-rex-tts fetch-tts-models" >&2
     fi
 
     chmod +x "$app/termsp" "$app/rex-wifid" \

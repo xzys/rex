@@ -62,7 +62,7 @@ Download `rex-brick-<version>.tar.gz`, extract it on your laptop, and run the re
 
 The remote installer streams the release payload to the Brick and runs the install script there.
 
-Besides the Rex binary and launcher files, the payload includes the host-side Wi-Fi daemon (`rex-wifid`), bundled speech-to-text models (Parakeet by default), and the zot-tts text-to-speech extension with its voice models, so voice dictation works without extra downloads and spoken answers work as soon as zot is installed.
+Besides the Rex binary and launcher files, the payload includes the host-side Wi-Fi daemon (`rex-wifid`), bundled speech-to-text models (Parakeet by default), and the rex-tts text-to-speech engine with its voice models and extensions for both supported coding agents, so voice dictation works without extra downloads and spoken answers work as soon as zot or pi is installed.
 
 ### Manual install
 
@@ -137,17 +137,6 @@ tail /tmp/rex-launch.log     # daemon errors are logged here
 ```
 
 `rex-wifid` is started by `/userdata/system/apps/rex/start-rex.sh`. If the binary is missing from `/userdata/system/apps/rex/`, rerun the tarball installer from Path 2.
-
-### Package install fails with `dependency not satisfiable: tmux (>= 3.5)`
-
-In the chroot, tmux 3.5a comes from Debian bookworm-backports. The installer normally configures this repository. If you skipped that setup, add the backports source manually:
-
-```bash
-echo 'deb http://deb.debian.org/debian bookworm-backports main' | sudo tee /etc/apt/sources.list.d/backports.list
-sudo apt update
-```
-
-Then rerun the package install.
 
 ## See also
 

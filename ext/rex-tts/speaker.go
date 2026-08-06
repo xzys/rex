@@ -1,8 +1,5 @@
-// zot-tts speaks zot's final answers through on-device neural TTS.
-//
-// It observes assistant_message / turn_end events (no interception, so it
-// never sits in the agent's critical path) and synthesizes the final answer
-// of each turn.
+// The speaker is the shared TTS core: the voice table, model loading and
+// switching, and sentence-streamed synthesis into an external player.
 //
 // Synthesis runs in-process via sherpa-onnx, which keeps the model resident
 // and hands back audio through a callback as each sentence is generated. On
@@ -25,10 +22,7 @@ import (
 	"sync"
 
 	sherpa "github.com/k2-fsa/sherpa-onnx-go/sherpa_onnx"
-	"github.com/patriceckhart/zot/packages/agent/ext"
 )
-
-const version = "0.2.0"
 
 // A voice is a model directory plus the knowledge of which sherpa-onnx model
 // family it belongs to. Everything downstream of NewOfflineTts is identical.
@@ -79,65 +73,9 @@ func findVoice(name string) (voice, bool) {
 	return voice{}, false
 }
 
-func main() {
-	e := ext.New("zot-tts", version)
-
-	s, err := newSpeaker()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "zot-tts: %v\n", err)
-		os.Exit(1)
-	}
-	go s.loop(e)
-
-	e.Command("voice", "list TTS voices, or switch: /voice ryan", func(args string) ext.Response {
-		name := strings.TrimSpace(args)
-		if name == "" {
-			return ext.Display(s.describe())
-		}
-		if err := s.switchTo(name); err != nil {
-			return ext.Display(fmt.Sprintf("zot-tts: %v", err))
-		}
-		return ext.Display("zot-tts: switched to " + name)
-	})
-
-	var (
-		mu   sync.Mutex
-		last string
-	)
-	e.On("assistant_message", func(ev ext.Event) {
-		if t := strings.TrimSpace(ev.Text); t != "" {
-			mu.Lock()
-			last = t
-			mu.Unlock()
-		}
-	})
-	e.On("turn_end", func(ev ext.Event) {
-		if ev.Stop != "end" {
-			return
-		}
-		mu.Lock()
-		text := last
-		last = ""
-		mu.Unlock()
-		if text == "" {
-			return
-		}
-		select {
-		case s.queue <- text:
-		default:
-			e.Logf("speech queue full, dropping response")
-		}
-	})
-
-	runErr := e.Run()
-	s.close()
-	if runErr != nil {
-		os.Exit(1)
-	}
-}
-
 type speaker struct {
 	queue chan string
+	logf  func(format string, args ...any)
 
 	root    string
 	speed   float32
@@ -151,26 +89,27 @@ type speaker struct {
 	rate    int
 }
 
-func newSpeaker() (*speaker, error) {
+func newSpeaker(logf func(format string, args ...any)) (*speaker, error) {
 	home, _ := os.UserHomeDir()
 	s := &speaker{
 		queue:   make(chan string, 8),
-		root:    envOr("ZOT_TTS_MODELS", filepath.Join(home, "models")),
+		logf:    logf,
+		root:    envOr("REX_TTS_MODELS", filepath.Join(home, "models")),
 		speed:   1.25,
 		threads: 4,
-		player:  envOr("ZOT_TTS_PLAYER", "aplay -q -f S16_LE -c 1 -t raw -r {rate}"),
+		player:  envOr("REX_TTS_PLAYER", "aplay -q -f S16_LE -c 1 -t raw -r {rate}"),
 	}
-	if v := os.Getenv("ZOT_TTS_SPEED"); v != "" {
+	if v := os.Getenv("REX_TTS_SPEED"); v != "" {
 		if f, err := strconv.ParseFloat(v, 32); err == nil {
 			s.speed = float32(f)
 		}
 	}
-	if v := os.Getenv("ZOT_TTS_THREADS"); v != "" {
+	if v := os.Getenv("REX_TTS_THREADS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			s.threads = n
 		}
 	}
-	if err := s.switchTo(envOr("ZOT_TTS_VOICE", "lessac")); err != nil {
+	if err := s.switchTo(envOr("REX_TTS_VOICE", "lessac")); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -272,7 +211,7 @@ func (s *speaker) describe() string {
 	s.mu.Unlock()
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "zot-tts voices (current: %s @ %d Hz, speed %.2f)\n", cur, rate, s.speed)
+	fmt.Fprintf(&b, "rex-tts voices (current: %s @ %d Hz, speed %.2f)\n", cur, rate, s.speed)
 	for _, v := range voices {
 		mark := "  "
 		if v.name == cur {
@@ -287,11 +226,21 @@ func (s *speaker) describe() string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func (s *speaker) loop(e *ext.Extension) {
+func (s *speaker) loop() {
 	for text := range s.queue {
 		if err := s.speak(text); err != nil {
-			e.Logf("speak: %v", err)
+			s.logf("speak: %v", err)
 		}
+	}
+}
+
+// enqueue hands an utterance to the playback loop without blocking; when the
+// queue is full the utterance is dropped rather than stalling the caller.
+func (s *speaker) enqueue(text string) {
+	select {
+	case s.queue <- text:
+	default:
+		s.logf("speech queue full, dropping response")
 	}
 }
 

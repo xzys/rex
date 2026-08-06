@@ -1,8 +1,0 @@
-{
-  "name": "zot-tts",
-  "version": "0.2.0",
-  "exec": "./zot-tts",
-  "language": "go",
-  "description": "speak final assistant answers through on-device TTS",
-  "enabled": true
-}

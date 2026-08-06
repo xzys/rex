@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models build-zot-tts fetch-tts-models install-zot-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models build-rex-tts fetch-tts-models install-rex-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp screenshot-brick textdump-brick record-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -75,6 +75,9 @@ textdump-brick: ## Trigger TermSP screen-text dump on Brick and pull bin/termsp-
 	ssh brick-root 'pkill -USR2 termsp && sleep 1 && ls -la /tmp/termsp-text.txt'
 	scp brick-root:/tmp/termsp-text.txt bin/termsp-text.txt
 	@echo "Saved bin/termsp-text.txt"
+
+record-brick: ## Record Brick's live screen to bin/recordings/$(NAME).cast (NAME=demo SECS=20 DRIVE=scripts/demos/x.sh)
+	./scripts/record-brick.sh $(NAME) $(or $(SECS),20) $(DRIVE)
 
 sync-brick: ## Deploy rex (into Debian chroot), rex-wifid (Knulli host), termsp, fonts, and launch scripts to TrimUI Brick
 	@echo "Syncing to TrimUI Brick..."
@@ -233,23 +236,22 @@ setup-debian-zot: build-docker-ext-zot ## Install zot (coding agent) into the ch
 TTS_MODEL_BASE = https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models
 TTS_MODELS = vits-piper-en_US-lessac-medium vits-piper-en_US-ryan-medium kitten-nano-en-v0_1-fp16
 
-build-zot-tts: ## Cross-compile zot-tts extension for Brick (cgo + sherpa-onnx, outputs bin/zot-tts/)
+build-rex-tts: ## Cross-compile rex-tts TTS engine for Brick (cgo + sherpa-onnx, outputs bin/rex-tts/)
 	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t brick-rex-builder src/
-	mkdir -p bin/zot-tts
+	mkdir -p bin/rex-tts
 	docker run --rm --platform linux/amd64 \
 		-v go-mod-cache:/root/go/pkg/mod \
 		-v go-build-cache:/root/.cache/go-build \
-		-v $$(pwd)/ext/zot-tts:/app \
-		-v $$(pwd)/bin/zot-tts:/output \
+		-v $$(pwd)/ext/rex-tts:/app \
+		-v $$(pwd)/bin/rex-tts:/output \
 		-w /app \
 		-e CGO_LDFLAGS='-L/usr/lib/aarch64-linux-gnu -ldl -Wl,-rpath,$$ORIGIN' \
 		brick-rex-builder \
-		sh -c 'go build -o /output/zot-tts . && \
+		sh -c 'go build -o /output/rex-tts . && \
 			cp "$$(go list -m -f "{{.Dir}}" github.com/k2-fsa/sherpa-onnx-go-linux)"/lib/aarch64-unknown-linux-gnu/libsherpa-onnx-c-api.so /output/ && \
 			cp "$$(go list -m -f "{{.Dir}}" github.com/k2-fsa/sherpa-onnx-go-linux)"/lib/aarch64-unknown-linux-gnu/libonnxruntime.so /output/ && \
 			chmod +w /output/*.so'
-	cp ext/zot-tts/extension.json bin/zot-tts/
-	@echo "Built bin/zot-tts/ (binary + bundled sherpa libs, rpath=\$$ORIGIN)"
+	@echo "Built bin/rex-tts/ (binary + bundled sherpa libs, rpath=\$$ORIGIN)"
 
 fetch-tts-models: ## Download TTS voice models into bin/tts-models/
 	@mkdir -p bin/tts-models
@@ -261,14 +263,17 @@ fetch-tts-models: ## Download TTS voice models into bin/tts-models/
 	done
 	@du -sh bin/tts-models
 
-install-zot-tts-brick: build-zot-tts ## Install zot-tts extension + voices into Brick chroot (ssh alias: brick)
+install-rex-tts-brick: build-rex-tts ## Install rex-tts engine + zot/pi TTS extensions + voices into Brick chroot (ssh alias: brick)
 	@test -d bin/tts-models || { echo "bin/tts-models missing; run 'make fetch-tts-models' first"; exit 1; }
-	COPYFILE_DISABLE=1 tar czf - -C bin/zot-tts . -C $(CURDIR)/ext/zot-tts AGENTS-snippet.md | \
+	COPYFILE_DISABLE=1 tar czf - -C bin/rex-tts . -C $(CURDIR)/ext/rex-tts extension.json AGENTS-snippet.md pi-tts.ts | \
 	ssh brick 'set -e; d=$$(mktemp -d); tar xzf - -C "$$d"; \
-		mkdir -p ~/.local/state/zot/extensions/zot-tts; \
-		install -m755 "$$d/zot-tts" ~/.local/state/zot/extensions/zot-tts/; \
-		install -m755 "$$d"/*.so ~/.local/state/zot/extensions/zot-tts/; \
+		mkdir -p ~/.local/lib/rex-tts ~/.local/state/zot/extensions/zot-tts ~/.pi/agent/extensions; \
+		install -m755 "$$d/rex-tts" ~/.local/lib/rex-tts/; \
+		install -m755 "$$d"/*.so ~/.local/lib/rex-tts/; \
+		rm -f ~/.local/state/zot/extensions/zot-tts/zot-tts ~/.local/state/zot/extensions/zot-tts/*.so; \
 		install -m644 "$$d/extension.json" ~/.local/state/zot/extensions/zot-tts/; \
+		ln -sf ../../../../lib/rex-tts/rex-tts ~/.local/state/zot/extensions/zot-tts/rex-tts; \
+		install -m644 "$$d/pi-tts.ts" ~/.pi/agent/extensions/pi-tts.ts; \
 		grep -q "read aloud" ~/.local/state/zot/AGENTS.md 2>/dev/null || cat "$$d/AGENTS-snippet.md" >> ~/.local/state/zot/AGENTS.md; \
 		rm -rf "$$d"'
 	@echo "Syncing voice models (only missing ones transfer)..."
@@ -278,7 +283,7 @@ install-zot-tts-brick: build-zot-tts ## Install zot-tts extension + voices into 
 		echo "  sending $$m..."; \
 		COPYFILE_DISABLE=1 tar czf - -C bin/tts-models "$$m" | ssh brick 'tar xzf - -C ~/models'; \
 	done
-	@echo "zot-tts installed. Restart zot (or /reload-ext) to pick it up."
+	@echo "rex-tts installed. Restart zot (or /reload-ext) and pi to pick it up."
 
 build-docker-ext-%: ## Build program from ext/
 	docker buildx build --platform linux/amd64 --load -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*

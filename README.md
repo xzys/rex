@@ -81,7 +81,7 @@ make build-local              # Build for local development
 make docker-build-r36s        # Build for R36S (cross-compile)
 make sync-r36s                # Sync binary and config to R36S
 make docker-build-ext-<name>  # Build external program from ext/
-make install-zot-tts-brick    # Install optional zot-tts extension + voices on Brick
+make install-rex-tts-brick    # Install rex-tts engine + zot/pi TTS extensions + voices on Brick
 make install-system-files     # Install dotfiles and systemd services
 ```
 

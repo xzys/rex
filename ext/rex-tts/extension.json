@@ -1,0 +1,8 @@
+{
+  "name": "zot-tts",
+  "version": "0.3.0",
+  "exec": "./rex-tts",
+  "language": "go",
+  "description": "speak final assistant answers through on-device TTS (rex-tts engine)",
+  "enabled": true
+}

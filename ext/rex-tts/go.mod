@@ -1,4 +1,4 @@
-module github.com/xrfr/zot-tts
+module github.com/xrfr/rex-tts
 
 go 1.26.2
 

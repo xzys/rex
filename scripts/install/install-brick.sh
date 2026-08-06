@@ -123,18 +123,26 @@ fi
 
 chmod +x "$REX_HOME/bin/rex"
 
-# zot-tts extension (present when bundled in the payload).  Dormant until zot
-# itself is installed; the AGENTS.md snippet keeps zot's answers speech-friendly.
-ZOT_STATE="$REX_HOME/.local/state/zot"
-if [ -d "$PAYLOAD/home-rex/.local/state/zot/extensions/zot-tts" ]; then
-    echo "==> installing zot-tts extension"
+# rex-tts engine + agent TTS extensions (present when bundled in the payload).
+# Dormant until an agent is installed.  zot answers stay speech-friendly via
+# the AGENTS.md snippet; pi-tts injects the same text into pi's system prompt.
+if [ -d "$PAYLOAD/home-rex/.local/lib/rex-tts" ]; then
+    echo "==> installing rex-tts engine + agent TTS extensions"
+    mkdir -p "$REX_HOME/.local/lib"
+    rm -rf "$REX_HOME/.local/lib/rex-tts"
+    cp -R "$PAYLOAD/home-rex/.local/lib/rex-tts" "$REX_HOME/.local/lib/"
+    chmod +x "$REX_HOME/.local/lib/rex-tts/rex-tts"
+
+    ZOT_STATE="$REX_HOME/.local/state/zot"
     mkdir -p "$ZOT_STATE/extensions"
     rm -rf "$ZOT_STATE/extensions/zot-tts"
     cp -R "$PAYLOAD/home-rex/.local/state/zot/extensions/zot-tts" "$ZOT_STATE/extensions/"
-    chmod +x "$ZOT_STATE/extensions/zot-tts/zot-tts"
     if ! grep -q "read aloud" "$ZOT_STATE/AGENTS.md" 2>/dev/null; then
         cat "$ZOT_STATE/extensions/zot-tts/AGENTS-snippet.md" >> "$ZOT_STATE/AGENTS.md"
     fi
+
+    mkdir -p "$REX_HOME/.pi/agent/extensions"
+    cp -f "$PAYLOAD/home-rex/.pi/agent/extensions/pi-tts.ts" "$REX_HOME/.pi/agent/extensions/pi-tts.ts"
 fi
 
 # TTS voice models: copy only the missing ones — they are large and immutable.
