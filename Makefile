@@ -1,4 +1,4 @@
-.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp build-docker-kitten-tts screenshot-brick textdump-brick
+.PHONY: build-local debug install-system-files install-dotfiles install-bin install-systemd install-stt-sherpa install-stt-parakeet install-stt-models install-kitten-tts-brick build-zot-tts fetch-tts-models install-zot-tts-brick sync-r36s sync-auth-r36s sync-brick bootstrap-debian sync-debian setup-debian setup-debian-extras setup-debian-zot package package-brick package-deb package-deb-brick package-deb-r36s package-overlay build-docker-termsp build-docker-kitten-tts screenshot-brick textdump-brick
 
 build-local: ## Build for local machine with keyboard input
 	cd src && go build -tags keyboard -o ../rex-local
@@ -242,6 +242,58 @@ setup-debian-zot: build-docker-ext-zot ## Install zot (coding agent) into the ch
 	ssh brick-root 'chmod +x /userdata/debian/home/rex/bin/zot'
 	@echo "zot $(ZOT_VERSION) installed. Configure API keys via env vars or ~/.local/state/zot/"
 	@echo "Run on brick: zot"
+
+# TTS voices installed alongside the extension. lessac/ryan run faster than
+# realtime on the Brick (~0.8x); kitten is kept as an option at ~2.4x.
+TTS_MODEL_BASE = https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models
+TTS_MODELS = vits-piper-en_US-lessac-medium vits-piper-en_US-ryan-medium kitten-nano-en-v0_1-fp16
+
+build-zot-tts: ## Cross-compile zot-tts extension for Brick (cgo + sherpa-onnx, outputs bin/zot-tts/)
+	docker buildx build --platform linux/amd64 --load -f src/Dockerfile -t brick-rex-builder src/
+	mkdir -p bin/zot-tts
+	docker run --rm --platform linux/amd64 \
+		-v go-mod-cache:/root/go/pkg/mod \
+		-v go-build-cache:/root/.cache/go-build \
+		-v $$(pwd)/ext/zot-tts:/app \
+		-v $$(pwd)/bin/zot-tts:/output \
+		-w /app \
+		-e CGO_LDFLAGS='-L/usr/lib/aarch64-linux-gnu -ldl -Wl,-rpath,$$ORIGIN' \
+		brick-rex-builder \
+		sh -c 'go build -o /output/zot-tts . && \
+			cp "$$(go list -m -f "{{.Dir}}" github.com/k2-fsa/sherpa-onnx-go-linux)"/lib/aarch64-unknown-linux-gnu/libsherpa-onnx-c-api.so /output/ && \
+			cp "$$(go list -m -f "{{.Dir}}" github.com/k2-fsa/sherpa-onnx-go-linux)"/lib/aarch64-unknown-linux-gnu/libonnxruntime.so /output/ && \
+			chmod +w /output/*.so'
+	cp ext/zot-tts/extension.json bin/zot-tts/
+	@echo "Built bin/zot-tts/ (binary + bundled sherpa libs, rpath=\$$ORIGIN)"
+
+fetch-tts-models: ## Download TTS voice models into bin/tts-models/
+	@mkdir -p bin/tts-models
+	@for m in $(TTS_MODELS); do \
+		if [ -d bin/tts-models/$$m ]; then echo "$$m already present"; continue; fi; \
+		echo "==> $$m"; \
+		curl -fsSL "$(TTS_MODEL_BASE)/$$m.tar.bz2" -o bin/tts-models/$$m.tar.bz2 && \
+		tar xjf bin/tts-models/$$m.tar.bz2 -C bin/tts-models && rm bin/tts-models/$$m.tar.bz2; \
+	done
+	@du -sh bin/tts-models
+
+install-zot-tts-brick: build-zot-tts ## Install zot-tts extension + voices into Brick chroot (ssh alias: brick)
+	@test -d bin/tts-models || { echo "bin/tts-models missing; run 'make fetch-tts-models' first"; exit 1; }
+	COPYFILE_DISABLE=1 tar czf - -C bin/zot-tts . -C $(CURDIR)/ext/zot-tts AGENTS-snippet.md | \
+	ssh brick 'set -e; d=$$(mktemp -d); tar xzf - -C "$$d"; \
+		mkdir -p ~/.local/state/zot/extensions/zot-tts; \
+		install -m755 "$$d/zot-tts" ~/.local/state/zot/extensions/zot-tts/; \
+		install -m755 "$$d"/*.so ~/.local/state/zot/extensions/zot-tts/; \
+		install -m644 "$$d/extension.json" ~/.local/state/zot/extensions/zot-tts/; \
+		grep -q "read aloud" ~/.local/state/zot/AGENTS.md 2>/dev/null || cat "$$d/AGENTS-snippet.md" >> ~/.local/state/zot/AGENTS.md; \
+		rm -rf "$$d"'
+	@echo "Syncing voice models (only missing ones transfer)..."
+	@ssh brick 'mkdir -p ~/models'
+	@for m in $(TTS_MODELS); do \
+		if ssh brick "test -d ~/models/$$m"; then echo "  $$m already on device"; continue; fi; \
+		echo "  sending $$m..."; \
+		COPYFILE_DISABLE=1 tar czf - -C bin/tts-models "$$m" | ssh brick 'tar xzf - -C ~/models'; \
+	done
+	@echo "zot-tts installed. Restart zot (or /reload-ext) to pick it up."
 
 build-docker-ext-%: ## Build program from ext/
 	docker buildx build --platform linux/amd64 --load -f ext/$*/Dockerfile -t r36s-$(shell echo $* | tr '[:upper:]' '[:lower:]')-builder ext/$*
