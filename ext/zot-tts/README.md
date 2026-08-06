@@ -20,25 +20,30 @@ Synthesis runs in-process via sherpa-onnx.
 
 ## Voices
 
-All three run through one code path — sherpa-onnx dispatches on whichever
-model sub-config is populated, so switching is a config swap plus a sub-second
-model reload, not a different backend.
+Every voice is a single name. They run through one code path — sherpa-onnx
+dispatches on whichever model sub-config is populated, so switching is a
+config swap plus a sub-second model reload, not a different backend.
 
 | Voice | Model | warm RTF on Brick | Rate |
 |---|---|---|---|
 | `lessac` *(default)* | piper en_US lessac medium | **0.80** | 22050 Hz |
 | `ryan` | piper en_US ryan medium | **0.85** | 22050 Hz |
-| `kitten` | kitten nano fp16 (8 speakers) | 2.44 | 24000 Hz |
+| `bella` `jasper` `luna` `bruno` `rosie` `hugo` `kiki` `leo` | kitten nano fp16 | 2.44 | 24000 Hz |
 
 RTF below 1.0 means synthesis outruns playback, so audio plays without gaps.
 Kitten is retained as an option but is ~3x slower than realtime and will
 stutter on long answers.
 
+Kitten's model holds eight speakers; each is exposed under its published
+name. Male: `jasper` `bruno` `hugo` `leo`. Female: `bella` `luna` `rosie`
+`kiki`.
+
 Switch at runtime from inside zot — no restart:
 
 ```
-/voice           # list voices, show the current one
-/voice ryan      # switch
+/voice             # list voices, show the current one
+/voice ryan        # switch
+/voice luna        # switch
 ```
 
 ## Build & install
@@ -60,7 +65,6 @@ KittenTTS installs into `/usr/local/lib`.
 - `ZOT_TTS_VOICE` — starting voice (default `lessac`)
 - `ZOT_TTS_MODELS` — models root (default `~/models`), one subdir per voice
 - `ZOT_TTS_SPEED` — speed multiplier (default `1.25`)
-- `ZOT_TTS_SID` — speaker id, for multi-speaker models like kitten (default 0)
 - `ZOT_TTS_THREADS` — inference threads (default 4)
 - `ZOT_TTS_PLAYER` — playback command; `{rate}` is substituted with the
   loaded model's sample rate (default `aplay -q -f S16_LE -c 1 -t raw -r {rate}`)

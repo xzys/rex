@@ -36,15 +36,38 @@ type voice struct {
 	name string
 	dir  string // directory under the models root
 	desc string
-	// kitten models need a voices.bin and carry several speakers; the piper
-	// vits models are single-speaker.
+	// kitten models need a voices.bin; the piper vits models are
+	// single-speaker and always use sid 0.
 	kitten bool
+	sid    int
 }
 
 var voices = []voice{
 	{name: "lessac", dir: "vits-piper-en_US-lessac-medium", desc: "piper en_US lessac (medium)"},
 	{name: "ryan", dir: "vits-piper-en_US-ryan-medium", desc: "piper en_US ryan (medium)"},
-	{name: "kitten", dir: "kitten-nano-en-v0_1-fp16", desc: "kitten nano (fp16, 8 speakers)", kitten: true},
+}
+
+// kitten ships eight speakers in one model; expose each under its published
+// name. Speaker ids follow the model's expr-voice-N-{m,f} order.
+func init() {
+	for sid, k := range []struct{ name, internal string }{
+		{"jasper", "expr-voice-2-m"},
+		{"bella", "expr-voice-2-f"},
+		{"bruno", "expr-voice-3-m"},
+		{"luna", "expr-voice-3-f"},
+		{"hugo", "expr-voice-4-m"},
+		{"rosie", "expr-voice-4-f"},
+		{"leo", "expr-voice-5-m"},
+		{"kiki", "expr-voice-5-f"},
+	} {
+		voices = append(voices, voice{
+			name:   k.name,
+			dir:    "kitten-nano-en-v0_1-fp16",
+			desc:   "kitten nano (" + k.internal + ")",
+			kitten: true,
+			sid:    sid,
+		})
+	}
 }
 
 func findVoice(name string) (voice, bool) {
@@ -142,11 +165,6 @@ func newSpeaker() (*speaker, error) {
 			s.speed = float32(f)
 		}
 	}
-	if v := os.Getenv("ZOT_TTS_SID"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			s.sid = n
-		}
-	}
 	if v := os.Getenv("ZOT_TTS_THREADS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			s.threads = n
@@ -183,6 +201,7 @@ func (s *speaker) switchTo(name string) error {
 	}
 	s.tts = tts
 	s.current = name
+	s.sid = v.sid
 	// Sample rates differ per model (piper 22050, kitten 24000), so the
 	// player has to be told the rate of whatever is loaded right now.
 	s.rate = tts.SampleRate()
@@ -263,7 +282,7 @@ func (s *speaker) describe() string {
 		if _, err := os.Stat(filepath.Join(s.root, v.dir)); err != nil {
 			installed = "  [not installed]"
 		}
-		fmt.Fprintf(&b, "%s%-8s %s%s\n", mark, v.name, v.desc, installed)
+		fmt.Fprintf(&b, "%s%-11s %s%s\n", mark, v.name, v.desc, installed)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
