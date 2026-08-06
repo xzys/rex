@@ -123,6 +123,33 @@ fi
 
 chmod +x "$REX_HOME/bin/rex"
 
+# zot-tts extension (present when bundled in the payload).  Dormant until zot
+# itself is installed; the AGENTS.md snippet keeps zot's answers speech-friendly.
+ZOT_STATE="$REX_HOME/.local/state/zot"
+if [ -d "$PAYLOAD/home-rex/.local/state/zot/extensions/zot-tts" ]; then
+    echo "==> installing zot-tts extension"
+    mkdir -p "$ZOT_STATE/extensions"
+    rm -rf "$ZOT_STATE/extensions/zot-tts"
+    cp -R "$PAYLOAD/home-rex/.local/state/zot/extensions/zot-tts" "$ZOT_STATE/extensions/"
+    chmod +x "$ZOT_STATE/extensions/zot-tts/zot-tts"
+    if ! grep -q "read aloud" "$ZOT_STATE/AGENTS.md" 2>/dev/null; then
+        cat "$ZOT_STATE/extensions/zot-tts/AGENTS-snippet.md" >> "$ZOT_STATE/AGENTS.md"
+    fi
+fi
+
+# TTS voice models: copy only the missing ones — they are large and immutable.
+if [ -d "$PAYLOAD/home-rex/models" ]; then
+    mkdir -p "$REX_HOME/models"
+    for src in "$PAYLOAD/home-rex/models"/*/; do
+        [ -d "$src" ] || continue
+        name="$(basename "$src")"
+        if [ ! -d "$REX_HOME/models/$name" ]; then
+            echo "==> installing TTS voice: $name"
+            cp -R "$src" "$REX_HOME/models/$name"
+        fi
+    done
+fi
+
 # Copy sherpa libs into chroot /usr/local/lib so rex resolves them at runtime.
 # Always run ldconfig afterward — the chroot setup block may be skipped for
 # pre-baked chroots, but the shared lib cache must be refreshed.

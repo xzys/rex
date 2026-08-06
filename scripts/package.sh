@@ -102,6 +102,26 @@ stage_brick() {
     cp "$REPO_ROOT/config/dot/tmux.conf" "$home/.tmux.conf"
     cp "$REPO_ROOT/config/dot/tmux-wifi.sh" "$home/.tmux-wifi.sh"
 
+    # zot-tts extension + TTS voices.  Optional — staged when built/fetched.
+    # zot itself is not packaged; the extension activates once zot is installed.
+    ZOT_TTS_DIR="$REPO_ROOT/bin/zot-tts"
+    if [ -f "$ZOT_TTS_DIR/zot-tts" ]; then
+        ext="$home/.local/state/zot/extensions/zot-tts"
+        mkdir -p "$ext" "$home/models"
+        cp "$ZOT_TTS_DIR/zot-tts" "$ZOT_TTS_DIR"/*.so "$ZOT_TTS_DIR/extension.json" "$ext/"
+        cp "$REPO_ROOT/ext/zot-tts/AGENTS-snippet.md" "$ext/"
+        chmod +x "$ext/zot-tts"
+        for m in vits-piper-en_US-lessac-medium vits-piper-en_US-ryan-medium kitten-nano-en-v0_1-fp16; do
+            if [ -d "$REPO_ROOT/bin/tts-models/$m" ]; then
+                cp -R "$REPO_ROOT/bin/tts-models/$m" "$home/models/$m"
+            else
+                echo "warning: TTS voice $m not found — run: make fetch-tts-models" >&2
+            fi
+        done
+    else
+        echo "warning: bin/zot-tts not built — zot TTS won't be available. Run: make build-zot-tts fetch-tts-models" >&2
+    fi
+
     chmod +x "$app/termsp" "$app/rex-wifid" \
         "$app/start-rex.sh" "$app/stop-rex.sh" \
         "$app/debian-rex.sh" "$app/debian-sshd.sh" \

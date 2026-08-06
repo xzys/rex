@@ -62,7 +62,7 @@ Download `rex-brick-<version>.tar.gz`, extract it on your laptop, and run the re
 
 The remote installer streams the release payload to the Brick and runs the install script there.
 
-Besides the Rex binary and launcher files, the payload includes the host-side Wi-Fi daemon (`rex-wifid`) and bundled speech-to-text models (Parakeet by default), so voice dictation works without extra downloads.
+Besides the Rex binary and launcher files, the payload includes the host-side Wi-Fi daemon (`rex-wifid`), bundled speech-to-text models (Parakeet by default), and the zot-tts text-to-speech extension with its voice models, so voice dictation works without extra downloads and spoken answers work as soon as zot is installed.
 
 ### Manual install
 
