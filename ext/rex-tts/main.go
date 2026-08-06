@@ -14,7 +14,7 @@ import (
 	"os"
 )
 
-const version = "0.3.0"
+const version = "0.4.0"
 
 func main() {
 	serve := flag.Bool("serve", false, "speak JSON-lines requests from stdin (for pi-tts)")

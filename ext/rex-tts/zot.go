@@ -1,13 +1,14 @@
-// The zot frontend observes assistant_message / turn_end events (no
-// interception, so it never sits in the agent's critical path) and speaks the
-// final answer of each turn.
+// The zot frontend observes assistant_message events (no interception, so it
+// never sits in the agent's critical path) and speaks each one as it arrives —
+// interim narration between tool calls as well as the final answer. Thinking
+// and tool blocks never reach the event text: zot's host assembles it from
+// TextBlock content only.
 package main
 
 import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/patriceckhart/zot/packages/agent/ext"
 )
@@ -33,29 +34,10 @@ func runZot() int {
 		return ext.Display("rex-tts: switched to " + name)
 	})
 
-	var (
-		mu   sync.Mutex
-		last string
-	)
 	e.On("assistant_message", func(ev ext.Event) {
 		if t := strings.TrimSpace(ev.Text); t != "" {
-			mu.Lock()
-			last = t
-			mu.Unlock()
+			s.enqueue(t)
 		}
-	})
-	e.On("turn_end", func(ev ext.Event) {
-		if ev.Stop != "end" {
-			return
-		}
-		mu.Lock()
-		text := last
-		last = ""
-		mu.Unlock()
-		if text == "" {
-			return
-		}
-		s.enqueue(text)
 	})
 
 	runErr := e.Run()

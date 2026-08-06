@@ -10,10 +10,13 @@ frontends:
 
 ## How it works
 
-- Both frontends observe, never intercept: they buffer the latest assistant
-  text and speak it only when the agent finishes a turn for real (zot:
-  `turn_end` with stop reason `end`; pi: `agent_settled`). Thinking and
-  tool-use steps stay on screen and are never read aloud.
+- Both frontends observe, never intercept: every assistant message is spoken
+  as it completes — interim narration between tool calls as well as the final
+  answer. Thinking is never read aloud; it is excluded by block-type
+  filtering (pi-tts extracts only `type: "text"` blocks, and zot's host
+  builds the event text from `TextBlock` content only). Utterances queue
+  (capacity 8) and play back-to-back; when the queue is full the newest
+  utterance is dropped rather than stalling the agent.
 - Synthesis runs via sherpa-onnx, which keeps the model resident and invokes
   a callback **once per sentence** as that sentence's audio is ready. Samples
   go straight into `aplay` as raw PCM, so playback starts after the first

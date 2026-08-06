@@ -1,11 +1,12 @@
 /**
- * pi-tts: speak pi's final answers through the shared rex-tts engine.
+ * pi-tts: speak pi's answers through the shared rex-tts engine.
  *
- * Mirrors the zot frontend: buffer the latest assistant message, speak it
- * once the agent settles (so tool-use steps stay silent), and keep answers
- * speech-friendly by extending the system prompt. Synthesis happens in a
- * long-lived `rex-tts --serve` child, so the model stays resident and the
- * child dies with pi.
+ * Mirrors the zot frontend: every assistant message is spoken as it
+ * completes — interim narration between tool calls as well as the final
+ * answer. Thinking never leaks: only `type: "text"` content blocks are
+ * extracted. Answers stay speech-friendly via the system prompt. Synthesis
+ * happens in a long-lived `rex-tts --serve` child, so the model stays
+ * resident and the child dies with pi.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
@@ -22,11 +23,12 @@ const SPEECH_PROMPT = `
 
 ## Voice output
 
-Your final answer each turn is read aloud by a text-to-speech engine. Keep
-final answers speech-friendly: short conversational sentences, plain prose, no
-markdown headers, bullet lists, tables, code blocks, or URLs. If code or a diff
-is the deliverable, write it to a file with tools and summarize what you did in
-one or two spoken sentences.`;
+Everything you write to the user — progress remarks between tool calls and
+final answers alike — is read aloud by a text-to-speech engine. Keep it
+speech-friendly: short conversational sentences, plain prose, no markdown
+headers, bullet lists, tables, code blocks, or URLs. If code or a diff is the
+deliverable, write it to a file with tools and summarize what you did in one
+or two spoken sentences.`;
 
 type Engine = ChildProcessByStdio<Writable, Readable, null>;
 type Resp = { ok?: boolean; text?: string; error?: string };
@@ -94,8 +96,6 @@ export default function (pi: ExtensionAPI) {
 		});
 	}
 
-	let last = "";
-
 	// Load the model as soon as the session opens so the first answer
 	// doesn't wait on model load.
 	pi.on("session_start", async () => {
@@ -109,12 +109,6 @@ export default function (pi: ExtensionAPI) {
 	pi.on("message_end", async (event) => {
 		if (event.message.role !== "assistant") return;
 		const text = textOf(event.message.content).trim();
-		if (text) last = text;
-	});
-
-	pi.on("agent_settled", async () => {
-		const text = last;
-		last = "";
 		if (!text) return;
 		const r = await send({ cmd: "speak", text });
 		if (r.error) console.error(`pi-tts: ${r.error}`);
