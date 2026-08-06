@@ -30,6 +30,10 @@ is_mounted "$DEBIAN/sys"     || mount -t sysfs sysfs  "$DEBIAN/sys"
 is_mounted "$DEBIAN/dev"     || mount --bind   /dev   "$DEBIAN/dev"
 is_mounted "$DEBIAN/dev/pts" || mount --bind   /dev/pts "$DEBIAN/dev/pts"
 is_mounted "$DEBIAN/tmp"     || mount --bind   /tmp   "$DEBIAN/tmp"
+# --bind of /dev does not carry submounts, so the host's /dev/shm tmpfs never
+# arrives; without it POSIX semaphores fail and Python's multiprocessing dies.
+mkdir -p "$DEBIAN/dev/shm"
+is_mounted "$DEBIAN/dev/shm" || mount -t tmpfs -o nosuid,nodev tmpfs "$DEBIAN/dev/shm"
 
 mkdir -p "$DEBIAN/run/dbus"
 is_mounted "$DEBIAN/run/dbus" || mount --bind /run/dbus "$DEBIAN/run/dbus"
