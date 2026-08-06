@@ -81,18 +81,20 @@ make build-local              # Build for local development
 make docker-build-r36s        # Build for R36S (cross-compile)
 make sync-r36s                # Sync binary and config to R36S
 make docker-build-ext-<name>  # Build external program from ext/
-make install-kitten-tts-brick # Install optional KittenTTS binary/model on Brick
+make install-zot-tts-brick    # Install optional zot-tts extension + voices on Brick
 make install-system-files     # Install dotfiles and systemd services
 ```
 
 ## Installation
 
-See [docs/installation.md](docs/installation.md) for install paths
-(TrimUI Brick overlay image / .deb, R36S dArkOSRE .deb).
+See [docs/installation.md](docs/installation.md) for TrimUI Brick install paths
+(overlay image, tarball over SSH, .deb upgrade). The legacy R36S path is in
+[docs/installation-r36s.md](docs/installation-r36s.md).
 
 ## Documentation
 
-- `docs/installation.md` - Install paths per device
+- `docs/installation.md` - TrimUI Brick install paths
+- `docs/installation-r36s.md` - Legacy R36S install path
 - `ARCHITECTURE.md` - System design, components, data flow
 
 ## Dependencies
