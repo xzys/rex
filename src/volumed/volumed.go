@@ -28,6 +28,27 @@ const (
 	volStep  = 4
 )
 
+// Min and Max bound the digital volume control, exported so UI that renders
+// volume shares this package's knowledge of the control instead of its own.
+const (
+	Min = volMin
+	Max = volMax
+)
+
+// Get reads the current digital volume (Min..Max).
+func Get() (int, error) { return readVol() }
+
+// Set writes the digital volume, clamping to Min..Max.
+func Set(v int) error {
+	if v < volMin {
+		v = volMin
+	}
+	if v > volMax {
+		v = volMax
+	}
+	return writeVol(v)
+}
+
 // inputEvent matches Linux struct input_event on aarch64 (24 bytes):
 // __kernel_long_t sec, __kernel_long_t usec, __u16 type, __u16 code, __s32 value.
 type inputEvent struct {

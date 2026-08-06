@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	cfg "github.com/xrfr/t-rex/v2/config"
+	"github.com/xrfr/t-rex/v2/volumed"
 )
 
 func keyMsg(s string) tea.KeyMsg {
@@ -182,4 +183,47 @@ func contains(haystack, needle string) bool {
 		}
 	}
 	return false
+}
+
+func TestVolumePercentRoundTrip(t *testing.T) {
+	// 63 raw steps cannot represent 10% increments exactly, so a round trip
+	// is only required to land within a percent. The UI keeps the value the
+	// user selected; this bounds the drift when it is re-read at startup.
+	for pct := volumeMin; pct <= volumeMax; pct += volumeStep {
+		raw := pctToRaw(pct)
+		if got := rawToPct(raw); got < pct-1 || got > pct+1 {
+			t.Errorf("round trip %d%% -> raw %d -> %d%%, want within 1%%", pct, raw, got)
+		}
+		if raw < volumed.Min || raw > volumed.Max {
+			t.Errorf("%d%% -> raw %d out of range %d..%d", pct, raw, volumed.Min, volumed.Max)
+		}
+	}
+	// Monotonic: each step up must not lower the raw value.
+	for pct := volumeMin; pct < volumeMax; pct += volumeStep {
+		if pctToRaw(pct+volumeStep) <= pctToRaw(pct) {
+			t.Errorf("raw not increasing from %d%% to %d%%", pct, pct+volumeStep)
+		}
+	}
+	if got := pctToRaw(0); got != 0 {
+		t.Errorf("0%% should be silent, got raw %d", got)
+	}
+	if got := pctToRaw(100); got != volumed.Max {
+		t.Errorf("100%% should be max, got raw %d want %d", got, volumed.Max)
+	}
+}
+
+func TestVolumeRowUnavailable(t *testing.T) {
+	// With no readable mixer the row reports n/a and adjusting is inert.
+	m := Model{
+		hasVolume: false,
+		volumePct: 40,
+		rows:      []row{{kind: rowValue, id: idVolume, label: "Volume"}},
+	}
+	if got := m.valueFor(idVolume); got != "n/a" {
+		t.Errorf("valueFor = %q, want n/a", got)
+	}
+	m.cycleMode(+1)
+	if m.volumePct != 40 {
+		t.Errorf("volumePct changed to %d with no mixer", m.volumePct)
+	}
 }

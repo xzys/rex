@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	cfg "github.com/xrfr/t-rex/v2/config"
+	"github.com/xrfr/t-rex/v2/volumed"
 	"github.com/xrfr/t-rex/v2/wifi"
 )
 
@@ -46,6 +47,7 @@ const (
 	idMenuGap        = "menu_gap"
 	idIconSize       = "icon_size"
 	idBrightness     = "brightness"
+	idVolume         = "volume"
 	idRexOnBoot      = "rex_on_boot"
 	idTimezone       = "timezone"
 	idWifiOn         = "wifi_on"
@@ -61,11 +63,15 @@ const (
 	iconSizeMax   = 16
 )
 
-// Brightness adjusts in 10% steps.
+// Brightness and volume adjust in 10% steps.
 const (
 	brightnessStep = 10
 	brightnessMin  = 0
 	brightnessMax  = 100
+
+	volumeStep = 10
+	volumeMin  = 0
+	volumeMax  = 100
 )
 
 type wifiPoweredMsg struct {
@@ -108,7 +114,9 @@ type Model struct {
 	wifiPowered   *bool     // nil = not yet queried
 	lastToggle    time.Time // suppress tick re-query briefly after a toggle
 	backlight     *backlight
-	brightnessPct int    // 0..100, only meaningful when backlight != nil
+	brightnessPct int  // 0..100, only meaningful when backlight != nil
+	hasVolume     bool // ALSA digital volume control is readable
+	volumePct     int  // 0..100, only meaningful when hasVolume
 	prevWindow    string // tmux window name before entering wifi sub-screen
 }
 
@@ -192,6 +200,17 @@ func (b *backlight) writePercent(pct int) error {
 		return fmt.Errorf("set brightness: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// The mixer control is a small raw range (0..63), so percentages are rounded
+// rather than truncated to keep the displayed value stable across a
+// write-then-read round trip.
+func rawToPct(raw int) int {
+	return clamp((raw*100+volumed.Max/2)/volumed.Max, volumeMin, volumeMax)
+}
+
+func pctToRaw(pct int) int {
+	return (pct*volumed.Max + 50) / 100
 }
 
 func Run() error {
@@ -289,6 +308,10 @@ func NewModel(config cfg.Config) *Model {
 	if m.backlight != nil {
 		m.brightnessPct = m.backlight.readPercent()
 	}
+	if raw, err := volumed.Get(); err == nil {
+		m.hasVolume = true
+		m.volumePct = rawToPct(raw)
+	}
 	m.rows = []row{
 		{kind: rowHeader, label: "Keyboard"},
 		{kind: rowValue, id: idKeyboardMode, label: "Chording mode"},
@@ -301,6 +324,7 @@ func NewModel(config cfg.Config) *Model {
 		{kind: rowValue, id: idIconSize, label: "Icon size"},
 		{kind: rowHeader, label: "System Settings"},
 		{kind: rowValue, id: idBrightness, label: "Brightness"},
+		{kind: rowValue, id: idVolume, label: "Volume"},
 		{kind: rowValue, id: idRexOnBoot, label: "Start Rex on boot"},
 		{kind: rowValue, id: idTimezone, label: "Timezone"},
 		{kind: rowValue, id: idWifiOn, label: "Wifi On"},
@@ -696,6 +720,11 @@ func (m *Model) valueFor(id string) string {
 			return "n/a"
 		}
 		return fmt.Sprintf("%d%%", m.brightnessPct)
+	case idVolume:
+		if !m.hasVolume {
+			return "n/a"
+		}
+		return fmt.Sprintf("%d%%", m.volumePct)
 	case idRexOnBoot:
 		return onOff(m.rexOnBoot)
 	case idTimezone:
@@ -792,6 +821,20 @@ func (m *Model) cycleMode(direction int) {
 			return
 		}
 		m.brightnessPct = next
+		return
+	case idVolume:
+		if !m.hasVolume {
+			return
+		}
+		next := clamp(m.volumePct+direction*volumeStep, volumeMin, volumeMax)
+		if next == m.volumePct {
+			return
+		}
+		if err := volumed.Set(pctToRaw(next)); err != nil {
+			m.status = fmt.Sprintf("set volume: %v", err)
+			return
+		}
+		m.volumePct = next
 		return
 	case idRexOnBoot:
 		want := !m.rexOnBoot
