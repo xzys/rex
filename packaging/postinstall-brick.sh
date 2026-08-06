@@ -7,10 +7,6 @@ set -e
 cat <<'EOF'
 rex installed at /usr/bin/rex.
 
-Optional KittenTTS wrapper installed at /usr/bin/kitten-speak.
-Install the KittenTTS binary + model separately from the Rex repo with:
-  make install-kitten-tts-brick
-
 Templates available at /usr/share/rex/:
   tmux.conf             ->  cp /usr/share/rex/tmux.conf ~/.tmux.conf
   tmux-wifi.sh          ->  cp /usr/share/rex/tmux-wifi.sh ~/.tmux-wifi.sh

@@ -40,11 +40,6 @@ contents:
     file_info:
       mode: 0755
 
-  - src: ext/kitten-tts/kitten-speak
-    dst: /usr/bin/kitten-speak
-    file_info:
-      mode: 0755
-
   - src: config/dot/tmux.conf
     dst: /usr/share/rex/tmux.conf
     type: config

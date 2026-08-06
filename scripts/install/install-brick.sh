@@ -112,9 +112,6 @@ fi
 echo "==> installing rex binary into chroot at /home/rex/bin/rex"
 install -d -m 755 "$REX_HOME/bin" "$REX_HOME/.config/rex"
 cp -f "$PAYLOAD/home-rex/bin/rex" "$REX_HOME/bin/rex"
-if [ -f "$PAYLOAD/home-rex/bin/kitten-speak" ]; then
-    cp -f "$PAYLOAD/home-rex/bin/kitten-speak" "$REX_HOME/bin/kitten-speak"
-fi
 cp -f "$PAYLOAD/home-rex/.tmux.conf" "$REX_HOME/.tmux.conf"
 cp -f "$PAYLOAD/home-rex/.tmux-wifi.sh" "$REX_HOME/.tmux-wifi.sh"
 chmod +x "$REX_HOME/.tmux-wifi.sh"
@@ -125,8 +122,6 @@ if [ ! -f "$REX_HOME/.config/rex/config.yaml" ]; then
 fi
 
 chmod +x "$REX_HOME/bin/rex"
-[ -f "$REX_HOME/bin/kitten-tts" ] && chmod +x "$REX_HOME/bin/kitten-tts"
-[ -f "$REX_HOME/bin/kitten-speak" ] && chmod +x "$REX_HOME/bin/kitten-speak"
 
 # Copy sherpa libs into chroot /usr/local/lib so rex resolves them at runtime.
 # Always run ldconfig afterward — the chroot setup block may be skipped for
@@ -137,20 +132,6 @@ for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do
     fi
 done
 "$APP/debian-enter.sh" --root ldconfig
-
-# KittenTTS: install official onnxruntime with proper SONAME symlinks.
-# The sherpa onnxruntime above lacks .so.1 SONAME needed by kitten-tts.
-ORT_LIB="$APP/ort/libonnxruntime.so.1.23.2"
-if [ -f "$ORT_LIB" ]; then
-    echo "==> installing onnxruntime 1.23.2 for KittenTTS"
-    cp -f "$ORT_LIB" "$DEBIAN_ROOT/usr/local/lib/"
-    chroot_run_root "
-        cd /usr/local/lib && \
-        ln -sf libonnxruntime.so.1.23.2 libonnxruntime.so && \
-        ln -sf libonnxruntime.so.1.23.2 libonnxruntime.so.1 && \
-        chmod 755 libonnxruntime.so.1.23.2 && \
-        ldconfig"
-fi
 
 # --- 4. chroot enter helper -------------------------------------------------
 chroot_run_root() {
@@ -189,7 +170,7 @@ if [ "$needs_setup" = 1 ]; then
 
     chroot_run_root "
         apt update -qq &&
-        apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs espeak-ng &&
+        apt install -y -qq sudo libsdl2-2.0-0 openssh-server locales alsa-utils nodejs &&
         apt install -y -qq -t bookworm-backports tmux
     "
 
