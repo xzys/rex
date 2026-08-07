@@ -1,31 +1,40 @@
-# Demo: browse the music library in ncmpcpp, queue an album, play it.
-# Runs on the device during a recording; drives the real tmux session.
+# Demo: open the rex menu with Start, launch ncmpcpp from it, browse the
+# library and play a track — driven entirely through the gamepad.
 #
-# Starts from a bash prompt with an empty queue. ncmpcpp's browser always
-# opens at the music root, so the navigation below is deterministic.
+# Presses go to rex's control socket, which hands them to the same operator
+# the physical buttons feed, so this exercises the real input path (menu
+# navigation, the per-app ncmpcpp mapping, the global fallback) rather than
+# typing commands into a shell.
+#
+# Runs on the device during a recording.
+
+. /tmp/rex-demo-lib.sh
+
+# Back to a single shell window with an empty queue, so the demo starts from
+# the same place every take.
+reset_windows
 mpc clear >/dev/null 2>&1
 mpc stop  >/dev/null 2>&1
+sleep 1.5
 
-key() { tmux send-keys -t rex "$1"; sleep "${2:-0.9}"; }
+pad start 2.5      # Start opens the menu in its own window
 
-sleep 1
-tmux send-keys -t rex "ncmpcpp" Enter
-sleep 3.5
+# The menu is a 4-wide grid; ncmpcpp is the fourth tile on the top row.
+pad right 0.7
+pad right 0.7
+pad right 1.2
+pad a 5            # the tile's wrapper starts mpd, then execs ncmpcpp
 
-key 2 2          # browser
-key Enter 2      # into soundcloud/
-key Down
-key Enter 2.5    # into first artist
+# In ncmpcpp the d-pad cycles screens: right steps to Browser, and the
+# matching left at the end steps back to Playlist. Keeping the two balanced
+# leaves the plugin's screen counter where the next take expects it.
+pad right 2        # Browser
+pad a 2            # into soundcloud/
+pad down
+pad a 2.5          # into the artist directory
+pad down           # step off [..] onto the first track
+pad a 3            # A is Enter: queues the track and starts playback
+pad left 2         # back to Playlist
+sleep 7            # let the progress bar run
 
-# The cursor opens on [..], where Space is a no-op — step onto the first
-# track before queueing. Space queues and advances the cursor.
-key Down
-key Space
-key Space
-key Space
-sleep 1
-
-key 1 2          # back to the playlist, now three tracks deep
-key Enter 7      # play, and let the progress bar run
-
-tmux send-keys -t rex q
+pad start 3        # Start again — back to the menu, how you leave an app

@@ -46,6 +46,8 @@ echo "recording ${NAME} for ${SECS}s at ${COLS}x${ROWS}"
 DRIVE_REMOTE=""
 if [ -n "$DRIVE" ]; then
     DRIVE_REMOTE=/tmp/rex-drive-$$.sh
+    # Drive scripts source the shared gamepad/typing helpers from a fixed path.
+    scp -q "$(dirname "$0")/demos/_lib.sh" brick:/tmp/rex-demo-lib.sh
     scp -q "$DRIVE" "brick:$DRIVE_REMOTE"
 fi
 
