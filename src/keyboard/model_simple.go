@@ -25,6 +25,7 @@ type KeyboardModelSimple struct {
 	rowWidths   []int
 	heldDPad    int // -1 when nothing held
 	holdGen     int // bumped on every dpad down/up to invalidate stale ticks
+	deleting    bool
 	layers      layerState
 	pendingCmd  tea.Cmd
 }
@@ -58,6 +59,17 @@ func (m *KeyboardModelSimple) HandleMsg(msg tea.Msg) {
 			m.pendingCmd = dpadHoldTick(t.Key, m.holdGen, keyrepeat.Interval)
 		}
 	}
+	if _, ok := msg.(DeleteTickMsg); ok {
+		if m.deleting {
+			m.pendingCmd = m.deleteTick()
+		}
+	}
+}
+
+func (m *KeyboardModelSimple) deleteTick() tea.Cmd {
+	return tea.Tick(keyrepeat.Interval, func(time.Time) tea.Msg {
+		return DeleteTickMsg{}
+	})
 }
 
 func dpadHoldTick(key, gen int, d time.Duration) tea.Cmd {
@@ -119,6 +131,17 @@ func (m *KeyboardModelSimple) HandleKey(key int, isKeyDown bool) *string {
 		} else if m.heldDPad == key {
 			m.heldDPad = -1
 			m.holdGen++ // invalidate any in-flight repeat tick for this hold
+		}
+		return nil
+	}
+	if key == protocol.KeyB {
+		if isKeyDown {
+			m.deleting = true
+			m.pendingCmd = tea.Tick(keyrepeat.Delay, func(time.Time) tea.Msg {
+				return DeleteTickMsg{}
+			})
+		} else {
+			m.deleting = false
 		}
 		return nil
 	}

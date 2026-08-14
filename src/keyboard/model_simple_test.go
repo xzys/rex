@@ -184,3 +184,35 @@ func TestSimpleDPadStaleTickGuard(t *testing.T) {
 		t.Fatalf("stale tick moved cursor: start=%d now=%d", startCol, m.selectedCol)
 	}
 }
+
+func TestSimpleBDeleteState(t *testing.T) {
+	m := NewKeyboardModelSimple(simpleTestLayout)
+	// B is delete (hold-to-repeat): the model never emits a character itself —
+	// keyboard.go intercepts KeyB and sends SpecialKeyDelete.
+	if got := m.HandleKey(protocol.KeyB, true); got != nil {
+		t.Fatalf("B keydown should emit nil, got %v", *got)
+	}
+	if !m.deleting {
+		t.Fatal("B keydown should set deleting=true")
+	}
+	if m.pendingCmd == nil {
+		t.Fatal("B keydown should queue a delete tick")
+	}
+
+	// While held, a DeleteTickMsg re-queues the next repeat tick.
+	m.HandleMsg(DeleteTickMsg{})
+	if m.pendingCmd == nil {
+		t.Fatal("delete tick while held should re-queue")
+	}
+
+	// Releasing B stops the repeat.
+	m.HandleKey(protocol.KeyB, false)
+	if m.deleting {
+		t.Fatal("B keyup should set deleting=false")
+	}
+	m.pendingCmd = nil
+	m.HandleMsg(DeleteTickMsg{})
+	if m.pendingCmd != nil {
+		t.Fatal("delete tick after release should not re-queue")
+	}
+}

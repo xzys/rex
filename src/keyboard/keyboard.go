@@ -261,15 +261,10 @@ func (k *Keyboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return k, nil
 	case DeleteTickMsg:
 		if vm, ok := k.model.(*VoiceModel); ok {
-			if vm.deleting {
-				vm.HandleMsg(msg)
-				cmd := vm.DrainCmd()
-				delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
-				if cmd != nil {
-					return k, tea.Batch(cmd, delCmd)
-				}
-				return k, delCmd
-			}
+			return k.deleteRepeat(vm.deleting, msg, vm)
+		}
+		if sm, ok := k.model.(*KeyboardModelSimple); ok {
+			return k.deleteRepeat(sm.deleting, msg, sm)
 		}
 		return k, nil
 	case DPadArrowTickMsg:
@@ -410,6 +405,19 @@ func (k *Keyboard) handleDeviceInput(msg protocol.KeyInputMessage) tea.Cmd {
 		return vm.DrainCmd()
 	}
 
+	// Simple model: B is delete (hold-to-repeat), mirroring voice mode.
+	if sm, ok := k.model.(*KeyboardModelSimple); ok && msg.KeyInput == protocol.KeyB {
+		cmd := sm.DrainCmd()
+		if msg.IsKeyDown {
+			delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+			if cmd != nil {
+				return tea.Batch(cmd, delCmd)
+			}
+			return delCmd
+		}
+		return cmd
+	}
+
 	// Simple model queues dpad hold ticks; drain so bubbletea schedules them.
 	var simpleCmd tea.Cmd
 	if sm, ok := k.model.(*KeyboardModelSimple); ok {
@@ -462,6 +470,24 @@ func (k *Keyboard) sendString(value string) tea.Cmd {
 		}
 		return nil
 	}
+}
+
+// deleteRepeat sends one delete and re-queues the next repeat tick when the
+// model is still in its deleting state. Shared by voice and simple models.
+func (k *Keyboard) deleteRepeat(deleting bool, msg tea.Msg, m interface {
+	HandleMsg(tea.Msg)
+	DrainCmd() tea.Cmd
+}) (tea.Model, tea.Cmd) {
+	if !deleting {
+		return k, nil
+	}
+	m.HandleMsg(msg)
+	cmd := m.DrainCmd()
+	delCmd := k.sendKeyPress(string(protocol.SpecialKeyDelete))
+	if cmd != nil {
+		return k, tea.Batch(cmd, delCmd)
+	}
+	return k, delCmd
 }
 
 func (k *Keyboard) handleSuggestionSelect(key int) *string {
