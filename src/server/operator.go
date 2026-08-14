@@ -110,9 +110,12 @@ func (o *GlobalOperator) HandleInput(event InputEvent) error {
 		if event.Key == protocol.KeySelect && event.IsDown {
 			return o.closeKeyboardPane()
 		}
-		// Keys the keyboard doesn't handle fall through to global
+		// Keys the keyboard doesn't handle fall through to global.
+		// L2/R2 need to reach the SSHTmuxOperator for remote tmux
+		// pane/window control even when the keyboard is open.
 		switch event.Key {
-		case protocol.KeyScrollUp, protocol.KeyScrollDown, protocol.KeyR3:
+		case protocol.KeyScrollUp, protocol.KeyScrollDown, protocol.KeyR3,
+			protocol.KeyL2, protocol.KeyR2, protocol.KeyL3:
 			// fall through to global handler below
 		default:
 			return o.server.SendKeyInputMessage(event)
@@ -227,6 +230,8 @@ func (o *GlobalOperator) executeFallback(key int) error {
 		return tryExecuteIgnoreMessages([]string{"not in a mode"}, "tmux", "send-keys", "-X", "page-down")
 	case protocol.KeyR3:
 		return execute("tmux", "send-keys", "/")
+	case protocol.KeyL3:
+		return o.toggleCopyMode()
 	}
 	return o.executeFallbackKey(key)
 }
@@ -236,15 +241,45 @@ func (o *GlobalOperator) executeFallback(key int) error {
 func (o *GlobalOperator) executeFallbackKey(key int) error {
 	switch key {
 	case protocol.KeyDPadUp:
-		return execute("tmux", "send-keys", "Up")
+		return o.sendDirectionalKey("Up", "scroll-up")
 	case protocol.KeyDPadDown:
-		return execute("tmux", "send-keys", "Down")
+		return o.sendDirectionalKey("Down", "scroll-down")
 	case protocol.KeyDPadLeft:
 		return execute("tmux", "send-keys", "Left")
 	case protocol.KeyDPadRight:
 		return execute("tmux", "send-keys", "Right")
 	}
 	return nil
+}
+
+// sendDirectionalKey sends the given key to the active pane. When tmux is in
+// copy-mode it sends the scroll-X command instead so the viewport scrolls
+// rather than moving the cursor.
+func (o *GlobalOperator) sendDirectionalKey(key, scrollCmd string) error {
+	inMode, err := tmuxOutput("display-message", "-p", "#{pane_in_mode}")
+	if err != nil {
+		return err
+	}
+	if inMode == "1" {
+		return tryExecuteIgnoreMessages(
+			[]string{"not in a mode"},
+			"tmux", "send-keys", "-X", scrollCmd,
+		)
+	}
+	return execute("tmux", "send-keys", key)
+}
+
+// toggleCopyMode enters or exits tmux copy-mode: if the pane is already in a
+// mode, send cancel; otherwise enter copy-mode with -eu (exit on scroll-up).
+func (o *GlobalOperator) toggleCopyMode() error {
+	inMode, err := tmuxOutput("display-message", "-p", "#{pane_in_mode}")
+	if err != nil {
+		return err
+	}
+	if inMode == "1" {
+		return execute("tmux", "send-keys", "-X", "cancel")
+	}
+	return execute("tmux", "copy-mode", "-eu")
 }
 
 // executes a key press using tmux

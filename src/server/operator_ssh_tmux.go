@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -27,7 +28,9 @@ func NewSSHTmuxOperator() *SSHTmuxOperator {
 	return &SSHTmuxOperator{}
 }
 
-func (o *SSHTmuxOperator) RepeatKeys() []int { return nil }
+func (o *SSHTmuxOperator) RepeatKeys() []int {
+	return []int{protocol.KeyDPadUp, protocol.KeyDPadDown}
+}
 
 func (o *SSHTmuxOperator) HandleInput(key int, isDown bool) (bool, error) {
 	switch key {
@@ -84,6 +87,23 @@ func (o *SSHTmuxOperator) HandleInput(key int, isDown bool) (bool, error) {
 			return true, tryExecuteIgnoreMessages([]string{"not in a mode"}, "ssh", cmdArgs...)
 		}
 		return true, nil
+
+	case protocol.KeyDPadUp:
+		if isDown {
+			return true, o.remoteDirectionalKey("Up", "scroll-up")
+		}
+		return true, nil
+	case protocol.KeyDPadDown:
+		if isDown {
+			return true, o.remoteDirectionalKey("Down", "scroll-down")
+		}
+		return true, nil
+
+	case protocol.KeyL3:
+		if isDown {
+			return true, o.toggleCopyMode()
+		}
+		return true, nil
 	}
 	return false, nil
 }
@@ -107,6 +127,47 @@ func (o *SSHTmuxOperator) remoteCommand(args ...string) error {
 	}
 
 	return execute("ssh", cmdArgs...)
+}
+
+// remoteDirectionalKey sends an arrow key to the remote pane, or — when the
+// remote tmux is in copy-mode — a scroll-X command so the viewport scrolls
+// (trackpad-style) instead of moving the cursor one line at a time.
+func (o *SSHTmuxOperator) remoteDirectionalKey(key, scrollCmd string) error {
+	inMode, err := o.remoteOutput("display-message", "-p", "\\#{pane_in_mode}")
+	if err != nil {
+		return err
+	}
+	if inMode == "1" {
+		return o.remoteCommand("send-keys", "-X", scrollCmd)
+	}
+	return o.remoteCommand("send-keys", key)
+}
+
+// toggleCopyMode enters or exits copy-mode on the remote tmux.
+func (o *SSHTmuxOperator) toggleCopyMode() error {
+	inMode, err := o.remoteOutput("display-message", "-p", "\\#{pane_in_mode}")
+	if err != nil {
+		return err
+	}
+	if inMode == "1" {
+		return o.remoteCommand("send-keys", "-X", "cancel")
+	}
+	return o.remoteCommand("copy-mode", "-eu")
+}
+
+// remoteOutput runs a tmux command remotely and returns trimmed stdout.
+func (o *SSHTmuxOperator) remoteOutput(args ...string) (string, error) {
+	socket, host, err := readSSHInfo()
+	if err != nil {
+		return "", err
+	}
+	cmdArgs := append([]string{"-S", socket, "-o", "BatchMode=yes", host, "tmux"}, args...)
+	cmd := exec.Command("ssh", cmdArgs...)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("remote tmux %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func readSSHInfo() (socket, host string, err error) {
