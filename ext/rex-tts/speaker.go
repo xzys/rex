@@ -9,6 +9,12 @@
 // All voices go through one code path: sherpa-onnx dispatches on whichever
 // sub-config is populated, so switching voices at runtime is a config swap
 // plus a model reload (under a second), not a different backend.
+//
+// Model loading never happens on a frontend's critical path. Constructing a
+// speaker only reads configuration; the starting voice loads on a background
+// goroutine (start), so zot's extension handshake and pi's --serve loop both
+// answer immediately. Utterances that arrive before the model is up wait in
+// the queue.
 package main
 
 import (
@@ -74,8 +80,9 @@ func findVoice(name string) (voice, bool) {
 }
 
 type speaker struct {
-	queue chan string
-	logf  func(format string, args ...any)
+	queue  chan string
+	logf   func(format string, args ...any)
+	loaded chan struct{} // closed once the starting voice has been loaded (or failed)
 
 	root    string
 	speed   float32
@@ -83,20 +90,25 @@ type speaker struct {
 	threads int
 	player  string
 
+	loadMu sync.Mutex // serialises model loads, so a /voice during startup can't race the initial one
+
 	mu      sync.Mutex // guards everything below; held across a whole utterance
 	tts     *sherpa.OfflineTts
 	current string
 	rate    int
 }
 
-func newSpeaker(logf func(format string, args ...any)) (*speaker, error) {
+// newSpeaker reads configuration only — no model is touched, so this returns
+// in microseconds. Call start to load the starting voice and begin playback.
+func newSpeaker(logf func(format string, args ...any)) *speaker {
 	home, _ := os.UserHomeDir()
 	s := &speaker{
 		queue:   make(chan string, 8),
 		logf:    logf,
+		loaded:  make(chan struct{}),
 		root:    envOr("REX_TTS_MODELS", filepath.Join(home, "models")),
 		speed:   1.25,
-		threads: 4,
+		threads: 3,
 		player:  envOr("REX_TTS_PLAYER", "aplay -q -f S16_LE -c 1 -t raw -r {rate}"),
 	}
 	if v := os.Getenv("REX_TTS_SPEED"); v != "" {
@@ -109,15 +121,46 @@ func newSpeaker(logf func(format string, args ...any)) (*speaker, error) {
 			s.threads = n
 		}
 	}
-	if err := s.switchTo(envOr("REX_TTS_VOICE", "lessac")); err != nil {
-		return nil, err
-	}
-	return s, nil
+	return s
+}
+
+// start loads the starting voice in the background and runs the playback
+// loop. It returns immediately: on the Brick a model load takes seconds, and
+// zot gives extensions only a 3s grace to answer its handshake before it
+// gives up and carries on without them.
+func (s *speaker) start() {
+	go func() {
+		defer close(s.loaded)
+		s.loadMu.Lock()
+		defer s.loadMu.Unlock()
+		if s.voice() != "" {
+			return // a /voice command beat us to it; don't undo the user's choice
+		}
+		if err := s.load(envOr("REX_TTS_VOICE", "lessac")); err != nil {
+			s.logf("%v", err)
+		}
+	}()
+	go s.loop()
+}
+
+// voice reports the loaded voice, empty while the model is still loading.
+func (s *speaker) voice() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.current
 }
 
 // switchTo loads a voice, replacing any currently-loaded one. Model load is
-// well under a second, so this is cheap enough to do from a slash command.
+// well under a second once the page cache is warm, so this is cheap enough to
+// do from a slash command.
 func (s *speaker) switchTo(name string) error {
+	s.loadMu.Lock()
+	defer s.loadMu.Unlock()
+	return s.load(name)
+}
+
+// load does the work of switchTo with loadMu already held.
+func (s *speaker) load(name string) error {
 	v, ok := findVoice(name)
 	if !ok {
 		return fmt.Errorf("unknown voice %q (have: %s)", name, strings.Join(voiceNames(), ", "))
@@ -211,7 +254,11 @@ func (s *speaker) describe() string {
 	s.mu.Unlock()
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "rex-tts voices (current: %s @ %d Hz, speed %.2f)\n", cur, rate, s.speed)
+	if cur == "" {
+		fmt.Fprintf(&b, "rex-tts voices (still loading, speed %.2f)\n", s.speed)
+	} else {
+		fmt.Fprintf(&b, "rex-tts voices (current: %s @ %d Hz, speed %.2f)\n", cur, rate, s.speed)
+	}
 	for _, v := range voices {
 		mark := "  "
 		if v.name == cur {
@@ -227,6 +274,7 @@ func (s *speaker) describe() string {
 }
 
 func (s *speaker) loop() {
+	<-s.loaded // anything said during startup waits in the queue
 	for text := range s.queue {
 		if err := s.speak(text); err != nil {
 			s.logf("speak: %v", err)
@@ -251,7 +299,7 @@ func (s *speaker) speak(text string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.tts == nil {
-		return fmt.Errorf("no voice loaded")
+		return fmt.Errorf("no voice loaded (the starting voice failed to load; try /voice)")
 	}
 
 	args := strings.Fields(strings.ReplaceAll(s.player, "{rate}", strconv.Itoa(s.rate)))

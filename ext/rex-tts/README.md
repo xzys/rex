@@ -21,6 +21,13 @@ frontends:
   a callback **once per sentence** as that sentence's audio is ready. Samples
   go straight into `aplay` as raw PCM, so playback starts after the first
   sentence rather than the whole answer.
+- Model loading is off the startup path. The process answers its frontend's
+  handshake (zot's hello, or the first `--serve` request) before the voice is
+  loaded, and loads it on a background goroutine. This matters for zot, which
+  blocks its own boot for up to 3s waiting on every extension's `ready` frame
+  — long enough that a synchronous load made every launch feel stuck.
+  Utterances spoken during that window wait in the queue instead of being
+  dropped, and `/voice` reports `still loading` until the model is up.
 - Speech-friendly phrasing is handled by prompting, not text munging. For
   zot, `AGENTS-snippet.md` is appended to `$ZOT_HOME/AGENTS.md` at install;
   pi-tts injects the same text into the system prompt on every run.
@@ -96,7 +103,7 @@ On-device layout:
 - `REX_TTS_VOICE` — starting voice (default `lessac`)
 - `REX_TTS_MODELS` — models root (default `~/models`), one subdir per voice
 - `REX_TTS_SPEED` — speed multiplier (default `1.25`)
-- `REX_TTS_THREADS` — inference threads (default 4)
+- `REX_TTS_THREADS` — inference threads (default 3)
 - `REX_TTS_PLAYER` — playback command; `{rate}` is substituted with the
   loaded model's sample rate (default `aplay -q -f S16_LE -c 1 -t raw -r {rate}`)
 - `REX_TTS_BIN` — (pi-tts only) path to the rex-tts binary, when it isn't at

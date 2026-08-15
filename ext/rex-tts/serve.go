@@ -34,12 +34,11 @@ type response struct {
 func runServe() int {
 	logger := log.New(os.Stderr, "rex-tts: ", log.LstdFlags)
 
-	s, err := newSpeaker(logger.Printf)
-	if err != nil {
-		logger.Printf("%v", err)
-		return 1
-	}
-	go s.loop()
+	// Load the voice in the background so the first request is answered
+	// right away; pi spawns this child at session_start precisely so the
+	// load overlaps with the rest of its startup.
+	s := newSpeaker(logger.Printf)
+	s.start()
 	defer s.close()
 
 	out := json.NewEncoder(os.Stdout)

@@ -7,7 +7,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/patriceckhart/zot/packages/agent/ext"
@@ -16,12 +15,11 @@ import (
 func runZot() int {
 	e := ext.New("zot-tts", version)
 
-	s, err := newSpeaker(e.Logf)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "rex-tts: %v\n", err)
-		return 1
-	}
-	go s.loop()
+	// The voice loads on a background goroutine: zot waits on every
+	// extension's ready frame before it finishes booting, so anything slow
+	// here is startup latency the user sits through.
+	s := newSpeaker(e.Logf)
+	s.start()
 
 	e.Command("voice", "list TTS voices, or switch: /voice ryan", func(args string) ext.Response {
 		name := strings.TrimSpace(args)
