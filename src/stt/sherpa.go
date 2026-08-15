@@ -46,7 +46,7 @@ func (p *SherpaOnnxProvider) Initialize() error {
 	config := sherpa.OfflineRecognizerConfig{}
 	config.ModelConfig.NemoCTC.Model = modelPath
 	config.ModelConfig.Tokens = tokensPath
-	config.ModelConfig.NumThreads = 4
+	config.ModelConfig.NumThreads = 3
 	config.ModelConfig.Provider = "cpu"
 
 	slog.Info("loading sherpa-onnx recognizer", "model", modelPath)

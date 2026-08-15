@@ -10,8 +10,23 @@ import (
 	"github.com/lmittmann/tint"
 )
 
+// logPath prefers the persistent partition. /tmp is tmpfs on the handhelds,
+// so a watchdog reset or hard power-off takes the log with it — precisely the
+// crashes there is no other record of. /userdata survives, and it is
+// bind-mounted into the Debian chroot, so host and chroot rex share one file.
+func logPath() string {
+	if _, err := os.Stat("/userdata"); err == nil {
+		dir := "/userdata/logs"
+		if err := os.MkdirAll(dir, 0777); err == nil {
+			_ = os.Chmod(dir, 0777)
+			return filepath.Join(dir, "rex.log")
+		}
+	}
+	return "/tmp/rex.log"
+}
+
 func setupLogger() {
-	logFileName := "/tmp/rex.log"
+	logFileName := logPath()
 
 	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
