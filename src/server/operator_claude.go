@@ -44,12 +44,11 @@ func (o *ClaudeOperator) HandleInput(key int, isDown bool) (bool, error) {
 		o.stopBackspace()
 		return true, nil
 	case protocol.KeyDPadUp, protocol.KeyDPadDown, protocol.KeyDPadLeft, protocol.KeyDPadRight:
-		arrowKey := dpadToArrow(key)
 		if isDown {
-			if err := execute("tmux", "send-keys", arrowKey); err != nil {
+			if err := sendDPadKey(key); err != nil {
 				return true, err
 			}
-			o.startDpadRepeat(key, arrowKey)
+			o.startDpadRepeat(key)
 		} else {
 			o.stopDpadRepeat(key)
 		}
@@ -158,7 +157,7 @@ func dpadToArrow(key int) string {
 	return ""
 }
 
-func (o *ClaudeOperator) startDpadRepeat(key int, arrowKey string) {
+func (o *ClaudeOperator) startDpadRepeat(key int) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.dpadRepeater != nil {
@@ -166,7 +165,7 @@ func (o *ClaudeOperator) startDpadRepeat(key int, arrowKey string) {
 	}
 	o.dpadRepeater = keyrepeat.NewKeyRepeater(
 		func(k int) error {
-			return execute("tmux", "send-keys", arrowKey)
+			return sendDPadKey(k)
 		},
 		keyrepeat.Delay,
 		keyrepeat.Interval,

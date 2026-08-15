@@ -84,6 +84,71 @@ func TestClaudeOperatorDPadMappings(t *testing.T) {
 	}
 }
 
+// In copy-mode the D-pad must scroll the viewport (trackpad-style) instead of
+// walking the copy cursor one line at a time. Left/right stay literal arrows.
+func TestDPadScrollsInCopyMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      int
+		expected string
+	}{
+		{name: "up scrolls viewport up", key: protocol.KeyDPadUp, expected: "send-keys -X scroll-up"},
+		{name: "down scrolls viewport down", key: protocol.KeyDPadDown, expected: "send-keys -X scroll-down"},
+		{name: "left still sends left arrow", key: protocol.KeyDPadLeft, expected: "send-keys Left"},
+		{name: "right still sends right arrow", key: protocol.KeyDPadRight, expected: "send-keys Right"},
+	}
+
+	t.Run("global fallback", func(t *testing.T) {
+		logPath := setupCopyModeFakeTmux(t)
+		op := NewGlobalOperator(&Server{}, nil)
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				resetFakeTmuxLog(t, logPath)
+
+				if err := op.HandleInput(InputEvent{Key: tc.key, IsDown: true}); err != nil {
+					t.Fatalf("HandleInput: %v", err)
+				}
+				if err := op.HandleInput(InputEvent{Key: tc.key, IsDown: false}); err != nil {
+					t.Fatalf("HandleInput up: %v", err)
+				}
+
+				if got := readFakeTmuxLog(t, logPath); got != tc.expected {
+					t.Fatalf("got %q, want %q", got, tc.expected)
+				}
+			})
+		}
+	})
+
+	// The claude window has its own operator, which claims the D-pad before the
+	// global fallback ever runs — it needs the same copy-mode awareness.
+	t.Run("claude operator", func(t *testing.T) {
+		logPath := setupCopyModeFakeTmux(t)
+		op := NewClaudeOperator()
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				resetFakeTmuxLog(t, logPath)
+
+				handled, err := op.HandleInput(tc.key, true)
+				if err != nil {
+					t.Fatalf("HandleInput: %v", err)
+				}
+				if !handled {
+					t.Fatalf("expected key to be handled")
+				}
+				if _, err := op.HandleInput(tc.key, false); err != nil {
+					t.Fatalf("HandleInput up: %v", err)
+				}
+
+				if got := readFakeTmuxLog(t, logPath); got != tc.expected {
+					t.Fatalf("got %q, want %q", got, tc.expected)
+				}
+			})
+		}
+	})
+}
+
 // TestCyclePaneSkipsKeyboardPane: focus cycling must never land on the
 // keyboard pane — it holds no focus by design.
 func TestCyclePaneSkipsKeyboardPane(t *testing.T) {
@@ -209,6 +274,34 @@ printf '%s\n' "$*" >> "$REX_TEST_TMUX_LOG"
 	oldPath := os.Getenv("PATH")
 	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
 	t.Setenv("REX_TEST_TMUX_LOG", logPath)
+	return logPath
+}
+
+// setupCopyModeFakeTmux installs a fake tmux that reports the active pane as
+// being in copy-mode, and logs every mutating command.
+func setupCopyModeFakeTmux(t *testing.T) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "tmux.log")
+	tmuxPath := filepath.Join(tmpDir, "tmux")
+
+	script := `#!/bin/sh
+case "$*" in
+  "display-message -p #{pane_in_mode}") echo "1"; exit 0;;
+  display-message*) echo "shell"; exit 0;;
+esac
+printf '%s\n' "$*" >> "$REX_TEST_TMUX_LOG"
+`
+	if err := os.WriteFile(tmuxPath, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake tmux: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+oldPath)
+	t.Setenv("REX_TEST_TMUX_LOG", logPath)
+	if err := os.WriteFile(logPath, nil, 0644); err != nil {
+		t.Fatalf("init log: %v", err)
+	}
 	return logPath
 }
 

@@ -240,22 +240,30 @@ func (o *GlobalOperator) executeFallback(key int) error {
 // Extracted from executeFallback so the repeater can call it synthetically.
 func (o *GlobalOperator) executeFallbackKey(key int) error {
 	switch key {
-	case protocol.KeyDPadUp:
-		return o.sendDirectionalKey("Up", "scroll-up")
-	case protocol.KeyDPadDown:
-		return o.sendDirectionalKey("Down", "scroll-down")
-	case protocol.KeyDPadLeft:
-		return execute("tmux", "send-keys", "Left")
-	case protocol.KeyDPadRight:
-		return execute("tmux", "send-keys", "Right")
+	case protocol.KeyDPadUp, protocol.KeyDPadDown,
+		protocol.KeyDPadLeft, protocol.KeyDPadRight:
+		return sendDPadKey(key)
 	}
 	return nil
+}
+
+// sendDPadKey sends a D-pad direction to the active local pane. Up/down route
+// through sendDirectionalKey so they scroll the viewport while tmux is in
+// copy-mode; left/right are always literal arrows.
+func sendDPadKey(key int) error {
+	switch key {
+	case protocol.KeyDPadUp:
+		return sendDirectionalKey("Up", "scroll-up")
+	case protocol.KeyDPadDown:
+		return sendDirectionalKey("Down", "scroll-down")
+	}
+	return execute("tmux", "send-keys", dpadToArrow(key))
 }
 
 // sendDirectionalKey sends the given key to the active pane. When tmux is in
 // copy-mode it sends the scroll-X command instead so the viewport scrolls
 // rather than moving the cursor.
-func (o *GlobalOperator) sendDirectionalKey(key, scrollCmd string) error {
+func sendDirectionalKey(key, scrollCmd string) error {
 	inMode, err := tmuxOutput("display-message", "-p", "#{pane_in_mode}")
 	if err != nil {
 		return err
