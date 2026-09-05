@@ -5,3 +5,8 @@ rex-local
 .env
 .DS_Store
 .worktrees
+
+# Firmware dumps / vendor images for RE work (large, redistribution-restricted)
+targets/*
+!targets/.gitkeep
+!targets/README.md
