@@ -3,6 +3,8 @@
 Headless Ghidra post-scripts for the Brick firmware work.
 Host setup, memory limits and the raw-binary import flags: `notes/ghidra-runbook.md`.
 Why we are doing this at all: `notes/ghidra-linux-port-plan.md`.
+The panel-extraction chain (`FindDsiCadence.java` -> `../brick/mkpanel.py`) is described,
+with its validation, in `notes/brick-display-repoint-design.md`.
 
 Prefer `run-capped.sh` on this box — it enforces a real memory ceiling (see
 `notes/ghidra-runbook.md` §3.6).
