@@ -22,6 +22,7 @@ Prefer `run-capped.sh` on this box — it enforces a real memory ceiling (see
 | `ListFunctions.java` | dump functions + language + image base | verified on this host |
 | `DecompileOne.java` | decompile `add`/`main`; proves the native decompiler works | verified on this host |
 | `run-capped.sh` | run headless under a kernel-enforced cgroup memory cap | verified on this host |
+| `FindDsiCadence.java` | find a DSI panel-init sequence by code shape and dump its (reg,val) pairs | **validated** — recovered a 205-entry sequence exactly |
 | `FindPanelInit.java` | find an Allwinner BSP LCD panel struct by name and its xrefs | **untested** — no firmware on this host yet |
 
 `FindPanelInit.java` is a starting point, not a finished tool. It has never been run
