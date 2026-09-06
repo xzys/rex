@@ -23,9 +23,12 @@ import sys
 HEAD = r"""/*
  * %(name)s LCD panel driver for the Allwinner sun50iw10 (A133) disp2 BSP.
  *
- * DSI initialisation sequence recovered from the stock TrimUI Brick kernel with
- * scripts/ghidra/FindDsiCadence.java, emitted by scripts/brick/mkpanel.py.
- * Regenerate rather than hand-editing the sequence.
+ * DSI initialisation sequence extracted from the stock TrimUI Brick U-Boot with
+ * scripts/brick/extract-uboot-panels.py, emitted by scripts/brick/mkpanel.py.
+ * Regenerate rather than hand-editing the sequence:
+ *
+ *   ./scripts/brick/extract-uboot-panels.py u-boot.bin --at 0x9e88c > seq.txt
+ *   ./scripts/brick/mkpanel.py seq.txt jd9168 > jd9168.c
  *
  * Panel: 1024x768, MIPI-DSI, 4 lanes, video mode, 53 MHz dclk.
  * Rails: lcd_power0 = cldo1, lcd_power1 = cldo4. Backlight: PWM channel 0.
@@ -121,11 +124,6 @@ static void LCD_bl_close(u32 sel)
 	sunxi_lcd_pwm_disable(sel);
 }
 
-static void LCD_panel_init(u32 sel)
-{
-	sunxi_lcd_dsi_clk_enable(sel);
-	sunxi_lcd_delay_ms(10);
-
 """
 
 TAIL = r"""}
@@ -174,10 +172,10 @@ def parse(path):
         parts = line.replace(",", " ").split()
         if parts[0].lower() == "delay":
             ops.append(("delay", int(parts[1], 0)))
-        elif len(parts) == 1:
-            ops.append(("dcs0", int(parts[0], 16)))
         else:
-            ops.append(("dcs1", int(parts[0], 16), int(parts[1], 16)))
+            cmd = int(parts[0], 16)
+            params = bytes(int(x, 16) for x in parts[1:])
+            ops.append(("dcs", cmd, params))
     return ops
 
 
@@ -192,21 +190,44 @@ def main():
         return 0
 
     ops = parse(sys.argv[1])
-    out = [HEAD % ctx]
+    body = []
+    tables = []
     n = 0
     for op in ops:
-        if op[0] == "dcs1":
-            out.append("\tsunxi_lcd_dsi_dcs_write_1para(sel, 0x%02X, 0x%02X);\n" % (op[1], op[2]))
-            n += 1
-        elif op[0] == "dcs0":
-            cmt = {0x11: "  /* SLPOUT */", 0x29: "  /* DSPON */"}.get(op[1], "")
-            out.append("\tsunxi_lcd_dsi_dcs_write_0para(sel, 0x%02X);%s\n" % (op[1], cmt))
-            n += 1
+        if op[0] == "delay":
+            body.append("\tsunxi_lcd_delay_ms(%d);\n" % op[1])
+            continue
+        cmd, params = op[1], op[2]
+        n += 1
+        if len(params) == 0:
+            cmt = {0x11: "  /* SLPOUT */", 0x29: "  /* DSPON */",
+                   0x28: "  /* DSPOFF */", 0x10: "  /* SLPIN */"}.get(cmd, "")
+            body.append("\tsunxi_lcd_dsi_dcs_write_0para(sel, 0x%02X);%s\n" % (cmd, cmt))
+        elif len(params) == 1:
+            cmt = "  /* page select */" if cmd == 0xDE else ""
+            body.append("\tsunxi_lcd_dsi_dcs_write_1para(sel, 0x%02X, 0x%02X);%s\n"
+                        % (cmd, params[0], cmt))
         else:
-            out.append("\tsunxi_lcd_delay_ms(%d);\n" % op[1])
+            var = "p%02d_%02X" % (len(tables), cmd)
+            rows = []
+            for i in range(0, len(params), 12):
+                rows.append("\t" + " ".join("0x%02X," % b for b in params[i:i + 12]))
+            cmt = "  /* password */" if cmd == 0xDF else ""
+            tables.append("static u8 %s[] = {\n%s\n};%s\n" % (var, "\n".join(rows), cmt))
+            body.append("\tsunxi_lcd_dsi_dcs_write(sel, 0x%02X, %s, %d);\n"
+                        % (cmd, var, len(params)))
+
+    out = [HEAD % ctx]
+    if tables:
+        out.append("/* initialisation payloads, recovered from stock U-Boot */\n")
+        out.extend(tables)
+        out.append("\nstatic void LCD_panel_init(u32 sel)\n{\n"
+                   "\tsunxi_lcd_dsi_clk_enable(sel);\n\tsunxi_lcd_delay_ms(10);\n\n")
+    out.extend(body)
     out.append(TAIL % ctx)
     sys.stdout.write("".join(out))
-    sys.stderr.write("emitted %d DCS operations for %s\n" % (n, name))
+    sys.stderr.write("emitted %d DCS operations (%d long writes) for %s\n"
+                     % (n, len(tables), name))
     return 0
 
 
